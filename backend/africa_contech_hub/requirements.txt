@@ -1,0 +1,7 @@
+Django>=5.0
+python-dotenv
+psycopg2-binary
+dj-database-url
+djangorestframework
+supabase
+django-cors-headers

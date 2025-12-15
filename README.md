@@ -1,21 +1,23 @@
-# Africa ConTech Hub 🏗️
+# Africa ConTech Hub
 
 **The Digital Enabler for DzeNhare Secure Quality Building Consultancy.**
 
-## 📖 Overview
+## Overview
 [cite_start]The **Africa ConTech Hub** is a digital ecosystem designed to manage capital project risk in the construction environment of Zimbabwe.
 
 [cite_start]The system replaces the "lowest-bid" mentality with a "Budget Engineering" methodology, connecting three key stakeholders—Aspirational Builders (Diaspora), Professional Contractors, and Material Suppliers—through transparent, data-driven dashboards.
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-* **Frontend:** React (TypeScript)
+* **Frontend:** React (TypeScript) + Vite
 * **Backend:** Django (Python)
 * **API:** Django REST Framework (DRF)
-* **Database:** PostgreSQL
-* [cite_start]**Mobile Strategy:** Offline-First Architecture 
+* **Authentication & Database:** **Supabase** (PostgreSQL + Auth)
+    * *Database:* Managed PostgreSQL accessed via `dj-database-url`.
+    * *Auth:* JWT-based authentication verified via custom Django backend.
+* **Mobile Strategy:** Offline-First Architecture 
 
-## 🚀 Key Features
+## Key Features
 
 ### 1. The Aspirational Builder Dashboard (B2C)
 *Target: Diaspora Clients & Property Owners*
@@ -35,27 +37,28 @@
 * [cite_start]**Value-Driven Quoting:** Allows suppliers to upload performance metrics (e.g., On-Time Delivery %) to justify pricing[cite: 44].
 * [cite_start]**Guaranteed Payment:** Direct integration with the Escrow system for automatic payment upon verified delivery[cite: 45].
 
-## 📂 Repository Structure
+## Repository Structure
 
 ```text
 /africa-contech-hub
 ├── /backend                 # Django Project Root
-│   ├── /core                # Main Settings & Config
-│   ├── /api                 # Django REST Framework Apps
-│   │   ├── /users           # Auth & Role Management (Builder, Contractor, Supplier)
-│   │   ├── /projects        # WBS, Daily Logs, Change Orders
-│   │   ├── /finance         # P4P Logic, WIPAA Monitor, Escrow Triggers
-│   │   └── /procurement     # TCO Logic, Supplier Quotes
+│   ├── /africa_contech_hub
+│   │   ├── /config          # Global Settings (CORS, DB, Middleware)
+│   │   └── /apps            # Modular Logic
+│   │       ├── /core               # Shared Models
+│   │       ├── /builder_dashboard  # B2C Domain
+│   │       ├── /contractor_dashboard # B2B Domain
+│   │       ├── /supplier_dashboard # Portal Domain
+│   │       └── /authentication     # Custom Auth
 │   ├── manage.py
 │   └── requirements.txt
 ├── /frontend                # React + TypeScript Application
 │   ├── /src
-│   │   ├── /components      # Reusable UI (Dashboards, Charts)
-│   │   ├── /hooks           # Custom Hooks (Offline Sync, API calls)
-│   │   └── /types           # TypeScript Interfaces (Project, WBS, User)
+│   │   ├── /app             # Router & Store
+│   │   ├── /modules         # Domain Logic (Builder, Contractor, Supplier)
+│   │   └── /shared          # Reusable UI & Hooks
 │   ├── package.json
 │   └── tsconfig.json
 ├── /docs                    # Documentation
-│   ├── /srs                 # Software Requirements Specification
-│   └── /compliance          # SI 56 of 2025 Verification Rules
 └── README.md
+```
