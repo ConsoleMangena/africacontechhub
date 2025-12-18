@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'apps.supplier_dashboard',
     'apps.authentication',
     'apps.billing',
+    'rest_framework.authtoken',
     'corsheaders',
 ]
 
@@ -99,6 +100,7 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
         'apps.authentication.backend.SupabaseAuthentication',
     ],
     'EXCEPTION_HANDLER': 'config.error_handlers.custom_exception_handler',

@@ -1,0 +1,193 @@
+src/App.tsx(47,29): error TS2307: Cannot find module './pages/contractor/ContractorSuite' or its corresponding type declarations.
+src/App.tsx(48,32): error TS2307: Cannot find module './pages/contractor/ContractorSuiteDIT' or its corresponding type declarations.
+src/App.tsx(81,48): error TS2741: Property 'blogPosts' is missing in type '{}' but required in type 'ResourcesProps'.
+src/pages/contractor/ProjectDashboard.tsx(365,14): error TS2304: Cannot find name 'Head'.
+src/pages/contractor/ProjectDashboard.tsx(676,64): error TS2339: Property 'file_size_human' does not exist on type 'Document'.
+src/pages/contractor/ProjectManagement.tsx(385,49): error TS2322: Type '{ children: (string | Element)[]; href: string; className: string; }' is not assignable to type 'IntrinsicAttributes & LinkProps & RefAttributes<HTMLAnchorElement>'.
+  Property 'href' does not exist on type 'IntrinsicAttributes & LinkProps & RefAttributes<HTMLAnchorElement>'. Did you mean 'ref'?
+src/pages/contractor/ProjectManagement.tsx(456,61): error TS2322: Type '{ children: string; href: string; className: string; }' is not assignable to type 'IntrinsicAttributes & LinkProps & RefAttributes<HTMLAnchorElement>'.
+  Property 'href' does not exist on type 'IntrinsicAttributes & LinkProps & RefAttributes<HTMLAnchorElement>'. Did you mean 'ref'?
+src/pages/contractor/ServiceTiers/DIFY.tsx(392,30): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ framing: { id: string; title: string; type: string; date: string; time: string; status: string; completion: number; description: string; details: string[]; responsible: string; nextSteps: string; images: string[]; impact: string; }; foundation: { ...; }; windows: { ...; }; }'.
+  No index signature with a parameter of type 'string' was found on type '{ framing: { id: string; title: string; type: string; date: string; time: string; status: string; completion: number; description: string; details: string[]; responsible: string; nextSteps: string; images: string[]; impact: string; }; foundation: { ...; }; windows: { ...; }; }'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(487,14): error TS2304: Cannot find name 'Head'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(786,89): error TS2304: Cannot find name 'formData'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(794,60): error TS2304: Cannot find name 'formData'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(803,60): error TS2304: Cannot find name 'formData'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(810,73): error TS2304: Cannot find name 'formData'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(811,72): error TS2304: Cannot find name 'formData'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1813,45): error TS2339: Property 'type' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1814,45): error TS2339: Property 'type' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1817,93): error TS2339: Property 'title' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1833,47): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1834,47): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1837,48): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1839,46): error TS2339: Property 'type' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1844,72): error TS2339: Property 'completion' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1847,102): error TS2339: Property 'completion' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1852,51): error TS2339: Property 'date' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1853,51): error TS2339: Property 'time' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1860,73): error TS2339: Property 'description' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1867,46): error TS2339: Property 'details' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1867,59): error TS7006: Parameter 'detail' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1867,67): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1877,42): error TS2339: Property 'images' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1877,74): error TS2339: Property 'images' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1881,48): error TS2339: Property 'images' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1881,60): error TS7006: Parameter 'image' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1881,67): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1885,61): error TS2339: Property 'title' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1897,73): error TS2339: Property 'responsible' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1903,73): error TS2339: Property 'nextSteps' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1910,45): error TS2339: Property 'impact' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1911,45): error TS2339: Property 'impact' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIFY.tsx(1914,46): error TS2339: Property 'impact' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DITDashboard.tsx(448,24): error TS2345: Argument of type '{ date: Date; day: number; month: number; year: number; isToday: boolean; isPast: boolean; activities: { type: string; title: string; description: string; status: string; time: string; contractor: string; }[]; formattedDate: string; }' is not assignable to parameter of type 'SetStateAction<null>'.
+  Type '{ date: Date; day: number; month: number; year: number; isToday: boolean; isPast: boolean; activities: { type: string; title: string; description: string; status: string; time: string; contractor: string; }[]; formattedDate: string; }' provides no match for the signature '(prevState: null): null'.
+src/pages/contractor/ServiceTiers/DITDashboard.tsx(1577,73): error TS18047: 'e.currentTarget.nextElementSibling' is possibly 'null'.
+src/pages/contractor/ServiceTiers/DITDashboard.tsx(1577,108): error TS2339: Property 'style' does not exist on type 'Element'.
+src/pages/contractor/ServiceTiers/DITDashboard.tsx(2091,99): error TS2339: Property 'formattedDate' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DITDashboard.tsx(2093,54): error TS2339: Property 'isToday' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DITDashboard.tsx(2093,86): error TS2339: Property 'isPast' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DITDashboard.tsx(2106,46): error TS2339: Property 'activities' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DITDashboard.tsx(2107,49): error TS2339: Property 'activities' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DITDashboard.tsx(2107,65): error TS7006: Parameter 'activity' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DITDashboard.tsx(2107,75): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DITDashboard.tsx(2158,58): error TS2339: Property 'isPast' does not exist on type 'never'.
+src/pages/contractor/ServiceTiers/DIY.tsx(24,31): error TS7031: Binding element 'tier' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIY.tsx(24,37): error TS7031: Binding element 'title' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIY.tsx(24,44): error TS7031: Binding element 'description' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIY.tsx(24,57): error TS7031: Binding element 'features' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIY.tsx(24,67): error TS7031: Binding element 'pricing' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIY.tsx(24,76): error TS7031: Binding element 'limitations' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIY.tsx(30,14): error TS2304: Cannot find name 'Head'.
+src/pages/contractor/ServiceTiers/DIY.tsx(86,40): error TS7006: Parameter 'feature' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIY.tsx(86,49): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIY.tsx(116,64): error TS7006: Parameter 'feature' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIY.tsx(116,73): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIY.tsx(140,55): error TS7006: Parameter 'limitation' implicitly has an 'any' type.
+src/pages/contractor/ServiceTiers/DIY.tsx(140,67): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/supplier/Analytics.tsx(29,29): error TS7006: Parameter 'amount' implicitly has an 'any' type.
+src/pages/supplier/Analytics.tsx(38,31): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/pages/supplier/Analytics.tsx(102,114): error TS2339: Property 'total_revenue' does not exist on type '{}'.
+src/pages/supplier/Analytics.tsx(116,99): error TS2339: Property 'total_quotes' does not exist on type '{}'.
+src/pages/supplier/Analytics.tsx(130,116): error TS2339: Property 'conversion_rate' does not exist on type '{}'.
+src/pages/supplier/Analytics.tsx(144,114): error TS2339: Property 'average_deal_size' does not exist on type '{}'.
+src/pages/supplier/Analytics.tsx(158,99): error TS2339: Property 'inventory_turnover' does not exist on type '{}'.
+src/pages/supplier/Analytics.tsx(172,116): error TS2339: Property 'customer_satisfaction' does not exist on type '{}'.
+src/pages/supplier/Analytics.tsx(190,103): error TS2339: Property 'month' does not exist on type 'never'.
+src/pages/supplier/Analytics.tsx(193,129): error TS2339: Property 'revenue' does not exist on type 'never'.
+src/pages/supplier/Analytics.tsx(196,112): error TS2339: Property 'quotes' does not exist on type 'never'.
+src/pages/supplier/Analytics.tsx(199,119): error TS2339: Property 'conversions' does not exist on type 'never'.
+src/pages/supplier/Analytics.tsx(205,70): error TS2339: Property 'conversions' does not exist on type 'never'.
+src/pages/supplier/Analytics.tsx(205,90): error TS2339: Property 'quotes' does not exist on type 'never'.
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(140,48): error TS2552: Cannot find name 'formData'. Did you mean 'FormData'?
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(154,48): error TS2552: Cannot find name 'formData'. Did you mean 'FormData'?
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(173,44): error TS2552: Cannot find name 'formData'. Did you mean 'FormData'?
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(198,48): error TS2552: Cannot find name 'formData'. Did you mean 'FormData'?
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(213,48): error TS2552: Cannot find name 'formData'. Did you mean 'FormData'?
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(240,48): error TS2552: Cannot find name 'formData'. Did you mean 'FormData'?
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(256,48): error TS2552: Cannot find name 'formData'. Did you mean 'FormData'?
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(282,48): error TS2552: Cannot find name 'formData'. Did you mean 'FormData'?
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(297,48): error TS2552: Cannot find name 'formData'. Did you mean 'FormData'?
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(321,44): error TS2304: Cannot find name 'formData'.
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(345,48): error TS2304: Cannot find name 'formData'.
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(358,48): error TS2304: Cannot find name 'formData'.
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(371,48): error TS2304: Cannot find name 'formData'.
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(384,48): error TS2304: Cannot find name 'formData'.
+src/pages/supplier/CreateBulkPurchasingGroup.tsx(405,44): error TS2304: Cannot find name 'formData'.
+src/pages/supplier/Inventory.tsx(26,85): error TS2339: Property 'current_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(26,107): error TS2339: Property 'min_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(27,91): error TS2339: Property 'current_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(28,95): error TS2339: Property 'current_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(28,117): error TS2339: Property 'min_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(31,29): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/pages/supplier/Inventory.tsx(39,49): error TS2339: Property 'current_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(39,71): error TS2339: Property 'min_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(39,89): error TS2339: Property 'current_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(40,52): error TS2339: Property 'current_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(41,54): error TS2339: Property 'current_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(41,76): error TS2339: Property 'min_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(140,63): error TS2339: Property 'id' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(149,122): error TS2339: Property 'product_name' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(150,110): error TS2339: Property 'sku' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(155,102): error TS2339: Property 'category' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(159,124): error TS2339: Property 'current_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(165,107): error TS2339: Property 'min_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(168,115): error TS2339: Property 'unit_cost' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(171,102): error TS2339: Property 'supplier' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(174,63): error TS2339: Property 'last_restocked' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(224,77): error TS2339: Property 'current_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(224,99): error TS2339: Property 'min_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(224,117): error TS2339: Property 'current_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(240,92): error TS2339: Property 'current_stock' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(240,113): error TS2339: Property 'unit_cost' does not exist on type 'never'.
+src/pages/supplier/Inventory.tsx(256,82): error TS2339: Property 'supplier' does not exist on type 'never'.
+src/pages/supplier/MyBulkPurchasingGroups.tsx(190,33): error TS2339: Property 'formData' does not exist on type '{ data: Group[]; links: any[]; meta: any; }'.
+src/pages/supplier/MyBulkPurchasingGroups.tsx(190,48): error TS7006: Parameter 'group' implicitly has an 'any' type.
+src/pages/supplier/MyBulkPurchasingGroups.tsx(234,41): error TS2322: Type '{ children: (string | Element)[]; href: string; className: string; }' is not assignable to type 'IntrinsicAttributes & LinkProps & RefAttributes<HTMLAnchorElement>'.
+  Property 'href' does not exist on type 'IntrinsicAttributes & LinkProps & RefAttributes<HTMLAnchorElement>'. Did you mean 'ref'?
+src/pages/supplier/MyBulkPurchasingGroups.tsx(268,29): error TS2339: Property 'formData' does not exist on type '{ data: Group[]; links: any[]; meta: any; }'.
+src/pages/supplier/Proposals.tsx(28,71): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(29,69): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(30,77): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(33,28): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/pages/supplier/Proposals.tsx(46,29): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/pages/supplier/Proposals.tsx(59,28): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/pages/supplier/Proposals.tsx(74,25): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(191,56): error TS2339: Property 'id' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(196,81): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(201,75): error TS2339: Property 'proposal_name' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(203,162): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(204,89): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(208,71): error TS2339: Property 'client_name' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(213,76): error TS2339: Property 'total_value' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(217,84): error TS2339: Property 'created_at' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(312,71): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Proposals.tsx(328,85): error TS2339: Property 'total_value' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(26,72): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(27,74): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(28,74): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(31,28): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/pages/supplier/Quotes.tsx(44,29): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/pages/supplier/Quotes.tsx(57,28): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/pages/supplier/Quotes.tsx(72,22): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(152,53): error TS2339: Property 'id' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(157,78): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(162,72): error TS2339: Property 'quote_number' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(164,159): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(165,86): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(169,68): error TS2339: Property 'client_name' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(169,90): error TS2339: Property 'project_name' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(174,73): error TS2339: Property 'total_amount' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(178,81): error TS2339: Property 'created_at' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(182,81): error TS2339: Property 'expires_at' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(234,68): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(250,68): error TS2339: Property 'status' does not exist on type 'never'.
+src/pages/supplier/Quotes.tsx(266,82): error TS2339: Property 'total_amount' does not exist on type 'never'.
+src/pages/supplier/SupplierPlatform.tsx(199,51): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ DocumentTextIcon: ForwardRefExoticComponent<Omit<SVGProps<SVGSVGElement>, "ref"> & { title?: string | undefined; titleId?: string | undefined; } & RefAttributes<SVGSVGElement>>; ... 4 more ...; ShoppingCartIcon: ForwardRefExoticComponent<...>; }'.
+  No index signature with a parameter of type 'string' was found on type '{ DocumentTextIcon: ForwardRefExoticComponent<Omit<SVGProps<SVGSVGElement>, "ref"> & { title?: string | undefined; titleId?: string | undefined; } & RefAttributes<SVGSVGElement>>; ... 4 more ...; ShoppingCartIcon: ForwardRefExoticComponent<...>; }'.
+src/pages/supplier/SupplierPlatform.tsx(200,45): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ blue: { bg: string; text: string; border: string; hover: string; }; green: { bg: string; text: string; border: string; hover: string; }; purple: { bg: string; text: string; border: string; hover: string; }; orange: { ...; }; red: { ...; }; }'.
+  No index signature with a parameter of type 'string' was found on type '{ blue: { bg: string; text: string; border: string; hover: string; }; green: { bg: string; text: string; border: string; hover: string; }; purple: { bg: string; text: string; border: string; hover: string; }; orange: { ...; }; red: { ...; }; }'.
+src/pages/supplier/TCOCalculator.tsx(31,32): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/supplier/TCOCalculator.tsx(57,27): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/supplier/TCOCalculator.tsx(73,29): error TS2345: Argument of type '(prev: never[]) => { id: number; product_name: string; initial_cost: number; maintenance_cost: number; operational_cost: number; disposal_cost: number; total_tco: number; savings: number; roi_percentage: number; }[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type '(prev: never[]) => { id: number; product_name: string; initial_cost: number; maintenance_cost: number; operational_cost: number; disposal_cost: number; total_tco: number; savings: number; roi_percentage: number; }[]' is not assignable to type '(prevState: never[]) => never[]'.
+    Type '{ id: number; product_name: string; initial_cost: number; maintenance_cost: number; operational_cost: number; disposal_cost: number; total_tco: number; savings: number; roi_percentage: number; }[]' is not assignable to type 'never[]'.
+      Type '{ id: number; product_name: string; initial_cost: number; maintenance_cost: number; operational_cost: number; disposal_cost: number; total_tco: number; savings: number; roi_percentage: number; }' is not assignable to type 'never'.
+src/pages/supplier/TCOCalculator.tsx(302,56): error TS2339: Property 'id' does not exist on type 'never'.
+src/pages/supplier/TCOCalculator.tsx(305,109): error TS2339: Property 'product_name' does not exist on type 'never'.
+src/pages/supplier/TCOCalculator.tsx(306,102): error TS2339: Property 'total_tco' does not exist on type 'never'.
+src/pages/supplier/TCOCalculator.tsx(310,68): error TS2339: Property 'roi_percentage' does not exist on type 'never'.
+src/pages/supplier/TCOCalculator.tsx(313,73): error TS2339: Property 'savings' does not exist on type 'never'.
+src/pages/supplier/VEProposalGenerator.tsx(38,81): error TS2339: Property 'category' does not exist on type 'never'.
+src/pages/supplier/VEProposalGenerator.tsx(39,81): error TS2339: Property 'category' does not exist on type 'never'.
+src/pages/supplier/VEProposalGenerator.tsx(40,81): error TS2339: Property 'category' does not exist on type 'never'.
+src/pages/supplier/VEProposalGenerator.tsx(43,32): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/supplier/VEProposalGenerator.tsx(51,27): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/supplier/VEProposalGenerator.tsx(70,25): error TS2339: Property 'category' does not exist on type 'never'.
+src/pages/supplier/VEProposalGenerator.tsx(193,56): error TS2339: Property 'id' does not exist on type 'never'.
+src/pages/supplier/VEProposalGenerator.tsx(205,75): error TS2339: Property 'name' does not exist on type 'never'.
+src/pages/supplier/VEProposalGenerator.tsx(208,75): error TS2339: Property 'category' does not exist on type 'never'.
+src/pages/supplier/VEProposalGenerator.tsx(212,71): error TS2339: Property 'description' does not exist on type 'never'.
+src/pages/supplier/VEProposalGenerator.tsx(217,75): error TS2339: Property 'estimated_savings' does not exist on type 'never'.
+src/pages/supplier/VEProposalGenerator.tsx(221,84): error TS2339: Property 'created_at' does not exist on type 'never'.
