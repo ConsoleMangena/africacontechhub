@@ -41,24 +41,29 @@
 
 ```text
 /africa-contech-hub
-├── /backend                 # Django Project Root
-│   ├── /africa_contech_hub
-│   │   ├── /config          # Global Settings (CORS, DB, Middleware)
-│   │   └── /apps            # Modular Logic
-│   │       ├── /core               # Shared Models
-│   │       ├── /builder_dashboard  # B2C Domain
-│   │       ├── /contractor_dashboard # B2B Domain
-│   │       ├── /supplier_dashboard # Portal Domain
-│   │       └── /authentication     # Custom Auth
-│   ├── manage.py
-│   └── requirements.txt
-├── /frontend                # React + TypeScript Application
-│   ├── /src
-│   │   ├── /app             # Router & Store
-│   │   ├── /modules         # Domain Logic (Builder, Contractor, Supplier)
-│   │   └── /shared          # Reusable UI & Hooks
-│   ├── package.json
-│   └── tsconfig.json
-├── /docs                    # Documentation
+├── /apps                    # Django Apps (Modular Logic)
+│   ├── /core               # Shared Models
+│   ├── /builder_dashboard  # B2C Domain
+│   ├── /contractor_dashboard # B2B Domain
+│   ├── /supplier_dashboard # Portal Domain
+│   ├── /authentication     # Custom Auth
+│   └── /billing            # Subscription & Billing
+├── /config                  # Django Global Settings (CORS, DB, Middleware)
+│   ├── settings.py
+│   ├── urls.py
+│   ├── wsgi.py
+│   └── asgi.py
+├── /src                     # React + TypeScript Application
+│   ├── /features           # Domain Logic (Builder, Contractor, Supplier)
+│   ├── /components         # Reusable UI Components
+│   ├── /routes             # Router Configuration
+│   ├── /services           # API Services
+│   └── /stores             # State Management
+├── /public                  # Static Assets
+├── manage.py                # Django Management Script
+├── requirements.txt         # Python Dependencies
+├── package.json             # Node.js Dependencies
+├── vite.config.ts           # Vite Configuration
+├── tsconfig.json            # TypeScript Configuration
 └── README.md
 ```

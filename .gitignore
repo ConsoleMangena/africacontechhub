@@ -28,6 +28,7 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 media/
+staticfiles/
 
 # Virtual Environment
 venv/
@@ -52,24 +53,28 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-
 # React / Vite
-frontend/dist/
-frontend/.eslintcache
-frontend/.tanstack/
+dist/
+dist-ssr/
+*.local
+.eslintcache
+.tanstack/
 
-# Django Static Files
-backend/africa_contech_hub/staticfiles/
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # System
-.DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# IDEs
-.vscode/
-.idea/
