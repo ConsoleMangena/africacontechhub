@@ -135,16 +135,33 @@ export function ProjectRoadmap({ open, onOpenChange, project }: ProjectRoadmapPr
     const queryClient = useQueryClient()
 
     // Fetch milestones for this project
-    const { data: milestonesData, isLoading: isLoadingMilestones } = useQuery({
+    const { data: milestonesData, isLoading: isLoadingMilestones, error: milestonesError } = useQuery({
         queryKey: ['project-milestones', project.id],
         queryFn: async () => {
-            const response = await builderApi.getProjectMilestones(project.id)
-            return response.data.results || []
+            try {
+                const response = await builderApi.getProjectMilestones(project.id)
+                // Handle both paginated and non-paginated responses
+                if (response.data && typeof response.data === 'object') {
+                    if (Array.isArray(response.data)) {
+                        return response.data
+                    } else if (response.data.results && Array.isArray(response.data.results)) {
+                        return response.data.results
+                    } else if (response.data.milestones && Array.isArray(response.data.milestones)) {
+                        return response.data.milestones
+                    }
+                }
+                return []
+            } catch (error) {
+                console.error('Failed to fetch milestones:', error)
+                // Return empty array on error instead of throwing
+                return []
+            }
         },
-        enabled: open,
+        enabled: open && !!project.id,
+        retry: 1,
     })
 
-    const milestones = milestonesData || []
+    const milestones: Milestone[] = (milestonesData && Array.isArray(milestonesData)) ? milestonesData : []
 
     // Create milestone mutation
     const createMilestoneMutation = useMutation({
@@ -159,90 +176,109 @@ export function ProjectRoadmap({ open, onOpenChange, project }: ProjectRoadmapPr
         },
     })
 
+    // Helper functions
+    const saveStages = (stagesToSave: RoadmapStage[]) => {
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(stagesToSave))
+        } catch (error) {
+            console.error('Failed to save stages to localStorage:', error)
+        }
+    }
+
+    const syncStagesWithMilestones = (savedStages: RoadmapStage[], currentMilestones: Milestone[]) => {
+        try {
+            const projectBudget = parseFloat(project.budget) || 0
+            const synced: RoadmapStage[] = savedStages.map((stage, index) => {
+                // Find matching milestone from database
+                const milestoneName = `Stage ${stage.id}: ${stage.name}`
+                const dbMilestone = currentMilestones.find(
+                    m => m.name === milestoneName && m.project === project.id
+                )
+
+                // Use milestone amount from database if available, otherwise calculate
+                const milestoneAmount = dbMilestone 
+                    ? parseFloat(dbMilestone.amount) || 0
+                    : (stage.milestoneAmount || (STAGES.find(s => s.id === stage.id)?.milestoneAmount || 0) * projectBudget)
+
+                // Determine if stage should be unlocked based on previous stage completion
+                const previousStage = index > 0 ? savedStages[index - 1] : null
+                const unlocked = index === 0 || (previousStage?.completed || false)
+
+                return {
+                    ...stage,
+                    unlocked,
+                    milestoneAmount,
+                }
+            })
+            setStages(synced)
+            saveStages(synced)
+        } catch (error) {
+            console.error('Error syncing stages with milestones:', error)
+            // Fallback to initialization
+            initializeStages(currentMilestones)
+        }
+    }
+
+    const initializeStages = (currentMilestones: Milestone[] = []) => {
+        try {
+            const projectBudget = parseFloat(project.budget) || 0
+            const initialized: RoadmapStage[] = STAGES.map((stage, index) => {
+                const tasks = STAGE_TASKS[stage.id]?.map((title, i) => ({
+                    id: `${stage.id}-${i}`,
+                    title,
+                    completed: false,
+                })) || []
+
+                // Find matching milestone from database
+                const milestoneName = `Stage ${stage.id}: ${stage.name}`
+                const dbMilestone = currentMilestones.find(
+                    m => m.name === milestoneName && m.project === project.id
+                )
+
+                // Use milestone amount from database if available, otherwise calculate
+                const milestoneAmount = dbMilestone 
+                    ? parseFloat(dbMilestone.amount) || 0
+                    : (stage.milestoneAmount ? stage.milestoneAmount * projectBudget : 0)
+
+                return {
+                    ...stage,
+                    tasks,
+                    assessmentTask: {
+                        id: `${stage.id}-assessment`,
+                        title: `Assess existing structure condition`,
+                        completed: false,
+                    },
+                    unlocked: index === 0, // First stage is unlocked
+                    completed: false,
+                    milestoneAmount,
+                }
+            })
+            setStages(initialized)
+            saveStages(initialized)
+        } catch (error) {
+            console.error('Error initializing stages:', error)
+            toast.error('Failed to initialize project roadmap')
+        }
+    }
+
     // Initialize stages from localStorage or create new, syncing with database milestones
     useEffect(() => {
+        if (!open) return // Don't initialize if dialog is closed
+        
         const saved = localStorage.getItem(storageKey)
         if (saved) {
             try {
                 const savedStages = JSON.parse(saved)
                 // Sync with database milestones
-                syncStagesWithMilestones(savedStages)
-            } catch {
-                initializeStages()
+                syncStagesWithMilestones(savedStages, milestones)
+            } catch (error) {
+                console.error('Error parsing saved stages:', error)
+                initializeStages(milestones)
             }
         } else {
-            initializeStages()
+            initializeStages(milestones)
         }
-    }, [project.id, milestones])
-
-    const syncStagesWithMilestones = (savedStages: RoadmapStage[]) => {
-        const projectBudget = parseFloat(project.budget)
-        const synced: RoadmapStage[] = savedStages.map((stage, index) => {
-            // Find matching milestone from database
-            const milestoneName = `Stage ${stage.id}: ${stage.name}`
-            const dbMilestone = milestones.find(
-                m => m.name === milestoneName && m.project === project.id
-            )
-
-            // Use milestone amount from database if available, otherwise calculate
-            const milestoneAmount = dbMilestone 
-                ? parseFloat(dbMilestone.amount)
-                : (stage.milestoneAmount || (STAGES.find(s => s.id === stage.id)?.milestoneAmount || 0) * projectBudget)
-
-            // Determine if stage should be unlocked based on previous stage completion
-            const previousStage = index > 0 ? savedStages[index - 1] : null
-            const unlocked = index === 0 || (previousStage?.completed || false)
-
-            return {
-                ...stage,
-                unlocked,
-                milestoneAmount,
-            }
-        })
-        setStages(synced)
-        saveStages(synced)
-    }
-
-    const initializeStages = () => {
-        const projectBudget = parseFloat(project.budget)
-        const initialized: RoadmapStage[] = STAGES.map((stage, index) => {
-            const tasks = STAGE_TASKS[stage.id]?.map((title, i) => ({
-                id: `${stage.id}-${i}`,
-                title,
-                completed: false,
-            })) || []
-
-            // Find matching milestone from database
-            const milestoneName = `Stage ${stage.id}: ${stage.name}`
-            const dbMilestone = milestones.find(
-                m => m.name === milestoneName && m.project === project.id
-            )
-
-            // Use milestone amount from database if available, otherwise calculate
-            const milestoneAmount = dbMilestone 
-                ? parseFloat(dbMilestone.amount)
-                : (stage.milestoneAmount ? stage.milestoneAmount * projectBudget : 0)
-
-            return {
-                ...stage,
-                tasks,
-                assessmentTask: {
-                    id: `${stage.id}-assessment`,
-                    title: `Assess existing structure condition`,
-                    completed: false,
-                },
-                unlocked: index === 0, // First stage is unlocked
-                completed: false,
-                milestoneAmount,
-            }
-        })
-        setStages(initialized)
-        saveStages(initialized)
-    }
-
-    const saveStages = (stagesToSave: RoadmapStage[]) => {
-        localStorage.setItem(storageKey, JSON.stringify(stagesToSave))
-    }
+    }, [project.id, open, milestones.length]) // Use milestones.length to avoid infinite loops
 
     const toggleTask = (stageId: number, taskId: string) => {
         setStages(currentStages => {
@@ -406,9 +442,29 @@ export function ProjectRoadmap({ open, onOpenChange, project }: ProjectRoadmapPr
                 </DialogHeader>
 
                 <div className="space-y-6 pt-4">
-                    {stages.map((stage, index) => {
-                        const progress = getStageProgress(stage)
-                        const isEditing = editingStage === stage.id
+                    {milestonesError && (
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div className="flex items-center gap-2 text-amber-800">
+                                <AlertCircle className="h-5 w-5" />
+                                <p className="text-sm font-medium">Warning: Could not load milestones. Some features may be limited.</p>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {isLoadingMilestones && stages.length === 0 ? (
+                        <div className="text-center py-12">
+                            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                            <p className="text-gray-600">Loading project roadmap...</p>
+                        </div>
+                    ) : stages.length === 0 ? (
+                        <div className="text-center py-12">
+                            <AlertCircle className="h-8 w-8 mx-auto mb-4 text-gray-400" />
+                            <p className="text-gray-600">No stages available. Please refresh the page.</p>
+                        </div>
+                    ) : (
+                        stages.map((stage, index) => {
+                            const progress = getStageProgress(stage)
+                            const isEditing = editingStage === stage.id
 
                         return (
                             <Card
@@ -616,7 +672,7 @@ export function ProjectRoadmap({ open, onOpenChange, project }: ProjectRoadmapPr
                                 </CardContent>
                             </Card>
                         )
-                    })}
+                    }))}
                 </div>
 
                 {/* Payment Dialog */}
