@@ -22,10 +22,15 @@ supabase.auth.onAuthStateChange((_event, session) => {
     cachedSession = session?.access_token || null;
 });
 
-// Initialize cached session
-supabase.auth.getSession().then(({ data: { session } }) => {
-    cachedSession = session?.access_token || null;
-});
+// Initialize cached session (ignore errors so app loads without backend/Supabase)
+supabase.auth.getSession().then(
+    ({ data: { session } }) => {
+        cachedSession = session?.access_token || null;
+    },
+    () => {
+        cachedSession = null;
+    }
+);
 
 // Add a request interceptor to inject the Supabase token
 api.interceptors.request.use(

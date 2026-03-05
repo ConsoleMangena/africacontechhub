@@ -112,15 +112,23 @@ export const useAuthStore = create<AuthState>()((set) => ({
         }
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      await syncUserFromBackend(session)
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        await syncUserFromBackend(session)
 
-      // Listen for changes (sign-in, sign-out, token refresh)
-      supabase.auth.onAuthStateChange(async (_event, newSession) => {
-        await syncUserFromBackend(newSession)
-      })
+        // Listen for changes (sign-in, sign-out, token refresh)
+        supabase.auth.onAuthStateChange(async (_event, newSession) => {
+          await syncUserFromBackend(newSession)
+        })
+      } catch (error) {
+        // Supabase or network unreachable (e.g. not configured, backend down)
+        console.warn('Auth init failed (Supabase/network):', error)
+        set((state) => ({
+          auth: { ...state.auth, user: null, isLoading: false },
+        }))
+      }
     },
 
     reset: () =>
