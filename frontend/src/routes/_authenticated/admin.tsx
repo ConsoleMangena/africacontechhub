@@ -37,7 +37,7 @@ function AdminLayout() {
       
       {/* Admin Secondary Navigation */}
       <div className="border-b bg-background sticky top-16 z-30">
-        <div className="flex h-12 items-center px-4 max-w-7xl mx-auto overflow-x-auto no-scrollbar gap-1">
+        <div className="flex h-12 w-full items-center px-4 overflow-x-auto no-scrollbar gap-1">
           {adminNavigation.map((item) => {
              const isActive = item.href === '/admin' 
                 ? location.pathname === '/admin' || location.pathname === '/admin/'
@@ -62,7 +62,7 @@ function AdminLayout() {
         </div>
       </div>
 
-      <Main>
+      <Main fluid>
         <Outlet />
       </Main>
     </>

@@ -28,9 +28,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
         if (error || !supabaseUser) throw error;
 
         // Fetch profile from Django
-        const response = await apiClient.get<any>('/api/v1/auth/me/');
-        if (!response.success || !response.data) throw new Error(response.message || "Failed to fetch profile");
+        const response = await apiClient.get('/api/v1/auth/me/');
         const userData = response.data;
+        if (!userData) throw new Error('Failed to fetch profile');
         const profile = userData.profile;
 
         set((state) => ({
@@ -72,9 +72,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
       const syncUserFromBackend = async (session: Session | null) => {
         if (session) {
           try {
-            const response = await apiClient.get<any>('/api/v1/auth/me/')
-            if (!response.success || !response.data) throw new Error(response.message || "Failed to fetch profile");
+            const response = await apiClient.get('/api/v1/auth/me/')
             const userData = response.data
+            if (!userData) throw new Error('Failed to fetch profile')
             const profile = userData.profile
 
             set((state) => ({

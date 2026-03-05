@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { getSupabaseAuthErrorMessage } from '@/lib/supabase-error'
 import { useAuthStore } from '@/stores/auth-store'
 import { toast } from 'sonner'
 import { authApi } from '@/services/api'
@@ -152,9 +153,9 @@ export function SignUpForm({
       setSubmittedEmail(data.email);
       setSubmitted(true);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.message || 'Failed to register');
+      toast.error(getSupabaseAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -178,8 +179,8 @@ export function SignUpForm({
         }
       });
       if (error) throw error;
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to login with Google');
+    } catch (err: unknown) {
+      toast.error(getSupabaseAuthErrorMessage(err));
       setIsLoading(false);
     }
   };

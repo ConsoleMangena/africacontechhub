@@ -18,7 +18,8 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
-import { supabase } from '@/lib/supabase'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { getSupabaseAuthErrorMessage } from '@/lib/supabase-error'
 
 const formSchema = z.object({
   email: z.email({
@@ -53,6 +54,14 @@ export function UserAuthForm({
 
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
+
+    if (!isSupabaseConfigured) {
+      toast.error(
+        'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to frontend/.env.'
+      )
+      setIsLoading(false)
+      return
+    }
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -96,14 +105,21 @@ export function UserAuthForm({
       }
 
       navigate({ to: targetPath, replace: true })
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to sign in')
+    } catch (error: unknown) {
+      toast.error(getSupabaseAuthErrorMessage(error))
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleGoogleLogin = async () => {
+    if (!isSupabaseConfigured) {
+      toast.error(
+        'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to frontend/.env.'
+      )
+      return
+    }
+
     try {
       setIsLoading(true);
       const { error } = await supabase.auth.signInWithOAuth({
@@ -113,8 +129,8 @@ export function UserAuthForm({
         }
       });
       if (error) throw error;
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to login with Google');
+    } catch (err: unknown) {
+      toast.error(getSupabaseAuthErrorMessage(err));
       setIsLoading(false);
     }
   };
