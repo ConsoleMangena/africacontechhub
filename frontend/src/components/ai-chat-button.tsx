@@ -923,7 +923,7 @@ export function AiChatButton() {
                         </div>
                         <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t border-gray-100">
                           <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                            <Icon name="image_icon" className="h-3 w-3" />
+                            <Icon name="draw" className="h-3 w-3" />
                             {message.presetName ? message.presetName : 'AI Generated'}
                           </span>
                           <a
@@ -1016,7 +1016,7 @@ export function AiChatButton() {
                                 </div>
                               ) : (
                                 <div className="aspect-[4/3] bg-gray-100 flex items-center justify-center">
-                                  <Icon name="image_icon" className="h-6 w-6 text-gray-300" />
+                                  <Icon name="image" className="h-6 w-6 text-gray-300" />
                                 </div>
                               )}
                               <div className="p-2.5">
@@ -1186,13 +1186,13 @@ export function AiChatButton() {
                 <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
                   {isGeneratingImage ? (
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <Icon name="image_icon" className="h-3.5 w-3.5 animate-pulse text-indigo-500" />
+                      <Icon name="architecture" className="h-3.5 w-3.5 animate-pulse text-indigo-500" />
                       <span>Generating architectural drawing...</span>
                     </div>
                   ) : isScanningPlan ? (
                     <div className="flex flex-col gap-1.5 text-xs text-gray-500">
                       <div className="flex items-center gap-2">
-                        <Icon name="image_icon" className="h-3.5 w-3.5 animate-pulse text-cyan-500" />
+                        <Icon name="document_scanner" className="h-3.5 w-3.5 animate-pulse text-cyan-500" />
                         <span>Scanning hand-drawn plan...</span>
                       </div>
                       <div className="flex gap-1 items-center ml-5">
@@ -1201,13 +1201,13 @@ export function AiChatButton() {
                     </div>
                   ) : isSearchingPlans ? (
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <Icon name="search" className="h-3.5 w-3.5 animate-pulse text-violet-500" />
+                      <Icon name="manage_search" className="h-3.5 w-3.5 animate-pulse text-violet-500" />
                       <span>Searching floor plan library...</span>
                     </div>
                   ) : isAnalysing ? (
                     <div className="flex flex-col gap-1.5 text-xs text-gray-500">
                       <div className="flex items-center gap-2">
-                        <Icon name="assignment" className="h-3.5 w-3.5 animate-pulse text-emerald-500" />
+                        <Icon name="analytics" className="h-3.5 w-3.5 animate-pulse text-emerald-500" />
                         <span>Analysing image &amp; extracting BOQ...</span>
                       </div>
                       <div className="flex gap-1 items-center ml-5">
@@ -1225,7 +1225,7 @@ export function AiChatButton() {
                     </div>
                   ) : toolStatus ? (
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <Icon name="build" className="h-3.5 w-3.5 animate-pulse text-amber-500" />
+                      <Icon name="precision_manufacturing" className="h-3.5 w-3.5 animate-pulse text-amber-500" />
                       <span>{toolStatus}</span>
                     </div>
                   ) : (
