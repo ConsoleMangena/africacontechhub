@@ -33,7 +33,9 @@ export default defineConfig({
           if (id.includes('recharts')) return 'recharts'
           if (id.includes('@tanstack/react-query')) return 'tanstack-query'
           if (id.includes('@tanstack/react-router')) return 'tanstack-router'
-          if (id.includes('react')) return 'react-vendor'
+          if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/') || id.includes('/node_modules/scheduler/')) {
+            return 'react-vendor'
+          }
 
           return 'vendor'
         },
