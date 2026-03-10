@@ -1,5 +1,5 @@
+import { Icon } from '@/components/ui/material-icon'
 import { Link } from '@tanstack/react-router'
-import { Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,7 +25,7 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button size='icon' variant='outline' className='md:size-7'>
-              <Menu />
+              <Icon name="menu" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side='bottom' align='start'>

@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { helpCenterApi } from '@/services/api'
@@ -5,21 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { 
-    Search, 
-    HelpCircle, 
-    Rocket, 
-    Construction, 
-    CreditCard, 
-    Users, 
-    Settings,
-    ChevronRight,
-    BookOpen,
-    Star,
-    MessageCircle,
-    ChevronDown,
-    ChevronUp
-} from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Header } from '@/components/layout/header'
@@ -123,7 +109,7 @@ export function HelpCenter() {
 
                 {/* Search */}
                 <div className="relative max-w-2xl">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <Input
                         placeholder="Search for help articles..."
                         value={searchQuery}
@@ -137,7 +123,7 @@ export function HelpCenter() {
             {featured.length > 0 && !searchQuery && !selectedCategory && (
                 <div className="space-y-4">
                     <div className="flex items-center gap-2">
-                        <Star className="h-5 w-5 text-amber-500" />
+                        <Icon name="star" className="h-5 w-5 text-amber-500" />
                         <h2 className="text-xl font-semibold text-gray-900">Featured Articles</h2>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -173,7 +159,7 @@ export function HelpCenter() {
                                             }}
                                         >
                                             Read more
-                                            <ChevronRight className="h-4 w-4" />
+                                            <Icon name="keyboard_arrow_right" className="h-4 w-4" />
                                         </Button>
                                     </CardContent>
                                 </Card>
@@ -187,12 +173,12 @@ export function HelpCenter() {
             {(!searchQuery || filteredFAQs.length > 0) && (
                 <div className="space-y-4">
                     <div className="flex items-center gap-2">
-                        <MessageCircle className="h-5 w-5 text-green-600" />
+                        <Icon name="message_circle" className="h-5 w-5 text-green-600" />
                         <h2 className="text-xl font-semibold text-gray-900">Frequently Asked Questions</h2>
                     </div>
                     {filteredFAQs.length === 0 ? (
                         <div className="text-center py-8 text-gray-600">
-                            <MessageCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                            <Icon name="message_circle" className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                             <p>No FAQs found matching your search.</p>
                         </div>
                     ) : (
@@ -213,9 +199,9 @@ export function HelpCenter() {
                                                             {faq.question}
                                                         </h3>
                                                         {isExpanded ? (
-                                                            <ChevronUp className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                                            <Icon name="keyboard_arrow_up" className="h-5 w-5 text-gray-400 flex-shrink-0" />
                                                         ) : (
-                                                            <ChevronDown className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                                            <Icon name="keyboard_arrow_down" className="h-5 w-5 text-gray-400 flex-shrink-0" />
                                                         )}
                                                     </div>
                                                 </CollapsibleTrigger>
@@ -258,7 +244,7 @@ export function HelpCenter() {
                     <div className="text-center py-12 text-gray-600">Loading help center...</div>
                 ) : filteredCategories.length === 0 ? (
                     <div className="text-center py-12 text-gray-600">
-                        <HelpCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                        <Icon name="help_circle" className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                         <p>No articles found matching your search.</p>
                     </div>
                 ) : (
@@ -296,7 +282,7 @@ export function HelpCenter() {
                                                             <p className="text-sm text-gray-600 mt-1">{article.excerpt}</p>
                                                         )}
                                                     </div>
-                                                    <ChevronRight className="h-5 w-5 text-gray-400 ml-4" />
+                                                    <Icon name="keyboard_arrow_right" className="h-5 w-5 text-gray-400 ml-4" />
                                                 </div>
                                             ))}
                                         </div>

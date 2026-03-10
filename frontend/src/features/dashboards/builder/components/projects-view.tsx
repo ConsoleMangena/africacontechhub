@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import {
     Card,
     CardContent,
@@ -7,16 +8,6 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-    MapPin,
-    DollarSign,
-    Eye,
-    Pencil,
-    Trash2,
-    Users,
-    ShieldCheck,
-    FolderOpen,
-} from 'lucide-react'
 import { Project } from '@/types/api'
 
 const statusConfig: Record<Project['status'], { label: string; className: string }> = {
@@ -26,9 +17,9 @@ const statusConfig: Record<Project['status'], { label: string; className: string
     COMPLETED: { label: 'Completed', className: 'bg-green-100 text-green-800' },
 }
 
-const tierConfig: Record<Project['engagement_tier'], { label: string; icon: React.ElementType; className: string }> = {
-    DIT: { label: 'DIT', icon: Users, className: 'text-indigo-600 bg-indigo-100' },
-    DIFY: { label: 'DIFY', icon: ShieldCheck, className: 'text-teal-600 bg-teal-100' },
+const tierConfig: Record<Project['engagement_tier'], { label: string; icon: string; className: string }> = {
+    DIT: { label: 'DIT', icon: 'group', className: 'text-indigo-600 bg-indigo-100' },
+    DIFY: { label: 'DIFY', icon: 'gpp_good', className: 'text-teal-600 bg-teal-100' },
 }
 
 interface ProjectsViewProps {
@@ -43,7 +34,7 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
         return (
             <Card className="border-border/60 bg-card">
                 <CardContent className="flex flex-col items-center justify-center py-16">
-                    <FolderOpen className="h-12 w-12 text-muted-foreground/40 mb-3" />
+                    <Icon name="folder_open" size={48} className="text-muted-foreground/40 mb-3" />
                     <p className="text-sm text-muted-foreground font-medium">No projects yet</p>
                     <p className="text-xs text-muted-foreground mt-1">
                         Create your first project to get started.
@@ -57,7 +48,7 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
         <Card className="border-border/60 bg-card">
             <CardHeader>
                 <CardTitle className="text-base font-semibold font-display flex items-center gap-2">
-                    <FolderOpen className="h-4 w-4 text-primary" />
+                    <Icon name="folder_open" size={16} className="text-primary" />
                     All Projects
                 </CardTitle>
                 <CardDescription>
@@ -69,7 +60,7 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
                     {projects.map((project) => {
                         const tier = tierConfig[project.engagement_tier]
                         const statusBadge = statusConfig[project.status]
-                        const TierIcon = tier?.icon || Users
+                        const tierIconName = tier?.icon || 'group'
 
                         return (
                             <div
@@ -82,7 +73,7 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
                                             {project.title}
                                         </h3>
                                         <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                                            <MapPin className="h-3 w-3 shrink-0" />
+                                            <Icon name="location_on" size={12} className="shrink-0" />
                                             <span className="truncate">{project.location}</span>
                                         </div>
                                     </div>
@@ -93,16 +84,16 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
 
                                 <div className="flex items-center gap-3 mb-3">
                                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                        <DollarSign className="h-3 w-3" />
+                                        <Icon name="attach_money" size={12} />
                                         <span>${parseFloat(project.budget).toLocaleString()}</span>
                                     </div>
                                     <Badge variant="outline" className={`text-xs ${tier?.className || ''}`}>
-                                        <TierIcon className="h-3 w-3 mr-1" />
+                                        <Icon name={tierIconName} size={12} className="mr-1" />
                                         {tier?.label || project.engagement_tier}
                                     </Badge>
                                     {project.si56_verified && (
                                         <Badge variant="outline" className="text-xs text-green-600 bg-green-50">
-                                            <ShieldCheck className="h-3 w-3 mr-1" />
+                                            <Icon name="gpp_good" size={12} className="mr-1" />
                                             SI 56
                                         </Badge>
                                     )}
@@ -115,7 +106,7 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
                                         className="h-7 text-xs flex-1"
                                         onClick={() => onView(project)}
                                     >
-                                        <Eye className="h-3 w-3 mr-1" />
+                                        <Icon name="visibility" size={12} className="mr-1" />
                                         View
                                     </Button>
                                     <Button
@@ -124,7 +115,7 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
                                         className="h-7 text-xs flex-1"
                                         onClick={() => onEdit(project)}
                                     >
-                                        <Pencil className="h-3 w-3 mr-1" />
+                                        <Icon name="edit" size={12} className="mr-1" />
                                         Edit
                                     </Button>
                                     <Button
@@ -133,7 +124,7 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
                                         className="h-7 text-xs flex-1 text-destructive hover:text-destructive"
                                         onClick={() => onDelete(project)}
                                     >
-                                        <Trash2 className="h-3 w-3 mr-1" />
+                                        <Icon name="delete" size={12} className="mr-1" />
                                         Delete
                                     </Button>
                                 </div>

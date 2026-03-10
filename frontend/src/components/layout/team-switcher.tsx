@@ -1,5 +1,5 @@
+import { Icon } from '@/components/ui/material-icon'
 import * as React from 'react'
-import { ChevronsUpDown, Plus } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,7 +46,7 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
                 </span>
                 <span className='truncate text-xs'>{activeTeam.plan}</span>
               </div>
-              <ChevronsUpDown className='ms-auto' />
+              <Icon name="unfold_more" className='ms-auto' />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -74,7 +74,7 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem className='gap-2 p-2'>
               <div className='bg-background flex size-6 items-center justify-center rounded-md border'>
-                <Plus className='size-4' />
+                <Icon name="add" className='size-4' />
               </div>
               <div className='text-muted-foreground font-medium'>Add team</div>
             </DropdownMenuItem>

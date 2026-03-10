@@ -1,7 +1,13 @@
 from rest_framework import generics, permissions
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
 from .serializers import UserSerializer
+
+
+class RegisterThrottle(AnonRateThrottle):
+    """Tight rate limit for unauthenticated registration requests."""
+    rate = '5/minute'
 
 class UserDetailView(generics.RetrieveUpdateAPIView):
     """
@@ -26,6 +32,7 @@ class RegisterRequestView(generics.CreateAPIView):
     and PENDING AccountRequest in Django.
     """
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [RegisterThrottle]
 
     def post(self, request, *args, **kwargs):
         from django.contrib.auth.models import User

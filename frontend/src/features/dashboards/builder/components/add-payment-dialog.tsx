@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -29,7 +30,6 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Loader2, DollarSign, CreditCard, Smartphone, Wallet } from 'lucide-react'
 import { builderApi } from '@/services/api'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
@@ -247,7 +247,7 @@ export function AddPaymentDialog({
                                                         <RadioGroupItem value="CASH" className="sr-only" />
                                                     </FormControl>
                                                     <div className="items-center rounded-md border-2 border-muted p-4 hover:border-accent cursor-pointer transition-all h-full">
-                                                        <Wallet className="mb-3 h-6 w-6 text-muted-foreground" />
+                                                        <Icon name="wallet" className="mb-3 h-6 w-6 text-muted-foreground" />
                                                         <div className="space-y-1">
                                                             <h3 className="font-medium leading-none">Cash</h3>
                                                             <p className="text-xs text-muted-foreground">
@@ -263,7 +263,7 @@ export function AddPaymentDialog({
                                                         <RadioGroupItem value="SWIPE_PAYNOW" className="sr-only" />
                                                     </FormControl>
                                                     <div className="items-center rounded-md border-2 border-muted p-4 hover:border-accent cursor-pointer transition-all h-full">
-                                                        <Smartphone className="mb-3 h-6 w-6 text-muted-foreground" />
+                                                        <Icon name="smartphone" className="mb-3 h-6 w-6 text-muted-foreground" />
                                                         <div className="space-y-1">
                                                             <h3 className="font-medium leading-none">Swipe/Paynow</h3>
                                                             <p className="text-xs text-muted-foreground">
@@ -279,7 +279,7 @@ export function AddPaymentDialog({
                                                         <RadioGroupItem value="STRIPE" className="sr-only" />
                                                     </FormControl>
                                                     <div className="items-center rounded-md border-2 border-muted p-4 hover:border-accent cursor-pointer transition-all h-full">
-                                                        <CreditCard className="mb-3 h-6 w-6 text-muted-foreground" />
+                                                        <Icon name="credit_card" className="mb-3 h-6 w-6 text-muted-foreground" />
                                                         <div className="space-y-1">
                                                             <h3 className="font-medium leading-none">Stripe</h3>
                                                             <p className="text-xs text-muted-foreground">
@@ -367,12 +367,12 @@ export function AddPaymentDialog({
                             <Button type="submit" disabled={isSubmitting || pendingMilestones.length === 0}>
                                 {isSubmitting ? (
                                     <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        <Icon name="progress_activity" className="mr-2 h-4 w-4 animate-spin" />
                                         Recording...
                                     </>
                                 ) : (
                                     <>
-                                        <DollarSign className="mr-2 h-4 w-4" />
+                                        <Icon name="attach_money" className="mr-2 h-4 w-4" />
                                         Record Payment
                                     </>
                                 )}

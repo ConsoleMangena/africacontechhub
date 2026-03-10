@@ -1,9 +1,9 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { FileUp, Trash2, Cpu, CheckCircle2, Loader2, Save, Brain, Upload, FileText, Eye } from 'lucide-react'
 import { adminApi, aiApi } from '@/services/api'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -136,7 +136,7 @@ export function KnowledgeBase() {
             <div>
                 <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2.5">
                     <div className="h-9 w-9 rounded-lg bg-indigo-100 flex items-center justify-center">
-                        <Brain className="h-5 w-5 text-indigo-600" />
+                        <Icon name="brain" className="h-5 w-5 text-indigo-600" />
                     </div>
                     Knowledge Base
                 </h2>
@@ -154,7 +154,7 @@ export function KnowledgeBase() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                    <Cpu className="h-4 w-4 text-indigo-500" />
+                                    <Icon name="cpu" className="h-4 w-4 text-indigo-500" />
                                     AI Behavior Instructions
                                 </CardTitle>
                                 <CardDescription className="text-xs mt-1">
@@ -168,9 +168,9 @@ export function KnowledgeBase() {
                                 className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 shadow-sm"
                             >
                                 {isSavingInstructions ? (
-                                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                    <Icon name="progress_activity" className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                                 ) : (
-                                    <Save className="h-3.5 w-3.5 mr-1.5" />
+                                    <Icon name="save" className="h-3.5 w-3.5 mr-1.5" />
                                 )}
                                 Save
                             </Button>
@@ -194,7 +194,7 @@ export function KnowledgeBase() {
                 <Card className="lg:col-span-2 shadow-sm border-border/60">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                            <Upload className="h-4 w-4 text-emerald-500" />
+                            <Icon name="upload" className="h-4 w-4 text-emerald-500" />
                             Upload Documents
                         </CardTitle>
                         <CardDescription className="text-xs">
@@ -215,7 +215,7 @@ export function KnowledgeBase() {
                         >
                             <div className="flex flex-col items-center gap-3">
                                 <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 flex items-center justify-center ring-1 ring-indigo-100">
-                                    <FileUp className="h-6 w-6 text-indigo-500" />
+                                    <Icon name="file_up" className="h-6 w-6 text-indigo-500" />
                                 </div>
                                 <div>
                                     <p className="text-sm font-medium text-foreground">Drag & drop files here</p>
@@ -232,7 +232,7 @@ export function KnowledgeBase() {
                                     <Button variant="outline" size="sm" disabled={isUploading} className="text-xs h-8 px-4 shadow-sm">
                                         {isUploading ? (
                                             <>
-                                                <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                                                <Icon name="progress_activity" className="h-3 w-3 mr-1.5 animate-spin" />
                                                 Embedding...
                                             </>
                                         ) : 'Browse Files'}
@@ -250,7 +250,7 @@ export function KnowledgeBase() {
                     <div className="flex items-center justify-between">
                         <div>
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <FileText className="h-4 w-4 text-green-500" />
+                                <Icon name="description" className="h-4 w-4 text-green-500" />
                                 Embedded Documents
                             </CardTitle>
                             <CardDescription className="text-xs">
@@ -267,12 +267,12 @@ export function KnowledgeBase() {
                 <CardContent>
                     {isLoading ? (
                         <div className="flex items-center justify-center py-10">
-                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                            <Icon name="progress_activity" className="h-5 w-5 animate-spin text-muted-foreground" />
                         </div>
                     ) : documents.length === 0 ? (
                         <div className="text-center py-10 bg-muted/20 rounded-lg border border-dashed border-border/60">
                             <div className="h-12 w-12 rounded-xl bg-muted/50 flex items-center justify-center mx-auto mb-3">
-                                <Cpu className="h-6 w-6 text-muted-foreground/40" />
+                                <Icon name="cpu" className="h-6 w-6 text-muted-foreground/40" />
                             </div>
                             <p className="text-sm font-medium text-muted-foreground">No documents yet</p>
                             <p className="text-xs text-muted-foreground/70 mt-1">Upload PDF or TXT files to add them to the AI memory.</p>
@@ -283,7 +283,7 @@ export function KnowledgeBase() {
                                 <div key={doc.id} className="group flex items-center justify-between p-3 rounded-lg border border-border/60 bg-card hover:bg-muted/30 hover:border-border transition-all duration-200">
                                     <div className="flex items-center gap-3 min-w-0">
                                         <div className="h-8 w-8 rounded-lg bg-green-50 flex items-center justify-center shrink-0 ring-1 ring-green-100">
-                                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                            <Icon name="check_circle" className="h-4 w-4 text-green-600" />
                                         </div>
                                         <div className="min-w-0">
                                             <p className="text-sm font-medium text-foreground truncate">{doc.title}</p>
@@ -300,9 +300,9 @@ export function KnowledgeBase() {
                                             title="View extracted content"
                                         >
                                             {isPreviewLoading && previewDoc?.title === doc.title ? (
-                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin" />
                                             ) : (
-                                                <Eye className="h-3.5 w-3.5" />
+                                                <Icon name="visibility" className="h-3.5 w-3.5" />
                                             )}
                                         </Button>
                                         <Button 
@@ -312,7 +312,7 @@ export function KnowledgeBase() {
                                             onClick={() => handleDelete(doc.id)}
                                             title="Delete document"
                                         >
-                                            <Trash2 className="h-3.5 w-3.5" />
+                                            <Icon name="delete" className="h-3.5 w-3.5" />
                                         </Button>
                                     </div>
                                 </div>
@@ -327,7 +327,7 @@ export function KnowledgeBase() {
                 <DialogContent className="sm:max-w-[700px] h-[80vh] flex flex-col p-0 overflow-hidden">
                     <DialogHeader className="px-6 py-4 border-b bg-muted/30 shrink-0">
                         <DialogTitle className="flex items-center gap-2">
-                            <FileText className="h-5 w-5 text-indigo-500" />
+                            <Icon name="description" className="h-5 w-5 text-indigo-500" />
                             {previewDoc?.title}
                         </DialogTitle>
                         <DialogDescription>

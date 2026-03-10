@@ -1,5 +1,5 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useProjectConnections } from '../hooks/use-builder-data'
-import { Briefcase, Package } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 interface ProjectConnectionsProps {
@@ -36,7 +36,7 @@ export function ProjectConnections({ projectId }: ProjectConnectionsProps) {
         <div className="flex flex-wrap items-center gap-2">
             {contractors.length > 0 && (
                 <div className="flex items-center gap-1">
-                    <Briefcase className="h-3 w-3 text-blue-600" />
+                    <Icon name="work" className="h-3 w-3 text-blue-600" />
                     <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                         {contractors.length} {contractors.length === 1 ? 'Contractor' : 'Contractors'}
                     </Badge>
@@ -44,7 +44,7 @@ export function ProjectConnections({ projectId }: ProjectConnectionsProps) {
             )}
             {suppliers.length > 0 && (
                 <div className="flex items-center gap-1">
-                    <Package className="h-3 w-3 text-green-600" />
+                    <Icon name="package" className="h-3 w-3 text-green-600" />
                     <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
                         {suppliers.length} {suppliers.length === 1 ? 'Supplier' : 'Suppliers'}
                     </Badge>

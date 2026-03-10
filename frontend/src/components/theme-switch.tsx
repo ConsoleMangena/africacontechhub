@@ -1,5 +1,5 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useEffect } from 'react'
-import { Check, Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/theme-provider'
 import { Button } from '@/components/ui/button'
@@ -25,29 +25,29 @@ export function ThemeSwitch() {
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant='ghost' size='icon' className='scale-95 rounded-full'>
-          <Sun className='size-5 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90' />
-          <Moon className='absolute size-5 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0' />
+          <Icon name="light_mode" className='size-5 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90' />
+          <Icon name="dark_mode" className='absolute size-5 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0' />
           <span className='sr-only'>Toggle theme</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuItem onClick={() => setTheme('light')}>
           Light{' '}
-          <Check
+          <Icon name="check"
             size={14}
             className={cn('ms-auto', theme !== 'light' && 'hidden')}
           />
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme('dark')}>
           Dark
-          <Check
+          <Icon name="check"
             size={14}
             className={cn('ms-auto', theme !== 'dark' && 'hidden')}
           />
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme('system')}>
           System
-          <Check
+          <Icon name="check"
             size={14}
             className={cn('ms-auto', theme !== 'system' && 'hidden')}
           />

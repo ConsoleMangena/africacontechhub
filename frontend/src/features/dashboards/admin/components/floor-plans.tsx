@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminApi, builderApi } from '@/services/api'
@@ -7,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, UploadCloud, Plus, Image as ImageIcon, Loader2, Maximize2, LayoutGrid, FolderOpen } from 'lucide-react'
 import { toast } from 'sonner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -114,7 +114,7 @@ export function AdminFloorPlans() {
             <div>
                 <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2.5">
                     <div className="h-9 w-9 rounded-lg bg-violet-100 flex items-center justify-center">
-                        <LayoutGrid className="h-5 w-5 text-violet-600" />
+                        <Icon name="layout_grid" className="h-5 w-5 text-violet-600" />
                     </div>
                     Floor Plan Datasets
                 </h2>
@@ -129,7 +129,7 @@ export function AdminFloorPlans() {
                 <Card className="lg:col-span-2 shadow-sm border-border/60">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                            <UploadCloud className="h-4 w-4 text-violet-500" />
+                            <Icon name="upload_cloud" className="h-4 w-4 text-violet-500" />
                             Upload Floor Plan
                         </CardTitle>
                         <CardDescription className="text-xs">
@@ -203,9 +203,9 @@ export function AdminFloorPlans() {
                                 disabled={createPlanMutation.isPending}
                             >
                                 {createPlanMutation.isPending ? (
-                                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...</>
+                                    <><Icon name="progress_activity" className="mr-2 h-4 w-4 animate-spin" /> Uploading...</>
                                 ) : (
-                                    <><UploadCloud className="mr-2 h-4 w-4" /> Save Floor Plan</>
+                                    <><Icon name="upload_cloud" className="mr-2 h-4 w-4" /> Save Floor Plan</>
                                 )}
                             </Button>
                         </form>
@@ -216,7 +216,7 @@ export function AdminFloorPlans() {
                 <Card className="shadow-sm border-border/60">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                            <FolderOpen className="h-4 w-4 text-amber-500" />
+                            <Icon name="folder_open" className="h-4 w-4 text-amber-500" />
                             Categories
                         </CardTitle>
                         <CardDescription className="text-xs">
@@ -238,7 +238,7 @@ export function AdminFloorPlans() {
                                 className="w-full h-8 text-xs"
                                 disabled={createCategoryMutation.isPending || !newCategoryName.trim()}
                             >
-                                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                                <Icon name="add" className="h-3.5 w-3.5 mr-1.5" />
                                 Add Category
                             </Button>
                         </form>
@@ -247,7 +247,7 @@ export function AdminFloorPlans() {
                             <p className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider mb-2">Existing</p>
                             {categoriesLoading ? (
                                 <div className="text-xs text-muted-foreground flex items-center gap-2 py-3 justify-center">
-                                    <Loader2 className="h-3 w-3 animate-spin"/>
+                                    <Icon name="progress_activity" className="h-3 w-3 animate-spin"/>
                                     Loading...
                                 </div>
                             ) : categoriesData?.length === 0 ? (
@@ -264,7 +264,7 @@ export function AdminFloorPlans() {
                                                 onClick={() => deleteCategoryMutation.mutate(category.id)}
                                                 disabled={deleteCategoryMutation.isPending}
                                             >
-                                                <Trash2 className="h-3 w-3" />
+                                                <Icon name="delete" className="h-3 w-3" />
                                             </Button>
                                         </li>
                                     ))}
@@ -281,7 +281,7 @@ export function AdminFloorPlans() {
                     <div className="flex items-center justify-between">
                         <div>
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <ImageIcon className="h-4 w-4 text-blue-500" />
+                                <Icon name="image" className="h-4 w-4 text-blue-500" />
                                 Uploaded Datasets
                             </CardTitle>
                             <CardDescription className="text-xs">
@@ -298,12 +298,12 @@ export function AdminFloorPlans() {
                 <CardContent>
                     {plansLoading ? (
                         <div className="flex items-center justify-center p-12">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            <Icon name="progress_activity" className="h-6 w-6 animate-spin text-muted-foreground" />
                         </div>
                     ) : !plansData || plansData.length === 0 ? (
                         <div className="text-center py-12 bg-muted/20 rounded-lg border border-dashed border-border/60">
                             <div className="h-14 w-14 rounded-xl bg-muted/50 flex items-center justify-center mx-auto mb-3">
-                                <ImageIcon className="h-7 w-7 text-muted-foreground/30" />
+                                <Icon name="image" className="h-7 w-7 text-muted-foreground/30" />
                             </div>
                             <p className="text-sm font-medium text-muted-foreground">No floor plans uploaded yet</p>
                             <p className="text-xs text-muted-foreground/70 mt-1">Create a category and upload an image above to get started.</p>
@@ -328,7 +328,7 @@ export function AdminFloorPlans() {
                                             />
                                         ) : (
                                             <div className="flex items-center justify-center h-full text-muted-foreground">
-                                                <ImageIcon className="h-8 w-8 opacity-20" />
+                                                <Icon name="image" className="h-8 w-8 opacity-20" />
                                             </div>
                                         )}
                                         
@@ -336,7 +336,7 @@ export function AdminFloorPlans() {
                                         
                                         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                                             <div className="text-white flex flex-col items-center gap-1.5 translate-y-3 group-hover:translate-y-0 transition-transform duration-300">
-                                                <Maximize2 className="h-5 w-5" />
+                                                <Icon name="maximize2" className="h-5 w-5" />
                                                 <span className="text-[10px] font-medium drop-shadow">Right-click to enlarge</span>
                                             </div>
                                         </div>
@@ -365,7 +365,7 @@ export function AdminFloorPlans() {
                                                 onClick={() => deletePlanMutation.mutate(plan.id)}
                                                 disabled={deletePlanMutation.isPending}
                                             >
-                                                <Trash2 className="h-3.5 w-3.5" />
+                                                <Icon name="delete" className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
                                     </div>

@@ -2,11 +2,13 @@ import axios from 'axios';
 import {
     ContractorProfile, Bid, WIPAA,
     SupplierProfile, Product, MaterialOrder, Delivery,
-    PaginatedResponse, FloorPlanCategory, FloorPlanDataset,
-    Project, SiteUpdate, Milestone, Payment
+    PaginatedResponse, ProjectDashboard,
+    Project, SiteUpdate, EscrowMilestone, CapitalScheduleItem,
+    MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera,
+    BOQItem
 } from '../types/api';
 const api = axios.create({
-    baseURL: 'http://localhost:8000/api/v1', // Adjust if your backend URL is different
+    baseURL: `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1`,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -182,25 +184,48 @@ export const builderApi = {
     // Site Updates API
     getSiteUpdates: () => api.get<PaginatedResponse<SiteUpdate>>('/site-updates/'),
 
-    // Milestones API
-    getProjectMilestones: (projectId: number) => api.get<PaginatedResponse<Milestone>>(`/milestones/?project=${projectId}`),
+    // Project Dashboard — unified endpoint for all widget data
+    getProjectDashboard: (projectId: number) => api.get<ProjectDashboard>(`/projects/${projectId}/dashboard/`),
 
-    // Payments API
-    getProjectPayments: (projectId: number) => api.get<PaginatedResponse<Payment>>(`/payments/?project=${projectId}`),
+    // Escrow Milestones CRUD
+    createEscrowMilestone: (data: Partial<EscrowMilestone>) => api.post<EscrowMilestone>('/escrow-milestones/', data),
+    updateEscrowMilestone: (id: number, data: Partial<EscrowMilestone>) => api.patch<EscrowMilestone>(`/escrow-milestones/${id}/`, data),
+    deleteEscrowMilestone: (id: number) => api.delete(`/escrow-milestones/${id}/`),
 
-    // Floor Plans API
-    getFloorPlanCategories: () => api.get<PaginatedResponse<FloorPlanCategory>>('/floor-plan-categories/'),
-    createFloorPlanCategory: (data: Partial<FloorPlanCategory>) => api.post<FloorPlanCategory>('/floor-plan-categories/', data),
-    deleteFloorPlanCategory: (id: number) => api.delete(`/floor-plan-categories/${id}/`),
-    getFloorPlans: (params?: { category?: number, search?: string }) => 
-        api.get<PaginatedResponse<FloorPlanDataset>>('/floor-plans/', { params }),
-    createFloorPlan: (data: FormData) => api.post<FloorPlanDataset>('/floor-plans/', data, {
-        headers: {
-            'Content-Type': 'multipart/form-data',
-        },
-    }),
-    deleteFloorPlan: (id: number) => api.delete(`/floor-plans/${id}/`),
+    // Capital Schedule CRUD
+    createCapitalSchedule: (data: Partial<CapitalScheduleItem>) => api.post<CapitalScheduleItem>('/capital-schedules/', data),
+    updateCapitalSchedule: (id: number, data: Partial<CapitalScheduleItem>) => api.patch<CapitalScheduleItem>(`/capital-schedules/${id}/`, data),
+    deleteCapitalSchedule: (id: number) => api.delete(`/capital-schedules/${id}/`),
 
+    // Material Audits CRUD
+    getProjectMaterialAudits: (projectId: number) => api.get<PaginatedResponse<MaterialAudit>>(`/material-audits/?project=${projectId}`),
+    createMaterialAudit: (data: Partial<MaterialAudit>) => api.post<MaterialAudit>('/material-audits/', data),
+    updateMaterialAudit: (id: number, data: Partial<MaterialAudit>) => api.patch<MaterialAudit>(`/material-audits/${id}/`, data),
+    deleteMaterialAudit: (id: number) => api.delete(`/material-audits/${id}/`),
+
+    // Weather Events CRUD
+    createWeatherEvent: (data: Partial<WeatherEvent>) => api.post<WeatherEvent>('/weather-events/', data),
+    updateWeatherEvent: (id: number, data: Partial<WeatherEvent>) => api.patch<WeatherEvent>(`/weather-events/${id}/`, data),
+    deleteWeatherEvent: (id: number) => api.delete(`/weather-events/${id}/`),
+
+    // E-Signature Requests CRUD
+    getProjectESignatures: (projectId: number) => api.get<PaginatedResponse<ESignatureRequest>>(`/esignature-requests/?project=${projectId}`),
+    createESignatureRequest: (data: Partial<ESignatureRequest>) => api.post<ESignatureRequest>('/esignature-requests/', data),
+    updateESignatureRequest: (id: number, data: Partial<ESignatureRequest>) => api.patch<ESignatureRequest>(`/esignature-requests/${id}/`, data),
+    deleteESignatureRequest: (id: number) => api.delete(`/esignature-requests/${id}/`),
+
+    // Site Cameras CRUD
+    createSiteCamera: (data: Partial<SiteCamera>) => api.post<SiteCamera>('/site-cameras/', data),
+    updateSiteCamera: (id: number, data: Partial<SiteCamera>) => api.patch<SiteCamera>(`/site-cameras/${id}/`, data),
+    deleteSiteCamera: (id: number) => api.delete(`/site-cameras/${id}/`),
+
+    // BOQ Items CRUD
+    getProjectBOQItems: (projectId: number) => api.get<BOQItem[]>(`/boq-items/?project=${projectId}`),
+    getAllBOQItems: () => api.get<BOQItem[]>('/boq-items/'),
+    createBOQItem: (data: Partial<BOQItem>) => api.post<BOQItem>('/boq-items/', data),
+    updateBOQItem: (id: number, data: Partial<BOQItem>) => api.patch<BOQItem>(`/boq-items/${id}/`, data),
+    deleteBOQItem: (id: number) => api.delete(`/boq-items/${id}/`),
+    generateBOQTemplate: (projectId: number) => api.post<{message: string}>('/boq-items/generate_template/', { project: projectId }),
 };
 
 export const aiApi = {
@@ -288,15 +313,6 @@ export const adminApi = {
     createStylePreset: (data: any) => api.post<{success: boolean, id: number}>('/ai/style-presets/', data),
     updateStylePreset: (id: number, data: any) => api.patch(`/ai/style-presets/${id}/`, data),
     deleteStylePreset: (id: number) => api.delete(`/ai/style-presets/${id}/`),
-    // Floor Plans CRUD
-    createFloorPlanCategory: (data: Partial<FloorPlanCategory>) => api.post<FloorPlanCategory>('/floor-plan-categories/', data),
-    deleteFloorPlanCategory: (id: number) => api.delete(`/floor-plan-categories/${id}/`),
-    createFloorPlan: (data: FormData) => api.post<FloorPlanDataset>('/floor-plans/', data, {
-        headers: {
-            'Content-Type': 'multipart/form-data',
-        },
-    }),
-    deleteFloorPlan: (id: number) => api.delete(`/floor-plans/${id}/`),
     // AI Analytics
     getAIAnalytics: () => api.get('/admin/ai-analytics/'),
     // BOQ Templates CRUD

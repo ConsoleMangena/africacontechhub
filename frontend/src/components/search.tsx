@@ -1,4 +1,4 @@
-import { SearchIcon } from 'lucide-react'
+import { Icon } from '@/components/ui/material-icon'
 import { cn } from '@/lib/utils'
 import { useSearch } from '@/context/search-provider'
 import { Button } from './ui/button'
@@ -23,7 +23,7 @@ export function Search({
       )}
       onClick={() => setOpen(true)}
     >
-      <SearchIcon
+      <Icon name="search"
         aria-hidden='true'
         className='absolute start-1.5 top-1/2 -translate-y-1/2'
         size={16}

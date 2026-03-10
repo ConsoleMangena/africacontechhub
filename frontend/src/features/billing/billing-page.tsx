@@ -1,8 +1,8 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CreditCard, Plus, Trash2, MapPin, Edit2, Loader2 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -198,7 +198,7 @@ export default function BillingPage() {
                                     onClick={() => setPaymentDialogOpen(true)}
                                     className="bg-green-600 hover:bg-green-700 text-white"
                                 >
-                                    <Plus className='mr-2 h-4 w-4' />
+                                    <Icon name="add" className='mr-2 h-4 w-4' />
                                     Add Payment Method
                                 </Button>
                             </div>
@@ -206,7 +206,7 @@ export default function BillingPage() {
                         <CardContent className="pt-6">
                             {isLoading ? (
                                 <div className='text-center py-8 text-gray-600'>
-                                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                                    <Icon name="progress_activity" className="h-6 w-6 animate-spin mx-auto mb-2" />
                                     Loading payment methods...
                                 </div>
                             ) : paymentMethods && paymentMethods.length > 0 ? (
@@ -218,7 +218,7 @@ export default function BillingPage() {
                                         >
                                             <div className='flex items-center gap-4'>
                                                 <div className="p-2 rounded-lg bg-green-100">
-                                                    <CreditCard className='h-5 w-5 text-green-600' />
+                                                    <Icon name="credit_card" className='h-5 w-5 text-green-600' />
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
@@ -252,9 +252,9 @@ export default function BillingPage() {
                                                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                                 >
                                                     {deletingId === method.id ? (
-                                                        <Loader2 className='h-4 w-4 animate-spin' />
+                                                        <Icon name="progress_activity" className='h-4 w-4 animate-spin' />
                                                     ) : (
-                                                        <Trash2 className='h-4 w-4' />
+                                                        <Icon name="delete" className='h-4 w-4' />
                                                     )}
                                                 </Button>
                                             </div>
@@ -264,7 +264,7 @@ export default function BillingPage() {
                             ) : (
                                 <div className='text-center py-12'>
                                     <div className="p-3 rounded-full bg-green-100 w-fit mx-auto mb-4">
-                                        <CreditCard className='h-8 w-8 text-green-600' />
+                                        <Icon name="credit_card" className='h-8 w-8 text-green-600' />
                                     </div>
                                     <h3 className='text-lg font-semibold text-gray-900 mb-2'>No payment methods</h3>
                                     <p className='text-gray-600 mb-4'>Add a payment method to get started</p>
@@ -272,7 +272,7 @@ export default function BillingPage() {
                                         onClick={() => setPaymentDialogOpen(true)}
                                         className="bg-green-600 hover:bg-green-700 text-white"
                                     >
-                                        <Plus className='mr-2 h-4 w-4' />
+                                        <Icon name="add" className='mr-2 h-4 w-4' />
                                         Add Payment Method
                                     </Button>
                                 </div>
@@ -297,20 +297,20 @@ export default function BillingPage() {
                                     onClick={() => setAddressDialogOpen(true)}
                                     className="text-gray-600 hover:text-gray-900"
                                 >
-                                    <Edit2 className="h-4 w-4" />
+                                    <Icon name="edit" className="h-4 w-4" />
                                 </Button>
                             </div>
                         </CardHeader>
                         <CardContent className="pt-6">
                             {isLoadingAddress ? (
                                 <div className='text-center py-4 text-gray-600'>
-                                    <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+                                    <Icon name="progress_activity" className="h-5 w-5 animate-spin mx-auto" />
                                 </div>
                             ) : billingAddress ? (
                                 <div className="space-y-3">
                                     <div className="flex items-start gap-3">
                                         <div className="p-2 rounded-lg bg-green-100">
-                                            <MapPin className="h-4 w-4 text-green-600" />
+                                            <Icon name="location_on" className="h-4 w-4 text-green-600" />
                                         </div>
                                         <div className="flex-1 text-sm text-gray-700">
                                             <p className="font-medium text-gray-900">{billingAddress.street_address}</p>
@@ -326,7 +326,7 @@ export default function BillingPage() {
                             ) : (
                                 <div className='text-center py-8'>
                                     <div className="p-3 rounded-full bg-gray-100 w-fit mx-auto mb-4">
-                                        <MapPin className='h-6 w-6 text-gray-400' />
+                                        <Icon name="location_on" className='h-6 w-6 text-gray-400' />
                                     </div>
                                     <p className='text-gray-600 mb-4 text-sm'>No billing address on file</p>
                                     <Button
@@ -335,7 +335,7 @@ export default function BillingPage() {
                                         onClick={() => setAddressDialogOpen(true)}
                                         className="w-full"
                                     >
-                                        <Plus className='mr-2 h-4 w-4' />
+                                        <Icon name="add" className='mr-2 h-4 w-4' />
                                         Add Billing Address
                                     </Button>
                                 </div>
@@ -357,7 +357,7 @@ export default function BillingPage() {
                     <DialogHeader className="pb-4 border-b border-gray-200">
                         <DialogTitle className="flex items-center gap-3 text-xl font-bold text-gray-900">
                             <div className="p-2 rounded-lg bg-green-100">
-                                <MapPin className="h-5 w-5 text-green-600" />
+                                <Icon name="location_on" className="h-5 w-5 text-green-600" />
                             </div>
                             {billingAddress ? 'Edit Billing Address' : 'Add Billing Address'}
                         </DialogTitle>
@@ -488,7 +488,7 @@ export default function BillingPage() {
                                 >
                                     {saveAddressMutation.isPending ? (
                                         <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            <Icon name="progress_activity" className="mr-2 h-4 w-4 animate-spin" />
                                             Saving...
                                         </>
                                     ) : (

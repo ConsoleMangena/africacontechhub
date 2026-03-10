@@ -85,7 +85,7 @@ class AdminUserManagementView(APIView):
 
 
 class SystemMetricsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminRole]
 
     def get(self, request):
         total_users = User.objects.count()

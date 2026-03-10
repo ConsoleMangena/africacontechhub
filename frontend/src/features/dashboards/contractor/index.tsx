@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useEffect, useState } from 'react'
 import {
     Card,
@@ -8,10 +9,6 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-    Plus, Briefcase, TrendingUp, AlertCircle, CheckCircle2,
-    Clock, DollarSign, FileText, Activity, Loader2
-} from 'lucide-react'
 import { contractorApi } from '@/services/api'
 import { Bid, WIPAA } from '@/types/api'
 import { Header } from '@/components/layout/header'
@@ -23,7 +20,7 @@ function StatCard({
     title,
     value,
     sub,
-    icon: Icon,
+    icon,
     accentFrom,
     accentTo,
     iconBg,
@@ -32,7 +29,7 @@ function StatCard({
     title: string
     value: string | number
     sub: string
-    icon: React.ElementType
+    icon: string
     accentFrom: string
     accentTo: string
     iconBg: string
@@ -46,7 +43,7 @@ function StatCard({
                     {title}
                 </CardTitle>
                 <div className={`h-9 w-9 rounded-lg ${iconBg} flex items-center justify-center`}>
-                    <Icon className={`h-4 w-4 ${iconColor}`} />
+                    <Icon name={icon} className={`h-4 w-4 ${iconColor}`} />
                 </div>
             </CardHeader>
             <CardContent>
@@ -111,7 +108,7 @@ export default function ContractorDashboard() {
             <Main>
                 {loading ? (
                     <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                        <Icon name="progress_activity" size={40} className="animate-spin text-primary mb-3" />
                         <p className="mt-3 text-sm text-muted-foreground font-medium">Loading your dashboard...</p>
                     </div>
                 ) : (
@@ -131,7 +128,7 @@ export default function ContractorDashboard() {
                                     size="sm"
                                     className="rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
                                 >
-                                    <Plus className="h-3.5 w-3.5 mr-1.5" />
+                                    <Icon name="add" className="h-3.5 w-3.5 mr-1.5" />
                                     New Bid
                                 </Button>
                             </div>
@@ -143,7 +140,7 @@ export default function ContractorDashboard() {
                                 title="Active Bids"
                                 value={activeBids}
                                 sub="Pending response"
-                                icon={Briefcase}
+                                icon="work"
                                 accentFrom="from-blue-400"
                                 accentTo="to-blue-600"
                                 iconBg="bg-blue-100"
@@ -153,7 +150,7 @@ export default function ContractorDashboard() {
                                 title="Win Rate"
                                 value={`${winRate}%`}
                                 sub={`${acceptedBids} of ${bids.length} accepted`}
-                                icon={TrendingUp}
+                                icon="trending_up"
                                 accentFrom="from-green-400"
                                 accentTo="to-green-600"
                                 iconBg="bg-green-100"
@@ -163,7 +160,7 @@ export default function ContractorDashboard() {
                                 title="Total Revenue"
                                 value={`$${totalRevenue.toLocaleString()}`}
                                 sub="Earned via WIPAA"
-                                icon={DollarSign}
+                                icon="monetization_on"
                                 accentFrom="from-amber-400"
                                 accentTo="to-amber-600"
                                 iconBg="bg-amber-100"
@@ -173,7 +170,7 @@ export default function ContractorDashboard() {
                                 title="Solvency Risk"
                                 value="Low"
                                 sub="WIPAA analysis"
-                                icon={AlertCircle}
+                                icon="error_outline"
                                 accentFrom="from-purple-400"
                                 accentTo="to-purple-600"
                                 iconBg="bg-purple-100"
@@ -186,7 +183,7 @@ export default function ContractorDashboard() {
                             <Card className="lg:col-span-4 border-border/60 bg-card">
                                 <CardHeader>
                                     <CardTitle className="text-base font-semibold font-display flex items-center gap-2">
-                                        <FileText className="h-4 w-4 text-blue-600" />
+                                        <Icon name="description" className="h-4 w-4 text-blue-600" />
                                         Recent Bids
                                     </CardTitle>
                                     <CardDescription>Latest proposals submitted to builders.</CardDescription>
@@ -195,7 +192,7 @@ export default function ContractorDashboard() {
                                     <div className="space-y-3">
                                         {safeBids.length === 0 ? (
                                             <div className="text-center py-10 text-muted-foreground">
-                                                <Briefcase className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                                                <Icon name="work" className="h-10 w-10 mx-auto mb-2 opacity-40" />
                                                 <p className="text-sm">No bids submitted yet.</p>
                                             </div>
                                         ) : (
@@ -218,7 +215,7 @@ export default function ContractorDashboard() {
                             <Card className="lg:col-span-3 border-border/60 bg-card">
                                 <CardHeader>
                                     <CardTitle className="text-base font-semibold font-display flex items-center gap-2">
-                                        <Activity className="h-4 w-4 text-purple-600" />
+                                        <Icon name="monitoring" className="h-4 w-4 text-purple-600" />
                                         WIPAA Overview
                                     </CardTitle>
                                     <CardDescription>Solvency and billing status.</CardDescription>
@@ -227,7 +224,7 @@ export default function ContractorDashboard() {
                                     <div className="space-y-3">
                                         {safeWipaa.length === 0 ? (
                                             <div className="text-center py-10 text-muted-foreground">
-                                                <Activity className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                                                <Icon name="monitoring" className="h-10 w-10 mx-auto mb-2 opacity-40" />
                                                 <p className="text-sm">No WIPAA records found.</p>
                                             </div>
                                         ) : (
@@ -257,13 +254,13 @@ export default function ContractorDashboard() {
                         {/* Status Summary */}
                         <div className="grid gap-4 sm:grid-cols-3">
                             {[
-                                { label: 'Submitted', count: safeBids.filter(b => b.status === 'SUBMITTED').length, icon: Clock, iconColor: 'text-blue-600', bg: 'bg-blue-50' },
-                                { label: 'Accepted', count: safeBids.filter(b => b.status === 'ACCEPTED').length, icon: CheckCircle2, iconColor: 'text-green-600', bg: 'bg-green-50' },
-                                { label: 'Rejected', count: safeBids.filter(b => b.status === 'REJECTED').length, icon: AlertCircle, iconColor: 'text-red-600', bg: 'bg-red-50' },
-                            ].map(({ label, count, icon: Icon, iconColor, bg }) => (
+                                { label: 'Submitted', count: safeBids.filter(b => b.status === 'SUBMITTED').length, icon: 'schedule', iconColor: 'text-blue-600', bg: 'bg-blue-50' },
+                                { label: 'Accepted', count: safeBids.filter(b => b.status === 'ACCEPTED').length, icon: 'check_circle', iconColor: 'text-green-600', bg: 'bg-green-50' },
+                                { label: 'Rejected', count: safeBids.filter(b => b.status === 'REJECTED').length, icon: 'error_outline', iconColor: 'text-red-600', bg: 'bg-red-50' },
+                            ].map(({ label, count, icon: iconName, iconColor, bg }) => (
                                 <div key={label} className={`flex items-center gap-4 p-4 rounded-xl border border-border/60 ${bg}`}>
                                     <div className="h-9 w-9 rounded-lg bg-card flex items-center justify-center shadow-sm">
-                                        <Icon className={`h-4 w-4 ${iconColor}`} />
+                                        <Icon name={iconName} className={`h-4 w-4 ${iconColor}`} />
                                     </div>
                                     <div>
                                         <p className="text-2xl font-bold font-display tracking-tight text-foreground">{count}</p>

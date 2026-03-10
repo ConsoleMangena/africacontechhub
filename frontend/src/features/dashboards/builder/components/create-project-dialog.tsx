@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useEffect, useState } from 'react'
 import {
     Dialog,
@@ -17,7 +18,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { builderApi } from '@/services/api'
 import { Project } from '@/types/api'
@@ -236,7 +236,7 @@ export function CreateProjectDialog({
                             Cancel
                         </Button>
                         <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isSubmitting && <Icon name="progress_activity" className="mr-2 h-4 w-4 animate-spin" />}
                             {isEditing ? 'Update Project' : 'Create Project'}
                         </Button>
                     </DialogFooter>

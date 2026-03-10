@@ -1,8 +1,8 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState, useEffect } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Trash2, Users, Loader2 } from 'lucide-react'
 import { adminApi } from '@/services/api'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -103,7 +103,7 @@ export function UserManagement() {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Icon name="progress_activity" className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
         )
     }
@@ -111,7 +111,7 @@ export function UserManagement() {
     if (users.length === 0) {
         return (
             <div className="text-center py-12 text-muted-foreground">
-                <Users className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <Icon name="group" className="h-8 w-8 mx-auto mb-2 opacity-40" />
                 <p className="text-sm font-medium">No users found.</p>
             </div>
         )
@@ -173,7 +173,7 @@ export function UserManagement() {
                                         }}
                                     >
                                         {actionLoading === `status-${user.id}` ? (
-                                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                            <Icon name="progress_activity" className="h-3 w-3 animate-spin mr-1" />
                                         ) : null}
                                         {user.is_active ? 'Active' : 'Suspended'}
                                     </Badge>
@@ -193,9 +193,9 @@ export function UserManagement() {
                                         })}
                                     >
                                         {actionLoading === `delete-${user.id}` ? (
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin" />
                                         ) : (
-                                            <Trash2 className="h-3.5 w-3.5" />
+                                            <Icon name="delete" className="h-3.5 w-3.5" />
                                         )}
                                     </Button>
                                 </TableCell>
@@ -223,7 +223,7 @@ export function UserManagement() {
                             disabled={actionLoading?.startsWith('delete-')}
                         >
                             {actionLoading?.startsWith('delete-') ? (
-                                <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Deleting...</>
+                                <><Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin mr-1.5" /> Deleting...</>
                             ) : (
                                 'Delete'
                             )}

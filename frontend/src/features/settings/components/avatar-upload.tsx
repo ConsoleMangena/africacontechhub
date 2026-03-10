@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState, useRef } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -6,7 +7,6 @@ import { Label } from '@/components/ui/label'
 import { authApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth-store'
 import { toast } from 'sonner'
-import { Loader2, Upload } from 'lucide-react'
 import imageCompression from 'browser-image-compression'
 
 interface AvatarUploadProps {
@@ -85,12 +85,12 @@ export function AvatarUpload({ user }: AvatarUploadProps) {
                         >
                             {isUploading ? (
                                 <>
-                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    <Icon name="progress_activity" className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                                     Uploading...
                                 </>
                             ) : (
                                 <>
-                                    <Upload className="mr-1.5 h-3.5 w-3.5" />
+                                    <Icon name="upload" className="mr-1.5 h-3.5 w-3.5" />
                                     Change Avatar
                                 </>
                             )}

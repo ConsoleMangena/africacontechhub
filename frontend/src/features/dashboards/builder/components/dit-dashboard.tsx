@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -6,14 +7,18 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card'
-import { MapPin, DollarSign, Calendar, CheckCircle2, Clock, Users, ArrowLeft, MessageSquare } from 'lucide-react'
-import { Project } from '@/types/api'
+import { Project, ProjectDashboard } from '@/types/api'
+import { builderApi } from '@/services/api'
 import { format } from 'date-fns'
-import { useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Route } from '@/routes/_authenticated/builder'
 import { toast } from 'sonner'
+import { ActionCenter, ESignaturesPending } from './action-center'
+import { LiveCameras } from './live-cameras'
+import { EscrowRelease } from './escrow-release'
+import { JitCapitalScheduler, GroupBuyAggregator, ActOfGodValidator, MaterialDetective } from './premium-widgets'
 
 // Fix for default marker icons in Leaflet with Vite
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -28,10 +33,10 @@ interface DitDashboardProps {
 }
 
 const statusConfig = {
-    PLANNING: { label: 'Planning', className: 'bg-blue-100 text-blue-700', icon: Clock },
-    IN_PROGRESS: { label: 'In Progress', className: 'bg-amber-100 text-amber-700', icon: Clock },
-    ON_HOLD: { label: 'On Hold', className: 'bg-gray-100 text-gray-700', icon: Clock },
-    COMPLETED: { label: 'Completed', className: 'bg-green-100 text-green-700', icon: CheckCircle2 },
+    PLANNING: { label: 'Planning', className: 'bg-blue-100 text-blue-700', icon: 'schedule' },
+    IN_PROGRESS: { label: 'In Progress', className: 'bg-amber-100 text-amber-700', icon: 'schedule' },
+    ON_HOLD: { label: 'On Hold', className: 'bg-gray-100 text-gray-700', icon: 'schedule' },
+    COMPLETED: { label: 'Completed', className: 'bg-green-100 text-green-700', icon: 'check_circle' },
 }
 
 function ProjectMap({ lat, lng }: { lat: number; lng: number }) {
@@ -68,24 +73,33 @@ function ProjectMap({ lat, lng }: { lat: number; lng: number }) {
         }
     }, [lat, lng])
 
-    return <div ref={containerRef} className="h-[250px] w-full" />
+    return <div ref={containerRef} className="h-full min-h-[250px] w-full rounded-lg" />
 }
 
 export function DitDashboard({ project }: DitDashboardProps) {
     const navigate = Route.useNavigate()
-    const StatusIcon = statusConfig[project.status].icon
+    const StatusIconName = statusConfig[project.status].icon
+    const [dashboard, setDashboard] = useState<ProjectDashboard | null>(null)
+
+    const fetchDashboard = () => {
+        builderApi.getProjectDashboard(project.id)
+            .then(res => setDashboard(res.data))
+            .catch(() => {})
+    }
+
+    useEffect(() => { fetchDashboard() }, [project.id])
 
     const handleRequestValidation = () => {
         toast.success('Validation request sent to your DzeNhare consultant.')
     }
 
     return (
-        <div className="w-full max-w-7xl mx-auto space-y-6">
+        <div className="w-full max-w-7xl mx-auto space-y-5">
             {/* Hero Banner */}
-            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-indigo-50 via-blue-50/80 to-indigo-50/50 px-5 py-3.5 border border-indigo-200/50 flex items-center justify-between gap-4">
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-indigo-50 via-blue-50/80 to-indigo-50/50 px-5 py-3 border border-indigo-200/50 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 relative z-10">
                     <Button variant="outline" size="icon" onClick={() => navigate({ to: '/builder' })} className="h-8 w-8 rounded-lg hover:bg-white border-indigo-200/60 text-indigo-700">
-                        <ArrowLeft className="h-3.5 w-3.5" />
+                        <Icon name="arrow_back" size={14} />
                     </Button>
                     <div>
                         <h2 className="text-lg font-bold font-display tracking-tight text-foreground">
@@ -98,112 +112,94 @@ export function DitDashboard({ project }: DitDashboardProps) {
                 </div>
                 <div className="flex gap-2 relative z-10">
                     <Badge variant="outline" className="bg-white/80 text-indigo-700 border-indigo-200 px-2.5 py-0.5 text-xs rounded-md">
-                        <Users className="w-3 h-3 mr-1.5" />
+                        <Icon name="group" size={12} className="mr-1.5" />
                         DIT
                     </Badge>
                     <Badge className={`${statusConfig[project.status].className} px-2.5 py-0.5 text-xs rounded-md border-0`}>
-                        <StatusIcon className="w-3 h-3 mr-1.5" />
+                        <Icon name={StatusIconName} size={12} className="mr-1.5" />
                         {statusConfig[project.status].label}
                     </Badge>
                 </div>
             </div>
 
-            {/* Stats */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <Card className="relative overflow-hidden group hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 border-border/60 bg-card">
+            {/* Compact Stats Row */}
+            <div className="grid gap-4 grid-cols-3">
+                <Card className="relative overflow-hidden border-border/60 bg-card">
                     <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-green-400 to-green-600" />
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Budget</CardTitle>
-                        <div className="h-9 w-9 rounded-lg bg-green-100 flex items-center justify-center">
-                            <DollarSign className="h-4 w-4 text-green-600" />
+                    <CardContent className="p-4">
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Budget</p>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="text-xl font-bold font-display tracking-tight text-foreground">
+                                ${parseFloat(project.budget).toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                            </span>
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold font-display tracking-tight text-foreground">
-                            ${parseFloat(project.budget).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </div>
-                        <div className="flex items-center justify-between mt-1">
-                            <p className="text-xs text-muted-foreground">Project budget</p>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-md"
-                                onClick={handleRequestValidation}
-                            >
-                                Validate
-                            </Button>
-                        </div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-md mt-1 -ml-2"
+                            onClick={handleRequestValidation}
+                        >
+                            Validate
+                        </Button>
                     </CardContent>
                 </Card>
-                <Card className="relative overflow-hidden group hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 border-border/60 bg-card">
+                <Card className="relative overflow-hidden border-border/60 bg-card">
                     <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-400 to-blue-600" />
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Created</CardTitle>
-                        <div className="h-9 w-9 rounded-lg bg-blue-100 flex items-center justify-center">
-                            <Calendar className="h-4 w-4 text-blue-600" />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold font-display tracking-tight text-foreground">
+                    <CardContent className="p-4">
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Created</p>
+                        <span className="text-xl font-bold font-display tracking-tight text-foreground">
                             {format(new Date(project.created_at), 'MMM d, yyyy')}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">Project start date</p>
+                        </span>
                     </CardContent>
                 </Card>
-                <Card className="relative overflow-hidden group hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 border-border/60 bg-card">
+                <Card className="relative overflow-hidden border-border/60 bg-card">
                     <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-400 to-amber-600" />
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Location</CardTitle>
-                        <div className="h-9 w-9 rounded-lg bg-amber-100 flex items-center justify-center">
-                            <MapPin className="h-4 w-4 text-amber-600" />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-sm font-semibold text-foreground truncate">
+                    <CardContent className="p-4">
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Location</p>
+                        <span className="text-sm font-semibold text-foreground line-clamp-2">
                             {project.location}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">Project site</p>
+                        </span>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Main Content */}
-            <div className="grid gap-6 lg:grid-cols-7">
+            {/* Map + Sidebar — balanced 3/2 split */}
+            <div className="grid gap-5 lg:grid-cols-5 items-stretch">
                 {/* Location Map */}
-                <Card className="lg:col-span-4 border-border/60 bg-card">
-                    <CardHeader>
-                        <CardTitle className="text-base font-semibold font-display flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-primary" />
+                <Card className="lg:col-span-3 border-border/60 bg-card flex flex-col">
+                    <CardHeader className="pb-2 flex-none">
+                        <CardTitle className="text-sm font-semibold font-display flex items-center gap-2">
+                            <Icon name="location_on" size={16} className="text-primary" />
                             Project Location
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pb-4 flex-1 flex flex-col">
                         {project.latitude && project.longitude ? (
-                            <div className="rounded-lg overflow-hidden border border-border/60">
-                                <ProjectMap lat={Number(project.latitude)} lng={Number(project.longitude)} />
+                            <div className="rounded-lg overflow-hidden border border-border/60 flex-1 relative min-h-[250px]">
+                                <div className="absolute inset-0">
+                                    <ProjectMap lat={Number(project.latitude)} lng={Number(project.longitude)} />
+                                </div>
                             </div>
                         ) : (
-                            <div className="text-center py-10 text-muted-foreground">
-                                <MapPin className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                                <p className="text-sm">No location coordinates set.</p>
+                            <div className="text-center py-8 text-muted-foreground">
+                                <Icon name="location_on" size={32} className="mx-auto mb-2 opacity-40" />
+                                <p className="text-xs">No location coordinates set.</p>
                             </div>
                         )}
                     </CardContent>
                 </Card>
 
-                {/* Sidebar Cards */}
-                <div className="lg:col-span-3 space-y-6">
+                {/* Sidebar Cards — compact stack */}
+                <div className="lg:col-span-2 space-y-4">
                     {/* Consultant Card */}
                     <Card className="border-indigo-200/60 bg-gradient-to-br from-indigo-50/50 to-card">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-semibold font-display flex items-center gap-2">
-                                <MessageSquare className="h-4 w-4 text-indigo-600" />
-                                Your Consultant
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
+                        <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Icon name="chat" size={16} className="text-indigo-600" />
+                                <span className="text-sm font-semibold font-display">Your Consultant</span>
+                            </div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="h-9 w-9 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-700 font-semibold text-xs">
+                                <div className="h-8 w-8 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-700 font-semibold text-xs">
                                     JD
                                 </div>
                                 <div>
@@ -211,8 +207,8 @@ export function DitDashboard({ project }: DitDashboardProps) {
                                     <div className="text-xs text-muted-foreground">Senior QS</div>
                                 </div>
                             </div>
-                            <Button size="sm" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm">
-                                <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+                            <Button size="sm" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm text-xs h-8">
+                                <Icon name="chat" size={12} className="mr-1.5" />
                                 Chat with Consultant
                             </Button>
                         </CardContent>
@@ -220,26 +216,24 @@ export function DitDashboard({ project }: DitDashboardProps) {
 
                     {/* Compliance */}
                     <Card className="border-border/60 bg-card">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-semibold font-display flex items-center gap-2">
-                                <CheckCircle2 className="h-4 w-4 text-primary" />
-                                Compliance
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className={`flex items-center gap-3 p-3 rounded-lg border ${project.si56_verified ? 'bg-green-50 border-green-200' : 'bg-muted/50 border-border/60'}`}>
-                                <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${project.si56_verified ? 'bg-green-100' : 'bg-muted'}`}>
+                        <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Icon name="check_circle" size={16} className="text-primary" />
+                                <span className="text-sm font-semibold font-display">Compliance</span>
+                            </div>
+                            <div className={`flex items-center gap-2.5 p-2.5 rounded-lg border ${project.si56_verified ? 'bg-green-50 border-green-200' : 'bg-muted/50 border-border/60'}`}>
+                                <div className={`h-7 w-7 rounded-md flex items-center justify-center shrink-0 ${project.si56_verified ? 'bg-green-100' : 'bg-muted'}`}>
                                     {project.si56_verified ? (
-                                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                        <Icon name="check_circle" size={14} className="text-green-600" />
                                     ) : (
-                                        <Clock className="w-4 h-4 text-muted-foreground" />
+                                        <Icon name="schedule" size={14} className="text-muted-foreground" />
                                     )}
                                 </div>
                                 <div>
-                                    <div className="text-sm font-medium text-foreground">
+                                    <div className="text-xs font-medium text-foreground">
                                         {project.si56_verified ? 'SI 56 Verified' : 'Verification Pending'}
                                     </div>
-                                    <div className="text-xs text-muted-foreground mt-0.5">
+                                    <div className="text-[10px] text-muted-foreground mt-0.5">
                                         {project.si56_verified
                                             ? 'Complies with SI 56 of 2025.'
                                             : 'Verification is in progress.'}
@@ -250,6 +244,40 @@ export function DitDashboard({ project }: DitDashboardProps) {
                     </Card>
                 </div>
             </div>
+
+            {/* Project Tools — contextual by status */}
+            {(project.status === 'IN_PROGRESS' || project.status === 'PLANNING') && (
+                <div className="space-y-5">
+                    {/* Always show Action Center and E-Signatures for active/planning projects */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <ActionCenter unverifiedUpdates={dashboard?.unverified_updates || []} />
+                        <div className="space-y-5">
+                            <ESignaturesPending requests={dashboard?.esignature_requests} projectId={project.id} />
+                        </div>
+                    </div>
+
+                    {project.status === 'IN_PROGRESS' && (
+                        <>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                                <LiveCameras cameras={dashboard?.site_cameras} projectId={project.id} onDataChange={fetchDashboard} />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                <EscrowRelease milestones={dashboard?.escrow_milestones} projectId={project.id} onDataChange={fetchDashboard} />
+                                <ActOfGodValidator events={dashboard?.weather_events} projectId={project.id} onDataChange={fetchDashboard} />
+                                <MaterialDetective audits={dashboard?.material_audits} projectId={project.id} onManage={() => navigate({ to: `/builder/project/${project.id}/materials` })} />
+                            </div>
+                        </>
+                    )}
+
+                    {project.status === 'PLANNING' && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                            <JitCapitalScheduler schedule={dashboard?.capital_schedule} projectId={project.id} onDataChange={fetchDashboard} />
+                            <GroupBuyAggregator />
+                            <MaterialDetective audits={dashboard?.material_audits} projectId={project.id} onManage={() => navigate({ to: `/builder/project/${project.id}/materials` })} />
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     )
 }

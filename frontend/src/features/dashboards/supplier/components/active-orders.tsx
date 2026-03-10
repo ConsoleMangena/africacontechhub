@@ -1,5 +1,4 @@
-import { Truck, CheckCircle2, Clock } from 'lucide-react'
-
+import { Icon } from '@/components/ui/material-icon'
 const orders = [
     {
         id: 'ORD-2401',
@@ -41,11 +40,11 @@ export function ActiveOrders() {
             {orders.map((order) => (
                 <div key={order.id} className='flex items-start gap-4'>
                     {order.status === 'completed' ? (
-                        <CheckCircle2 className='h-5 w-5 text-green-600 mt-0.5' />
+                        <Icon name="check_circle" className='h-5 w-5 text-green-600 mt-0.5' />
                     ) : order.status === 'in-transit' ? (
-                        <Truck className='h-5 w-5 text-blue-600 mt-0.5' />
+                        <Icon name="truck" className='h-5 w-5 text-blue-600 mt-0.5' />
                     ) : (
-                        <Clock className='h-5 w-5 text-orange-600 mt-0.5' />
+                        <Icon name="schedule" className='h-5 w-5 text-orange-600 mt-0.5' />
                     )}
                     <div className='flex-1 space-y-1'>
                         <div className='flex items-center justify-between'>

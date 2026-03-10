@@ -1,11 +1,5 @@
+import { Icon } from '@/components/ui/material-icon'
 import { Link } from '@tanstack/react-router'
-import {
-  BadgeCheck,
-  Bell,
-  ChevronsUpDown,
-  CreditCard,
-  LogOut,
-} from 'lucide-react'
 import useDialogState from '@/hooks/use-dialog-state'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -68,7 +62,7 @@ export function NavUser({ user }: NavUserProps) {
                   <span className='truncate font-semibold'>{user.name}</span>
                   <span className='truncate text-xs'>{user.email}</span>
                 </div>
-                <ChevronsUpDown className='ms-auto size-4' />
+                <Icon name="unfold_more" className='ms-auto size-4' />
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -93,19 +87,19 @@ export function NavUser({ user }: NavUserProps) {
               <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
                   <Link to='/settings/account'>
-                    <BadgeCheck />
+                    <Icon name="verified" />
                     Account
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to='/settings'>
-                    <CreditCard />
+                    <Icon name="credit_card" />
                     Billing
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to='/settings/notifications'>
-                    <Bell />
+                    <Icon name="notifications" />
                     Notifications
                   </Link>
                 </DropdownMenuItem>
@@ -115,7 +109,7 @@ export function NavUser({ user }: NavUserProps) {
                 variant='destructive'
                 onClick={() => setOpen(true)}
               >
-                <LogOut />
+                <Icon name="logout" />
                 Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>

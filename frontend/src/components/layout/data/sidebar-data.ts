@@ -1,27 +1,3 @@
-import {
-  Construction,
-  LayoutDashboard,
-  FileX,
-  HelpCircle,
-  Lock,
-  Bell,
-  Package,
-  Palette,
-  Settings,
-  Wrench,
-  UserCog,
-  ShieldCheck,
-  AudioWaveform,
-  Command,
-  GalleryVerticalEnd,
-  CreditCard,
-  Briefcase,
-  BookOpen,
-  Users,
-  ShieldAlert,
-  Image,
-  FileSpreadsheet,
-} from 'lucide-react'
 import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
@@ -33,17 +9,17 @@ export const sidebarData: SidebarData = {
   teams: [
     {
       name: 'Shadcn Admin',
-      logo: Command,
+      logo: 'command_key',
       plan: 'Vite + ShadcnUI',
     },
     {
       name: 'Acme Inc',
-      logo: GalleryVerticalEnd,
+      logo: 'gallery_thumbnail',
       plan: 'Enterprise',
     },
     {
       name: 'Acme Corp.',
-      logo: AudioWaveform,
+      logo: 'audio_waveform',
       plan: 'Startup',
     },
   ],
@@ -54,22 +30,22 @@ export const sidebarData: SidebarData = {
         {
           title: 'Overview',
           url: '/admin',
-          icon: ShieldAlert,
+          icon: 'security',
         },
         {
           title: 'User Management',
           url: '/admin/users',
-          icon: Users,
+          icon: 'group',
         },
         {
           title: 'Knowledge Base',
           url: '/admin/knowledge-base',
-          icon: BookOpen,
+          icon: 'menu_book',
         },
         {
           title: 'Floor Plans',
           url: '/admin/floor-plans',
-          icon: Image,
+          icon: 'image',
         },
       ],
     },
@@ -79,12 +55,17 @@ export const sidebarData: SidebarData = {
         {
           title: 'Overview',
           url: '/builder',
-          icon: LayoutDashboard,
+          icon: 'dashboard',
         },
         {
           title: 'Floor Plans',
           url: '/builder/floor-plans',
-          icon: Image,
+          icon: 'image',
+        },
+        {
+          title: 'BOQ & Measurements',
+          url: '/builder/measurements',
+          icon: 'receipt_long',
         },
       ],
     },
@@ -94,22 +75,22 @@ export const sidebarData: SidebarData = {
         {
           title: 'Overview',
           url: '/contractor',
-          icon: LayoutDashboard,
+          icon: 'dashboard',
         },
         {
           title: 'Bids',
           url: '/contractor',
-          icon: FileX, // Using FileX as a placeholder for Bids/Proposals
+          icon: 'description',
         },
         {
           title: 'WIPAA',
           url: '/contractor',
-          icon: AudioWaveform,
+          icon: 'audio_waveform',
         },
         {
           title: 'Projects',
           url: '/contractor',
-          icon: Construction,
+          icon: 'construction',
         },
       ],
     },
@@ -119,22 +100,22 @@ export const sidebarData: SidebarData = {
         {
           title: 'Overview',
           url: '/supplier',
-          icon: LayoutDashboard,
+          icon: 'dashboard',
         },
         {
           title: 'Orders',
           url: '/supplier',
-          icon: Package,
+          icon: 'shopping_cart',
         },
         {
           title: 'Products',
           url: '/supplier',
-          icon: Palette,
+          icon: 'inventory_2',
         },
         {
           title: 'Deliveries',
           url: '/supplier',
-          icon: Wrench,
+          icon: 'local_shipping',
         },
       ],
     },
@@ -143,39 +124,39 @@ export const sidebarData: SidebarData = {
       items: [
         {
           title: 'Settings',
-          icon: Settings,
+          icon: 'settings',
           items: [
             {
               title: 'Profile',
               url: '/settings',
-              icon: UserCog,
+              icon: 'person',
             },
             {
               title: 'Account',
               url: '/settings/account',
-              icon: Wrench,
+              icon: 'manage_accounts',
             },
             {
               title: 'Appearance',
               url: '/settings/appearance',
-              icon: Palette,
+              icon: 'palette',
             },
             {
               title: 'Notifications',
               url: '/settings/notifications',
-              icon: Bell,
+              icon: 'notifications',
             },
           ],
         },
         {
           title: 'Help Center',
           url: '/help-center',
-          icon: HelpCircle,
+          icon: 'help',
         },
         {
           title: 'Billing',
           url: '/billing',
-          icon: CreditCard,
+          icon: 'credit_card',
         },
       ],
     },

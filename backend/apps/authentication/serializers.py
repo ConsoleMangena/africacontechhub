@@ -27,12 +27,9 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'profile', 'avatar']
 
     def update(self, instance, validated_data):
-        print(f"DEBUG: UserSerializer.update called with data: {validated_data}")
         profile_data = validated_data.pop('profile', None)
         avatar = validated_data.pop('avatar', None)
-        print(f"DEBUG: avatar extracted: {avatar}")
-        print(f"DEBUG: profile_data extracted: {profile_data}")
-        
+
         # Update User fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -40,19 +37,16 @@ class UserSerializer(serializers.ModelSerializer):
 
         # Get or create profile
         profile, created = Profile.objects.get_or_create(user=instance)
-        
+
         # Update Profile fields
         if profile_data:
             for attr, value in profile_data.items():
                 setattr(profile, attr, value)
-        
+
         if avatar:
-            print(f"DEBUG: Setting avatar: {avatar}")
             profile.avatar = avatar
-            
+
         if profile_data or avatar:
             profile.save()
-            print(f"DEBUG: Profile updated. Avatar: {profile.avatar}")
-            print(f"DEBUG: Profile updated. New role: {profile.role}")
 
         return instance

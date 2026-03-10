@@ -1,7 +1,6 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
-import { Clock, LogOut, ShieldCheck, Mail } from 'lucide-react'
-
 export default function PendingApprovalPage() {
     const { auth } = useAuthStore()
     const user = auth.user
@@ -15,10 +14,10 @@ export default function PendingApprovalPage() {
                     <div className="flex items-center justify-center mb-6">
                         <div className="relative">
                             <div className="h-20 w-20 rounded-full bg-indigo-100 flex items-center justify-center">
-                                <Clock className="h-10 w-10 text-indigo-600" />
+                                <Icon name="schedule" className="h-10 w-10 text-indigo-600" />
                             </div>
                             <span className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-amber-400 flex items-center justify-center shadow-md">
-                                <ShieldCheck className="h-4 w-4 text-white" />
+                                <Icon name="gpp_good" className="h-4 w-4 text-white" />
                             </span>
                         </div>
                     </div>
@@ -36,7 +35,7 @@ export default function PendingApprovalPage() {
                     {/* Info box */}
                     <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-8 text-left space-y-2">
                         <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 uppercase tracking-wide">
-                            <Mail className="h-3.5 w-3.5" />
+                            <Icon name="mail" className="h-3.5 w-3.5" />
                             Account Details
                         </div>
                         {user?.email && (
@@ -54,7 +53,7 @@ export default function PendingApprovalPage() {
                         className="w-full h-11 rounded-xl border-gray-200 text-gray-700 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
                         onClick={() => auth.logout()}
                     >
-                        <LogOut className="h-4 w-4 mr-2" />
+                        <Icon name="logout" className="h-4 w-4 mr-2" />
                         Sign Out
                     </Button>
                 </div>

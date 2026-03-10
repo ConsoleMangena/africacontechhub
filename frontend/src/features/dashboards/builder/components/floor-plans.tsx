@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { builderApi } from '@/services/api'
@@ -5,7 +6,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, Image as ImageIcon, Loader2, Maximize2 } from 'lucide-react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 
 export function BuilderFloorPlans() {
@@ -61,7 +61,7 @@ export function BuilderFloorPlans() {
             {/* Filters Row */}
             <div className="flex flex-col sm:flex-row gap-4 items-center">
                 <div className="relative flex-1 w-full">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Icon name="search" size={16} className="absolute left-2.5 top-2.5 text-muted-foreground" />
                     <Input
                         type="search"
                         placeholder="Search open floor plans, modern layouts..."
@@ -89,13 +89,13 @@ export function BuilderFloorPlans() {
             {plansLoading ? (
                  <div className="flex items-center justify-center py-20">
                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <Icon name="progress_activity" className="h-8 w-8 animate-spin text-primary" />
                         <span className="text-sm font-medium">Loading architectural plans...</span>
                      </div>
                  </div>
             ) : filteredPlans.length === 0 ? (
                 <div className="text-center py-20 bg-muted/30 rounded-lg border border-dashed border-border/60">
-                    <ImageIcon className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+                    <Icon name="image" size={48} className="text-muted-foreground/30 mx-auto mb-3" />
                     <h4 className="text-base font-medium">No Floor Plans Found</h4>
                     <p className="text-muted-foreground text-sm max-w-sm mx-auto mt-1">
                         Try adjusting your search criteria or changing the category filter.
@@ -121,7 +121,7 @@ export function BuilderFloorPlans() {
                                     />
                                 ) : (
                                     <div className="flex items-center justify-center h-full text-muted-foreground">
-                                        <ImageIcon className="h-8 w-8 opacity-20" />
+                                        <Icon name="image" size={32} className="opacity-20" />
                                     </div>
                                 )}
                                 
@@ -129,7 +129,7 @@ export function BuilderFloorPlans() {
                                 
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                                     <div className="text-white flex flex-col items-center gap-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                                        <Maximize2 className="h-6 w-6" />
+                                        <Icon name="open_in_full" size={24} />
                                         <span className="text-xs font-medium drop-shadow-md">Right-click to enlarge</span>
                                     </div>
                                 </div>

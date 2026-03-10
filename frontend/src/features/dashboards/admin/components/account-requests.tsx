@@ -1,13 +1,9 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { adminApi } from '@/services/api'
 import { toast } from 'sonner'
-import {
-    Clock, CheckCircle2, XCircle, User, Briefcase,
-    RefreshCw, Loader2
-} from 'lucide-react'
-
 interface AccountRequest {
     id: number
     user_id: number
@@ -77,7 +73,7 @@ export function AccountRequests() {
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Icon name="progress_activity" className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
         )
     }
@@ -97,7 +93,7 @@ export function AccountRequests() {
                     )}
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => fetchRequests()} className="gap-1.5 text-xs text-muted-foreground h-7">
-                    <RefreshCw className="h-3 w-3" />
+                    <Icon name="refresh_cw" className="h-3 w-3" />
                     Refresh
                 </Button>
             </div>
@@ -105,7 +101,7 @@ export function AccountRequests() {
             {/* Pending Requests */}
             {pending.length === 0 ? (
                 <div className="text-center py-10 border border-dashed border-border rounded-lg text-muted-foreground">
-                    <CheckCircle2 className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                    <Icon name="check_circle" className="h-8 w-8 mx-auto mb-2 opacity-40" />
                     <p className="text-xs font-medium">No pending requests</p>
                 </div>
             ) : (
@@ -114,7 +110,7 @@ export function AccountRequests() {
                         <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-50/50 border border-amber-100 hover:border-amber-200 transition-colors">
                             <div className="flex items-center gap-3">
                                 <div className="h-9 w-9 rounded-full bg-white border border-amber-200 flex items-center justify-center shrink-0">
-                                    <User className="h-4 w-4 text-amber-600" />
+                                    <Icon name="person" className="h-4 w-4 text-amber-600" />
                                 </div>
                                 <div>
                                     <p className="text-sm font-semibold text-foreground">
@@ -126,7 +122,7 @@ export function AccountRequests() {
                                     <p className="text-xs text-muted-foreground">{req.email}</p>
                                     <div className="flex items-center gap-2 mt-1">
                                         <Badge className={`text-[10px] px-1.5 py-0 border ${ROLE_COLORS[req.requested_role] || 'bg-muted text-muted-foreground border-border'}`}>
-                                            <Briefcase className="h-2.5 w-2.5 mr-0.5" />
+                                            <Icon name="work" className="h-2.5 w-2.5 mr-0.5" />
                                             {req.requested_role}
                                         </Badge>
                                         <span className="text-[10px] text-muted-foreground">
@@ -142,7 +138,7 @@ export function AccountRequests() {
                                     disabled={actionLoading === req.id}
                                     onClick={() => handleReview(req.id, 'approve')}
                                 >
-                                    <CheckCircle2 className="h-3 w-3" />
+                                    <Icon name="check_circle" className="h-3 w-3" />
                                     Approve
                                 </Button>
                                 <Button
@@ -152,7 +148,7 @@ export function AccountRequests() {
                                     disabled={actionLoading === req.id}
                                     onClick={() => handleReview(req.id, 'reject')}
                                 >
-                                    <XCircle className="h-3 w-3" />
+                                    <Icon name="x_circle" className="h-3 w-3" />
                                     Reject
                                 </Button>
                             </div>
@@ -178,8 +174,8 @@ export function AccountRequests() {
                                 <div key={req.id} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
                                     <div className="flex items-center gap-2.5">
                                         {req.status === 'APPROVED'
-                                            ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                                            : <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />}
+                                            ? <Icon name="check_circle" className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                                            : <Icon name="x_circle" className="h-3.5 w-3.5 text-red-500 shrink-0" />}
                                         <div>
                                             <p className="text-xs font-medium text-foreground">{req.email}</p>
                                             <p className="text-[10px] text-muted-foreground">

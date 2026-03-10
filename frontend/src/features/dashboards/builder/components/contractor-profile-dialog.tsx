@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import {
     Dialog,
     DialogContent,
@@ -8,22 +9,6 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { 
-    Building2, 
-    Mail, 
-    Phone, 
-    User, 
-    Briefcase, 
-    DollarSign, 
-    CheckCircle2, 
-    Clock, 
-    XCircle, 
-    FileText,
-    TrendingUp,
-    Calendar,
-    Star,
-    CheckCircle
-} from 'lucide-react'
 import { format } from 'date-fns'
 
 interface ContractorProfileDialogProps {
@@ -67,7 +52,7 @@ export function ContractorProfileDialog({ open, onOpenChange, contractor }: Cont
                     <Card>
                         <CardHeader>
                             <div className="flex items-center gap-2">
-                                <Briefcase className="h-5 w-5 text-blue-600" />
+                                <Icon name="work" className="h-5 w-5 text-blue-600" />
                                 <CardTitle>{contractor.company_name}</CardTitle>
                             </div>
                             <CardDescription>Company Details</CardDescription>
@@ -82,7 +67,7 @@ export function ContractorProfileDialog({ open, onOpenChange, contractor }: Cont
                                     <div>
                                         <div className="text-sm text-muted-foreground mb-1">Member Since</div>
                                         <div className="font-medium flex items-center gap-1">
-                                            <Calendar className="h-3 w-3" />
+                                            <Icon name="calendar" className="h-3 w-3" />
                                             {format(new Date(contractor.created_at), 'MMM dd, yyyy')}
                                         </div>
                                     </div>
@@ -98,7 +83,7 @@ export function ContractorProfileDialog({ open, onOpenChange, contractor }: Cont
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <div className="flex items-center gap-3">
-                                <User className="h-4 w-4 text-muted-foreground" />
+                                <Icon name="person" className="h-4 w-4 text-muted-foreground" />
                                 <div>
                                     <div className="text-sm text-muted-foreground">Contact Person</div>
                                     <div className="font-medium">
@@ -108,7 +93,7 @@ export function ContractorProfileDialog({ open, onOpenChange, contractor }: Cont
                             </div>
                             <Separator />
                             <div className="flex items-center gap-3">
-                                <Mail className="h-4 w-4 text-muted-foreground" />
+                                <Icon name="mail" className="h-4 w-4 text-muted-foreground" />
                                 <div>
                                     <div className="text-sm text-muted-foreground">Email</div>
                                     <div className="font-medium">{contractor.user.email}</div>
@@ -118,7 +103,7 @@ export function ContractorProfileDialog({ open, onOpenChange, contractor }: Cont
                                 <>
                                     <Separator />
                                     <div className="flex items-center gap-3">
-                                        <Phone className="h-4 w-4 text-muted-foreground" />
+                                        <Icon name="phone" className="h-4 w-4 text-muted-foreground" />
                                         <div>
                                             <div className="text-sm text-muted-foreground">Phone</div>
                                             <div className="font-medium">{contractor.user.phone_number}</div>
@@ -140,7 +125,7 @@ export function ContractorProfileDialog({ open, onOpenChange, contractor }: Cont
                                 {contractor.average_rating ? (
                                     <div className="text-center p-4 bg-yellow-50 rounded-lg">
                                         <div className="flex items-center justify-center gap-2 mb-2">
-                                            <Star className="h-6 w-6 text-yellow-500 fill-yellow-500" />
+                                            <Icon name="star" className="h-6 w-6 text-yellow-500 fill-yellow-500" />
                                             <div className="text-3xl font-bold text-yellow-600">{contractor.average_rating}</div>
                                         </div>
                                         <div className="text-xs text-muted-foreground">
@@ -154,7 +139,7 @@ export function ContractorProfileDialog({ open, onOpenChange, contractor }: Cont
                                 )}
                                 <div className="text-center p-4 bg-green-50 rounded-lg">
                                     <div className="flex items-center justify-center gap-2 mb-2">
-                                        <CheckCircle className="h-6 w-6 text-green-600" />
+                                        <Icon name="check_circle" className="h-6 w-6 text-green-600" />
                                         <div className="text-3xl font-bold text-green-600">{contractor.completed_projects_count}</div>
                                     </div>
                                     <div className="text-xs text-muted-foreground">

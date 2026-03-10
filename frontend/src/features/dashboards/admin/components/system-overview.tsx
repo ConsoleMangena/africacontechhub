@@ -1,5 +1,4 @@
-import { TrendingUp, TrendingDown } from 'lucide-react'
-
+import { Icon } from '@/components/ui/material-icon'
 const metrics = [
     {
         title: 'Avg Project Value',
@@ -40,7 +39,7 @@ export function SystemOverview() {
                     <div className='flex items-baseline justify-between mt-1.5'>
                         <span className='text-xl font-bold font-display tracking-tight text-foreground'>{metric.value}</span>
                         <span className={`text-xs font-medium flex items-center gap-0.5 ${metric.positive ? 'text-green-600' : 'text-red-600'}`}>
-                            {metric.positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                            {metric.positive ? <Icon name="trending_up" className="h-3 w-3" /> : <Icon name="trending_down" className="h-3 w-3" />}
                             {metric.change}
                         </span>
                     </div>

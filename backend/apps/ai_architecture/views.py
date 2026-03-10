@@ -179,11 +179,55 @@ _TOOL_MAP = {
     "calculate_area": _calculate_area,
 }
 
+# Shared tool definitions for Claude function-calling (used by both sync and streaming)
+_TOOL_DEFINITIONS = [
+    {
+        "name": "get_material_prices",
+        "description": "Look up current construction material prices for a region. Use when the user asks about costs, pricing, or material rates.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "material": {"type": "string", "description": "Name of the construction material, e.g. 'cement', 'face bricks', 'reinforcement steel'"},
+                "region": {"type": "string", "description": "Region/country, defaults to Zimbabwe", "default": "Zimbabwe"},
+            },
+            "required": ["material"],
+        },
+    },
+    {
+        "name": "check_compliance",
+        "description": "Check SI-56 / Zimbabwe building regulation compliance for a given building aspect. Use when the user asks about building codes, regulations, minimum sizes, or compliance.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "building_type": {"type": "string", "description": "Type of building, e.g. 'residential', 'commercial'"},
+                "aspect": {"type": "string", "description": "The aspect to check, e.g. 'bedroom', 'foundation_depth', 'ceiling_height', 'fire_safety'"},
+            },
+            "required": ["building_type", "aspect"],
+        },
+    },
+    {
+        "name": "calculate_area",
+        "description": "Calculate area or volume for construction shapes. Use when the user asks to compute areas, perimeters, or volumes.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "shape": {"type": "string", "description": "Shape type: rectangle, circle, triangle, or cuboid"},
+                "dimensions": {
+                    "type": "object",
+                    "description": "Dimension values. For rectangle: length, width. Circle: radius. Triangle: base, height. Cuboid: length, width, height.",
+                },
+            },
+            "required": ["shape", "dimensions"],
+        },
+    },
+]
+
 # ── Command detection ────────────────────────────────────────────────
 
 _DRAW_KEYWORDS = ['/draw']
 _PLANS_KEYWORDS = ['/plans']
 _ANALYSE_KEYWORDS = ['/analyse', '/analyze']
+_SCAN_KEYWORDS = ['/scan']
 
 
 def _is_drawing_request(text: str) -> bool:
@@ -204,6 +248,12 @@ def _is_analyse_request(text: str) -> bool:
     return any(kw in lower for kw in _ANALYSE_KEYWORDS)
 
 
+def _is_scan_request(text: str) -> bool:
+    """Return True when the user wants to scan a hand-drawn plan and generate a professional drawing."""
+    lower = text.lower()
+    return any(kw in lower for kw in _SCAN_KEYWORDS)
+
+
 def _extract_search_terms(text: str) -> str:
     """Strip the /plans command and return the remaining search terms."""
     lower = text.strip()
@@ -211,6 +261,15 @@ def _extract_search_terms(text: str) -> str:
         if lower.lower().startswith(kw):
             return lower[len(kw):].strip()
     return lower
+
+
+def _extract_scan_description(text: str) -> str:
+    """Strip the /scan command and return any extra user description."""
+    stripped = text.strip()
+    for kw in _SCAN_KEYWORDS:
+        if stripped.lower().startswith(kw):
+            return stripped[len(kw):].strip()
+    return stripped
 
 
 def _search_floor_plans(query: str, limit: int = 6) -> list:
@@ -287,12 +346,13 @@ def _get_top_rated_prompts(preset, limit=3):
 
 # ── Image generation ─────────────────────────────────────────────────
 
-def _generate_image_from_gemini(prompt: str, negative_prompt: str = "", guidance_scale: float = 7.5) -> tuple[str | None, str | None]:
+def _generate_image_from_gemini(prompt: str, negative_prompt: str = "", guidance_scale: float = 7.5, model_override: str | None = None) -> tuple[str | None, str | None]:
     """
-    Call Google Gemini API (gemini-2.0-flash-preview-image-generation) to generate
-    an architectural image.  Returns (image_url, error_message).
+    Call Google Gemini API to generate an architectural image.
+    Returns (image_url, error_message).
     image_url is the media-relative URL to the saved image, or None on error.
     error_message is a user-friendly string when generation fails, or None on success.
+    If model_override is provided, it is used instead of settings.GEMINI_IMAGE_MODEL.
     """
     from PIL import Image
 
@@ -304,7 +364,7 @@ def _generate_image_from_gemini(prompt: str, negative_prompt: str = "", guidance
             "Please ask the admin to set a valid GEMINI_API_KEY in the environment."
         )
 
-    model_name = settings.GEMINI_IMAGE_MODEL
+    model_name = model_override or settings.GEMINI_IMAGE_MODEL
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
 
     # Build the prompt with negative prompt instructions appended
@@ -496,50 +556,7 @@ def _call_claude_with_tools(messages: list, system: str = "", max_tokens: int = 
 
     llm = _get_claude_llm(temperature=temperature, max_tokens=max_tokens)
 
-    # Define tools as langchain-compatible dicts
-    tools = [
-        {
-            "name": "get_material_prices",
-            "description": "Look up current construction material prices for a region. Use when the user asks about costs, pricing, or material rates.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "material": {"type": "string", "description": "Name of the construction material, e.g. 'cement', 'face bricks', 'reinforcement steel'"},
-                    "region": {"type": "string", "description": "Region/country, defaults to Zimbabwe", "default": "Zimbabwe"},
-                },
-                "required": ["material"],
-            },
-        },
-        {
-            "name": "check_compliance",
-            "description": "Check SI-56 / Zimbabwe building regulation compliance for a given building aspect. Use when the user asks about building codes, regulations, minimum sizes, or compliance.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "building_type": {"type": "string", "description": "Type of building, e.g. 'residential', 'commercial'"},
-                    "aspect": {"type": "string", "description": "The aspect to check, e.g. 'bedroom', 'foundation_depth', 'ceiling_height', 'fire_safety'"},
-                },
-                "required": ["building_type", "aspect"],
-            },
-        },
-        {
-            "name": "calculate_area",
-            "description": "Calculate area or volume for construction shapes. Use when the user asks to compute areas, perimeters, or volumes.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "shape": {"type": "string", "description": "Shape type: rectangle, circle, triangle, or cuboid"},
-                    "dimensions": {
-                        "type": "object",
-                        "description": "Dimension values. For rectangle: length, width. Circle: radius. Triangle: base, height. Cuboid: length, width, height.",
-                    },
-                },
-                "required": ["shape", "dimensions"],
-            },
-        },
-    ]
-
-    llm_with_tools = llm.bind_tools(tools)
+    llm_with_tools = llm.bind_tools(_TOOL_DEFINITIONS)
     lc_messages = _build_lc_messages(messages, system=system, images=images)
 
     # Tool loop — max 5 rounds to prevent infinite loops
@@ -584,46 +601,7 @@ def _stream_claude_with_tools(messages: list, system: str = "", max_tokens: int 
 
     llm = _get_claude_llm(temperature=temperature, max_tokens=max_tokens)
 
-    tools = [
-        {
-            "name": "get_material_prices",
-            "description": "Look up current construction material prices for a region.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "material": {"type": "string", "description": "Name of the construction material"},
-                    "region": {"type": "string", "description": "Region/country", "default": "Zimbabwe"},
-                },
-                "required": ["material"],
-            },
-        },
-        {
-            "name": "check_compliance",
-            "description": "Check SI-56 / Zimbabwe building regulation compliance.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "building_type": {"type": "string", "description": "Type of building"},
-                    "aspect": {"type": "string", "description": "The aspect to check"},
-                },
-                "required": ["building_type", "aspect"],
-            },
-        },
-        {
-            "name": "calculate_area",
-            "description": "Calculate area or volume for construction shapes.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "shape": {"type": "string", "description": "rectangle, circle, triangle, or cuboid"},
-                    "dimensions": {"type": "object", "description": "Dimension values."},
-                },
-                "required": ["shape", "dimensions"],
-            },
-        },
-    ]
-
-    llm_with_tools = llm.bind_tools(tools)
+    llm_with_tools = llm.bind_tools(_TOOL_DEFINITIONS)
     lc_messages = _build_lc_messages(messages, system=system, images=images)
 
     # Tool loop — max 5 rounds
@@ -749,6 +727,21 @@ class ChatCompletionView(APIView):
         elif _is_drawing_request(user_query):
             image_url, final_image_prompt, matched_preset, draw_error = self._handle_draw(user_query)
 
+        # ── /scan — hand-drawn plan → professional drawing via Gemini ──
+        elif _is_scan_request(user_query):
+            logger.info("[Scan] Command detected. user_image_data present: %s, vision_images count: %d",
+                        bool(user_image_data), len(vision_images))
+            if not vision_images:
+                draw_error = (
+                    "⚠️ The /scan command requires an attached image of a hand-drawn plan. "
+                    "Please attach an image using the 📎 button and try again."
+                )
+            else:
+                scan_desc = _extract_scan_description(user_query)
+                image_url, final_image_prompt, draw_error = self._handle_scan(
+                    vision_images, scan_desc
+                )
+
         # ── RAG retrieval ──
         context_text = ""
         try:
@@ -830,6 +823,22 @@ class ChatCompletionView(APIView):
                 "and recommend next steps. Do NOT repeat the entire table in your text — it is shown automatically."
             )
 
+        if _is_scan_request(user_query) and image_url:
+            system_content += (
+                "\n\nYou have just scanned a hand-drawn plan and generated a professional architectural "
+                "drawing from it. The generated image is displayed alongside your message. "
+                "Describe what you interpreted from the hand-drawn plan, what the generated drawing shows, "
+                "and provide architectural notes, suggested improvements, or compliance observations (SI-56). "
+                "Mention any assumptions you made about dimensions or layout."
+            )
+        elif _is_scan_request(user_query) and draw_error:
+            system_content += (
+                f"\n\nIMPORTANT: The user used the /scan command to convert a hand-drawn plan "
+                f"into a professional drawing, but it FAILED. Error: {draw_error}\n"
+                f"Inform the user about the error and suggest they try again with a clearer image. "
+                f"Do NOT attempt any visual representation as a substitute."
+            )
+
         # ── Call Claude for final response ──
         try:
             # Prepare conversation for Claude
@@ -837,10 +846,16 @@ class ChatCompletionView(APIView):
             for msg in messages:
                 llm_messages.append({"role": msg['role'], "content": msg['content']})
 
+            # For /scan, Gemini already analysed the image — don't re-send
+            # to Claude (avoids hitting the 5 MB image size limit).
+            final_images = None if _is_scan_request(user_query) else (
+                vision_images if vision_images else None
+            )
+
             response_content = _call_claude_with_tools(
                 messages=llm_messages,
                 system=system_content,
-                images=vision_images if vision_images else None,
+                images=final_images,
             )
 
             result = {
@@ -982,6 +997,145 @@ class ChatCompletionView(APIView):
             guidance_scale=guidance,
         )
         return image_url, final_image_prompt, matched_preset, gen_error
+
+    # ── /scan handler ────────────────────────────────────────────────
+    def _handle_scan(self, vision_images: list, user_description: str = ""):
+        """
+        Scan a hand-drawn plan using Gemini vision, then generate a professional
+        architectural drawing from the analysis.
+        Returns (image_url, final_prompt, error_message).
+        """
+        # ── Step 1: Analyse the hand-drawn plan using Gemini vision ──
+        api_key = settings.GEMINI_API_KEY
+        vision_model = 'gemini-2.5-flash'  # Use flash for fast vision analysis
+        vision_url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/{vision_model}"
+            f":generateContent?key={api_key}"
+        )
+
+        # Build the image part from the first vision image
+        img_data = vision_images[0]
+        if img_data.startswith('data:'):
+            media_type = img_data.split(';')[0].split(':')[1]
+            b64 = img_data.split(',', 1)[1]
+        else:
+            media_type = 'image/png'
+            b64 = img_data
+
+        analysis_prompt = (
+            "You are an expert architectural analyst. This is a HAND-DRAWN floor plan or "
+            "architectural sketch. Analyse it in great detail and describe:\n\n"
+            "1. **Overall layout**: Number of rooms, storeys, general shape (L-shape, rectangular, etc.)\n"
+            "2. **Room identification**: Name each room you can identify (bedrooms, kitchen, bathroom, "
+            "living room, garage, corridor, etc.) and estimate dimensions if any are written "
+            "(MUST specify all dimensions in millimeters / mm)\n"
+            "3. **Doors and windows**: Note their positions\n"
+            "4. **Special features**: Verandah, patio, staircase, built-in wardrobes, en-suite, etc.\n"
+            "5. **Orientation**: If any compass direction or front/back is indicated\n"
+            "6. **Construction style**: If you can infer the style (modern, traditional, colonial, etc.)\n\n"
+            "Be as detailed and specific as possible. This description will be used to generate "
+            "a professional CAD-quality floor plan drawing."
+        )
+        if user_description:
+            analysis_prompt += f"\n\nAdditional context from the user: {user_description}"
+
+        vision_payload = {
+            "contents": [{
+                "parts": [
+                    {"text": analysis_prompt},
+                    {"inlineData": {"mimeType": media_type, "data": b64}},
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.3,
+                "maxOutputTokens": 2048,
+            },
+        }
+
+        try:
+            logger.info("[Scan] Step 1: Analysing hand-drawn plan with Gemini vision...")
+            vision_response = http_requests.post(vision_url, json=vision_payload, timeout=60.0)
+
+            if vision_response.status_code != 200:
+                body = vision_response.text[:500]
+                logger.error("Scan vision API HTTP %s: %s", vision_response.status_code, body)
+                return None, None, (
+                    f"⚠️ Failed to analyse the hand-drawn plan (HTTP {vision_response.status_code}). "
+                    "Please try again with a clearer image."
+                )
+
+            vision_data = vision_response.json()
+            candidates = vision_data.get("candidates", [])
+            if not candidates:
+                return None, None, "⚠️ Could not analyse the hand-drawn plan. Please try a clearer image."
+
+            parts = candidates[0].get("content", {}).get("parts", [])
+            plan_analysis = " ".join(p.get("text", "") for p in parts if "text" in p)
+
+            if not plan_analysis.strip():
+                return None, None, "⚠️ The hand-drawn plan could not be interpreted. Please try a clearer image."
+
+            logger.info("[Scan] Step 1 complete. Analysis: %.200s...", plan_analysis)
+
+        except http_requests.exceptions.Timeout:
+            return None, None, "⚠️ Plan analysis timed out. Please try a simpler or clearer image."
+        except Exception as e:
+            logger.error("Scan vision error: %s", e)
+            return None, None, f"⚠️ Failed to analyse the hand-drawn plan: {e}"
+
+        # ── Step 2: Use Claude to craft an image-generation prompt ──
+        prompt_system = (
+            "You are an expert architectural prompt engineer. You have just received a detailed "
+            "description of a hand-drawn floor plan. Your job is to convert this description into "
+            "a concise, vivid text-to-image prompt (max 200 words) that will generate a "
+            "professional-quality architectural floor plan drawing.\n\n"
+            "REQUIREMENTS:\n"
+            "- Produce a clean, professional 2D floor plan in CAD/blueprint style\n"
+            "- Include room labels, door swings, and window markers\n"
+            "- Use clean black lines on white background with proper line weights\n"
+            "- Include a scale bar and north arrow if orientation was noted\n"
+            "- Show wall thicknesses, ALL dimensions MUST be in millimeters (mm)\n"
+            "- Add architectural hatching for wet areas (kitchen, bathroom)\n"
+            "- Style: professional technical drawing, architectural blueprint\n\n"
+            "Output ONLY the prompt text, nothing else."
+        )
+
+        user_context = f"Hand-drawn plan analysis:\n{plan_analysis}"
+        if user_description:
+            user_context += f"\n\nUser's additional notes: {user_description}"
+
+        try:
+            logger.info("[Scan] Step 2: Crafting image prompt via Claude...")
+            image_prompt = _call_claude(
+                messages=[{"role": "user", "content": user_context}],
+                system=prompt_system,
+                max_tokens=400,
+                temperature=0.7,
+            )
+        except Exception as e:
+            logger.error("Claude prompt generation error for /scan: %s", e)
+            # Fallback: use the raw analysis as prompt
+            image_prompt = (
+                f"Professional 2D architectural floor plan, CAD blueprint style, "
+                f"clean black lines on white, room labels, dimensions in meters, "
+                f"scale bar: {plan_analysis[:500]}"
+            )
+
+        final_prompt = image_prompt
+        logger.info("[Scan] Step 2 complete. Prompt: %.200s...", final_prompt)
+
+        # ── Step 3: Generate the professional drawing via Gemini ──
+        logger.info("[Scan] Step 3: Generating professional drawing via Gemini...")
+        image_url, gen_error = _generate_image_from_gemini(
+            prompt=image_prompt + " Ensure extremely high architectural accuracy based on the provided dimensions and layout.",
+            negative_prompt="blurry, low quality, realistic photo, watermark, hand-drawn, sketch, messy lines",
+            guidance_scale=8.0,
+        )
+
+        if gen_error:
+            return None, final_prompt, gen_error
+
+        return image_url, final_prompt, None
 
     # ── /analyse handler ─────────────────────────────────────────────
     def _handle_analyse(self, user_query: str, images: list) -> dict:
@@ -1169,6 +1323,8 @@ def _extract_pdf_pages_as_images(pdf_base64: str, max_pages: int = 5) -> list[st
 
 # ── Streaming SSE endpoint ───────────────────────────────────────────
 
+from apps.authentication.permissions import IsApproved
+
 class ChatStreamView(APIView):
     """
     SSE streaming chat endpoint.
@@ -1178,7 +1334,7 @@ class ChatStreamView(APIView):
     POST /ai/chat/stream/
     Same payload as /ai/chat/ — returns text/event-stream.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsApproved]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'ai_chat'
 
@@ -1194,9 +1350,9 @@ class ChatStreamView(APIView):
 
         user_query = messages[-1]['content'] if messages else ""
 
-        # For /draw, /plans, /analyse — redirect to the sync endpoint
+        # For /draw, /plans, /analyse, /scan — redirect to the sync endpoint
         if (_is_drawing_request(user_query) or _is_floor_plan_search(user_query)
-                or _is_analyse_request(user_query)):
+                or _is_analyse_request(user_query) or _is_scan_request(user_query)):
             # Delegate to ChatCompletionView
             view = ChatCompletionView()
             view.request = request

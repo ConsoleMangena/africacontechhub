@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useQuery } from '@tanstack/react-query'
 import {
   Dialog,
@@ -8,7 +9,6 @@ import {
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { legalApi } from '@/services/api'
-import { Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 
 interface PrivacyDialogProps {
@@ -44,7 +44,7 @@ export function PrivacyDialog({ open, onOpenChange }: PrivacyDialogProps) {
         <ScrollArea className="max-h-[60vh] pr-4">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+              <Icon name="progress_activity" className="h-6 w-6 animate-spin text-green-600" />
             </div>
           ) : error ? (
             <div className="py-8 text-center">

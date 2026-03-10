@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { builderApi } from '@/services/api'
@@ -8,8 +9,6 @@ import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
-import { Loader2 } from 'lucide-react'
-
 export const Route = createFileRoute(
   '/_authenticated/builder/project/$projectId',
 )({
@@ -59,7 +58,7 @@ function ProjectRouteComponent() {
         </Header>
         <Main>
           <div className="flex flex-col items-center justify-center min-h-[60vh]">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <Icon name="progress_activity" size={40} className="animate-spin text-primary mb-3" />
             <p className="mt-3 text-sm text-muted-foreground font-medium">Loading project...</p>
           </div>
         </Main>

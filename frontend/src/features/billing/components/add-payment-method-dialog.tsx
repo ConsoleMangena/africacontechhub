@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -28,7 +29,6 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, CreditCard, Lock, Shield } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
@@ -176,7 +176,7 @@ export function AddPaymentMethodDialog({ open, onOpenChange }: AddPaymentMethodD
                 <DialogHeader className="pb-4 border-b border-gray-200">
                     <DialogTitle className="flex items-center gap-3 text-2xl font-bold text-gray-900">
                         <div className="p-2 rounded-lg bg-green-100">
-                            <CreditCard className="h-5 w-5 text-green-600" />
+                            <Icon name="credit_card" className="h-5 w-5 text-green-600" />
                         </div>
                         Add Payment Method
                     </DialogTitle>
@@ -187,7 +187,7 @@ export function AddPaymentMethodDialog({ open, onOpenChange }: AddPaymentMethodD
 
                 {/* Security Notice */}
                 <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-                    <Shield className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <Icon name="security" className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                         <p className="text-sm font-medium text-green-900 mb-1">Secure Payment Processing</p>
                         <p className="text-xs text-green-700">
@@ -483,12 +483,12 @@ export function AddPaymentMethodDialog({ open, onOpenChange }: AddPaymentMethodD
                             <Button type="submit" disabled={isSubmitting} className="bg-green-600 hover:bg-green-700">
                                 {isSubmitting ? (
                                     <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        <Icon name="progress_activity" className="mr-2 h-4 w-4 animate-spin" />
                                         Processing...
                                     </>
                                 ) : (
                                     <>
-                                        <Lock className="mr-2 h-4 w-4" />
+                                        <Icon name="lock" className="mr-2 h-4 w-4" />
                                         Add Payment Method
                                     </>
                                 )}

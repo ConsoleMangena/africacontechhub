@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
@@ -20,9 +21,6 @@ import { getSupabaseAuthErrorMessage } from '@/lib/supabase-error'
 import { useAuthStore } from '@/stores/auth-store'
 import { toast } from 'sonner'
 import { authApi } from '@/services/api'
-import { Clock, ShieldCheck, CheckCircle2 } from 'lucide-react'
-
-
 const formSchema = z
   .object({
     email: z.email({
@@ -71,10 +69,10 @@ export function SignUpForm({
       <div className="flex flex-col items-center justify-center py-10 px-4 text-center gap-5">
         <div className="relative">
           <div className="h-20 w-20 rounded-full bg-green-100 flex items-center justify-center">
-            <CheckCircle2 className="h-10 w-10 text-green-600" />
+            <Icon name="check_circle" className="h-10 w-10 text-green-600" />
           </div>
           <span className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-amber-400 flex items-center justify-center shadow-md">
-            <Clock className="h-4 w-4 text-white" />
+            <Icon name="schedule" className="h-4 w-4 text-white" />
           </span>
         </div>
         <div>
@@ -87,7 +85,7 @@ export function SignUpForm({
           </p>
         </div>
         <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-sm">
-          <ShieldCheck className="h-4 w-4 shrink-0" />
+          <Icon name="gpp_good" className="h-4 w-4 shrink-0" />
           <span>Awaiting admin approval — you cannot log in yet.</span>
         </div>
       </div>

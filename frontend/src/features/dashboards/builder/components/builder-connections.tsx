@@ -1,7 +1,7 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useBuilderConnections } from '../hooks/use-builder-data'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Building2, Package, Mail, Phone, User, Briefcase, TrendingUp, AlertCircle, ShieldCheck, Star, Clock, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { Separator } from '@/components/ui/separator'
 
@@ -55,7 +55,7 @@ export function BuilderConnectionsView() {
                 <Card>
                     <CardHeader>
                         <div className="flex items-center gap-2">
-                            <Briefcase className="h-5 w-5 text-blue-600" />
+                            <Icon name="work" className="h-5 w-5 text-blue-600" />
                             <CardTitle>Contractors ({contractors.length})</CardTitle>
                         </div>
                         <CardDescription>
@@ -69,24 +69,24 @@ export function BuilderConnectionsView() {
                                     <div className="flex items-start justify-between">
                                         <div className="space-y-1">
                                             <div className="flex items-center gap-2">
-                                                <Building2 className="h-4 w-4 text-muted-foreground" />
+                                                <Icon name="building2" className="h-4 w-4 text-muted-foreground" />
                                                 <h4 className="font-semibold text-lg">{contractor.company_name}</h4>
                                             </div>
                                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                                 <div className="flex items-center gap-1">
-                                                    <User className="h-3 w-3" />
+                                                    <Icon name="person" className="h-3 w-3" />
                                                     <span>
                                                         {contractor.user.first_name} {contractor.user.last_name}
                                                     </span>
                                                 </div>
                                                 {contractor.user.phone_number && (
                                                     <div className="flex items-center gap-1">
-                                                        <Phone className="h-3 w-3" />
+                                                        <Icon name="phone" className="h-3 w-3" />
                                                         <span>{contractor.user.phone_number}</span>
                                                     </div>
                                                 )}
                                                 <div className="flex items-center gap-1">
-                                                    <Mail className="h-3 w-3" />
+                                                    <Icon name="mail" className="h-3 w-3" />
                                                     <span>{contractor.user.email}</span>
                                                 </div>
                                             </div>
@@ -116,7 +116,7 @@ export function BuilderConnectionsView() {
                 <Card>
                     <CardHeader>
                         <div className="flex items-center gap-2">
-                            <Package className="h-5 w-5 text-green-600" />
+                            <Icon name="package" className="h-5 w-5 text-green-600" />
                             <CardTitle>Suppliers ({suppliers.length})</CardTitle>
                         </div>
                         <CardDescription>
@@ -130,24 +130,24 @@ export function BuilderConnectionsView() {
                                     <div className="flex items-start justify-between">
                                         <div className="space-y-1">
                                             <div className="flex items-center gap-2">
-                                                <Building2 className="h-4 w-4 text-muted-foreground" />
+                                                <Icon name="building2" className="h-4 w-4 text-muted-foreground" />
                                                 <h4 className="font-semibold text-lg">{supplier.company_name}</h4>
                                             </div>
                                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                                 <div className="flex items-center gap-1">
-                                                    <User className="h-3 w-3" />
+                                                    <Icon name="person" className="h-3 w-3" />
                                                     <span>
                                                         {supplier.user.first_name} {supplier.user.last_name}
                                                     </span>
                                                 </div>
                                                 {supplier.user.phone_number && (
                                                     <div className="flex items-center gap-1">
-                                                        <Phone className="h-3 w-3" />
+                                                        <Icon name="phone" className="h-3 w-3" />
                                                         <span>{supplier.user.phone_number}</span>
                                                     </div>
                                                 )}
                                                 <div className="flex items-center gap-1">
-                                                    <Mail className="h-3 w-3" />
+                                                    <Icon name="mail" className="h-3 w-3" />
                                                     <span>{supplier.user.email}</span>
                                                 </div>
                                             </div>
@@ -158,13 +158,13 @@ export function BuilderConnectionsView() {
                                     </div>
                                     <div className="flex items-center gap-4 text-sm">
                                         <div className="flex items-center gap-1 text-green-600">
-                                            <TrendingUp className="h-3 w-3" />
+                                            <Icon name="trending_up" className="h-3 w-3" />
                                             <span>
                                                 <span className="font-medium">On-Time Rate:</span> {supplier.on_time_rate}%
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-1 text-orange-600">
-                                            <AlertCircle className="h-3 w-3" />
+                                            <Icon name="alert_circle" className="h-3 w-3" />
                                             <span>
                                                 <span className="font-medium">Defect Rate:</span> {supplier.defect_rate}%
                                             </span>

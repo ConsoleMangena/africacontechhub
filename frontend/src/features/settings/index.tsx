@@ -1,5 +1,5 @@
+import { Icon } from '@/components/ui/material-icon'
 import { Outlet } from '@tanstack/react-router'
-import { Bell, Palette, Wrench, UserCog } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 
 import { Header } from '@/components/layout/header'
@@ -12,22 +12,22 @@ const sidebarNavItems = [
   {
     title: 'Profile',
     href: '/settings',
-    icon: <UserCog size={16} />,
+    icon: <Icon name="user_cog" size={16} />,
   },
   {
     title: 'Account',
     href: '/settings/account',
-    icon: <Wrench size={16} />,
+    icon: <Icon name="build" size={16} />,
   },
   {
     title: 'Appearance',
     href: '/settings/appearance',
-    icon: <Palette size={16} />,
+    icon: <Icon name="palette" size={16} />,
   },
   {
     title: 'Notifications',
     href: '/settings/notifications',
-    icon: <Bell size={16} />,
+    icon: <Icon name="notifications" size={16} />,
   },
 
 ]

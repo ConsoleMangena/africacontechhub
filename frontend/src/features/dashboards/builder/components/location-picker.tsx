@@ -1,8 +1,7 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { MapPin } from 'lucide-react'
-
 // Fix for default marker icons in Leaflet with Vite
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -174,7 +173,7 @@ export function LocationPicker({ onLocationSelect, initialLocation, searchLocati
     return (
         <div className='space-y-2'>
             <div className='flex items-center gap-2 text-sm text-muted-foreground'>
-                <MapPin className='h-4 w-4' />
+                <Icon name="location_on" className='h-4 w-4' />
                 <span>
                     {isGeocoding ? 'Searching for location...' : 'Enter location above or click on the map to pin-point your project location'}
                 </span>

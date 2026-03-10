@@ -43,6 +43,8 @@ import { Route as AuthenticatedAdminKnowledgeBaseRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminFloorPlansRouteImport } from './routes/_authenticated/admin/floor-plans'
 import { Route as AuthenticatedAdminAiCommandCenterRouteImport } from './routes/_authenticated/admin/ai-command-center'
 import { Route as AuthenticatedBuilderProjectProjectIdRouteImport } from './routes/_authenticated/builder/project.$projectId'
+import { Route as AuthenticatedBuilderProjectProjectIdSignaturesRouteImport } from './routes/_authenticated/builder/project.$projectId.signatures'
+import { Route as AuthenticatedBuilderProjectProjectIdMaterialsRouteImport } from './routes/_authenticated/builder/project.$projectId.materials'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -227,6 +229,18 @@ const AuthenticatedBuilderProjectProjectIdRoute =
     path: '/project/$projectId',
     getParentRoute: () => AuthenticatedBuilderRoute,
   } as any)
+const AuthenticatedBuilderProjectProjectIdSignaturesRoute =
+  AuthenticatedBuilderProjectProjectIdSignaturesRouteImport.update({
+    id: '/signatures',
+    path: '/signatures',
+    getParentRoute: () => AuthenticatedBuilderProjectProjectIdRoute,
+  } as any)
+const AuthenticatedBuilderProjectProjectIdMaterialsRoute =
+  AuthenticatedBuilderProjectProjectIdMaterialsRouteImport.update({
+    id: '/materials',
+    path: '/materials',
+    getParentRoute: () => AuthenticatedBuilderProjectProjectIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
@@ -261,7 +275,9 @@ export interface FileRoutesByFullPath {
   '/builder/': typeof AuthenticatedBuilderIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
-  '/builder/project/$projectId': typeof AuthenticatedBuilderProjectProjectIdRoute
+  '/builder/project/$projectId': typeof AuthenticatedBuilderProjectProjectIdRouteWithChildren
+  '/builder/project/$projectId/materials': typeof AuthenticatedBuilderProjectProjectIdMaterialsRoute
+  '/builder/project/$projectId/signatures': typeof AuthenticatedBuilderProjectProjectIdSignaturesRoute
 }
 export interface FileRoutesByTo {
   '/forgot-password': typeof authForgotPasswordRoute
@@ -293,7 +309,9 @@ export interface FileRoutesByTo {
   '/builder': typeof AuthenticatedBuilderIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
-  '/builder/project/$projectId': typeof AuthenticatedBuilderProjectProjectIdRoute
+  '/builder/project/$projectId': typeof AuthenticatedBuilderProjectProjectIdRouteWithChildren
+  '/builder/project/$projectId/materials': typeof AuthenticatedBuilderProjectProjectIdMaterialsRoute
+  '/builder/project/$projectId/signatures': typeof AuthenticatedBuilderProjectProjectIdSignaturesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -330,7 +348,9 @@ export interface FileRoutesById {
   '/_authenticated/builder/': typeof AuthenticatedBuilderIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
-  '/_authenticated/builder/project/$projectId': typeof AuthenticatedBuilderProjectProjectIdRoute
+  '/_authenticated/builder/project/$projectId': typeof AuthenticatedBuilderProjectProjectIdRouteWithChildren
+  '/_authenticated/builder/project/$projectId/materials': typeof AuthenticatedBuilderProjectProjectIdMaterialsRoute
+  '/_authenticated/builder/project/$projectId/signatures': typeof AuthenticatedBuilderProjectProjectIdSignaturesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -368,6 +388,8 @@ export interface FileRouteTypes {
     | '/help-center'
     | '/settings/'
     | '/builder/project/$projectId'
+    | '/builder/project/$projectId/materials'
+    | '/builder/project/$projectId/signatures'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/forgot-password'
@@ -400,6 +422,8 @@ export interface FileRouteTypes {
     | '/help-center'
     | '/settings'
     | '/builder/project/$projectId'
+    | '/builder/project/$projectId/materials'
+    | '/builder/project/$projectId/signatures'
   id:
     | '__root__'
     | '/_authenticated'
@@ -436,6 +460,8 @@ export interface FileRouteTypes {
     | '/_authenticated/help-center/'
     | '/_authenticated/settings/'
     | '/_authenticated/builder/project/$projectId'
+    | '/_authenticated/builder/project/$projectId/materials'
+    | '/_authenticated/builder/project/$projectId/signatures'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -693,6 +719,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBuilderProjectProjectIdRouteImport
       parentRoute: typeof AuthenticatedBuilderRoute
     }
+    '/_authenticated/builder/project/$projectId/signatures': {
+      id: '/_authenticated/builder/project/$projectId/signatures'
+      path: '/signatures'
+      fullPath: '/builder/project/$projectId/signatures'
+      preLoaderRoute: typeof AuthenticatedBuilderProjectProjectIdSignaturesRouteImport
+      parentRoute: typeof AuthenticatedBuilderProjectProjectIdRoute
+    }
+    '/_authenticated/builder/project/$projectId/materials': {
+      id: '/_authenticated/builder/project/$projectId/materials'
+      path: '/materials'
+      fullPath: '/builder/project/$projectId/materials'
+      preLoaderRoute: typeof AuthenticatedBuilderProjectProjectIdMaterialsRouteImport
+      parentRoute: typeof AuthenticatedBuilderProjectProjectIdRoute
+    }
   }
 }
 
@@ -737,11 +777,29 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
+interface AuthenticatedBuilderProjectProjectIdRouteChildren {
+  AuthenticatedBuilderProjectProjectIdMaterialsRoute: typeof AuthenticatedBuilderProjectProjectIdMaterialsRoute
+  AuthenticatedBuilderProjectProjectIdSignaturesRoute: typeof AuthenticatedBuilderProjectProjectIdSignaturesRoute
+}
+
+const AuthenticatedBuilderProjectProjectIdRouteChildren: AuthenticatedBuilderProjectProjectIdRouteChildren =
+  {
+    AuthenticatedBuilderProjectProjectIdMaterialsRoute:
+      AuthenticatedBuilderProjectProjectIdMaterialsRoute,
+    AuthenticatedBuilderProjectProjectIdSignaturesRoute:
+      AuthenticatedBuilderProjectProjectIdSignaturesRoute,
+  }
+
+const AuthenticatedBuilderProjectProjectIdRouteWithChildren =
+  AuthenticatedBuilderProjectProjectIdRoute._addFileChildren(
+    AuthenticatedBuilderProjectProjectIdRouteChildren,
+  )
+
 interface AuthenticatedBuilderRouteChildren {
   AuthenticatedBuilderFloorPlansRoute: typeof AuthenticatedBuilderFloorPlansRoute
   AuthenticatedBuilderMeasurementsRoute: typeof AuthenticatedBuilderMeasurementsRoute
   AuthenticatedBuilderIndexRoute: typeof AuthenticatedBuilderIndexRoute
-  AuthenticatedBuilderProjectProjectIdRoute: typeof AuthenticatedBuilderProjectProjectIdRoute
+  AuthenticatedBuilderProjectProjectIdRoute: typeof AuthenticatedBuilderProjectProjectIdRouteWithChildren
 }
 
 const AuthenticatedBuilderRouteChildren: AuthenticatedBuilderRouteChildren = {
@@ -749,7 +807,7 @@ const AuthenticatedBuilderRouteChildren: AuthenticatedBuilderRouteChildren = {
   AuthenticatedBuilderMeasurementsRoute: AuthenticatedBuilderMeasurementsRoute,
   AuthenticatedBuilderIndexRoute: AuthenticatedBuilderIndexRoute,
   AuthenticatedBuilderProjectProjectIdRoute:
-    AuthenticatedBuilderProjectProjectIdRoute,
+    AuthenticatedBuilderProjectProjectIdRouteWithChildren,
 }
 
 const AuthenticatedBuilderRouteWithChildren =

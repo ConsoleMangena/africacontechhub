@@ -1,6 +1,6 @@
+import { Icon } from '@/components/ui/material-icon'
 import React from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight, ChevronRight } from 'lucide-react'
 import { useSearch } from '@/context/search-provider'
 import {
   CommandDialog,
@@ -44,7 +44,7 @@ export function CommandMenu() {
                       }}
                     >
                       <div className='flex size-4 items-center justify-center'>
-                        <ArrowRight className='text-muted-foreground/80 size-2' />
+                        <Icon name="arrow_forward" className='text-muted-foreground/80 size-2' />
                       </div>
                       {navItem.title}
                     </CommandItem>
@@ -59,9 +59,9 @@ export function CommandMenu() {
                     }}
                   >
                     <div className='flex size-4 items-center justify-center'>
-                      <ArrowRight className='text-muted-foreground/80 size-2' />
+                      <Icon name="arrow_forward" className='text-muted-foreground/80 size-2' />
                     </div>
-                    {navItem.title} <ChevronRight /> {subItem.title}
+                    {navItem.title} <Icon name="keyboard_arrow_right" /> {subItem.title}
                   </CommandItem>
                 ))
               })}

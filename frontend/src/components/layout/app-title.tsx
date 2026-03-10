@@ -1,5 +1,5 @@
+import { Icon } from '@/components/ui/material-icon'
 import { Link } from '@tanstack/react-router'
-import { Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   SidebarMenu,
@@ -56,8 +56,8 @@ function ToggleSidebar({
       }}
       {...props}
     >
-      <X className='md:hidden' />
-      <Menu className='max-md:hidden' />
+      <Icon name="close" className='md:hidden' />
+      <Icon name="menu" className='max-md:hidden' />
       <span className='sr-only'>Toggle Sidebar</span>
     </Button>
   )

@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminApi } from '@/services/api'
@@ -13,13 +14,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import {
-  BrainCircuit, ClipboardList, DollarSign, Zap, TrendingUp, BarChart3,
-  Plus, Pencil, Trash2, Save, Loader2,
-  FileText, Database, Palette, Activity, Users, MessageSquare,
-  ChevronDown, ChevronUp,
-} from 'lucide-react'
-
 /* ─────────────────── Types ─────────────────── */
 
 interface BOQTemplate {
@@ -80,14 +74,14 @@ interface AIAnalytics {
 
 /* ─────────────────── Stat Card ─────────────────── */
 
-function MiniStat({ icon: Icon, label, value, sub, iconBg, iconColor }: {
-  icon: React.ElementType; label: string; value: string | number; sub?: string
+function MiniStat({ icon, label, value, sub, iconBg, iconColor }: {
+  icon: string; label: string; value: string | number; sub?: string
   iconBg: string; iconColor: string
 }) {
   return (
     <div className="flex items-center gap-3 p-3 rounded-xl border border-border/60 bg-card">
       <div className={`h-9 w-9 rounded-lg ${iconBg} flex items-center justify-center shrink-0`}>
-        <Icon className={`h-4 w-4 ${iconColor}`} />
+        <Icon name={icon} className={`h-4 w-4 ${iconColor}`} />
       </div>
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground truncate">{label}</p>
@@ -125,10 +119,10 @@ export function AICommandCenter() {
   })
 
   const tabs = [
-    { id: 'analytics' as const, label: 'Analytics & Performance', icon: BarChart3 },
-    { id: 'boq-templates' as const, label: 'BOQ Templates', icon: ClipboardList },
-    { id: 'material-prices' as const, label: 'Material Prices', icon: DollarSign },
-    { id: 'style-presets' as const, label: 'Drawing Presets', icon: Palette },
+    { id: 'analytics' as const, label: 'Analytics & Performance', icon: 'bar_chart' },
+    { id: 'boq-templates' as const, label: 'BOQ Templates', icon: 'assignment' },
+    { id: 'material-prices' as const, label: 'Material Prices', icon: 'attach_money' },
+    { id: 'style-presets' as const, label: 'Drawing Presets', icon: 'palette' },
   ]
 
   return (
@@ -136,7 +130,7 @@ export function AICommandCenter() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-          <BrainCircuit className="h-5 w-5 text-white" />
+          <Icon name="psychology" className="h-5 w-5 text-white" />
         </div>
         <div>
           <h1 className="text-2xl font-bold font-display tracking-tight">AI Command Center</h1>
@@ -158,7 +152,7 @@ export function AICommandCenter() {
                 : 'text-muted-foreground hover:text-foreground hover:bg-white/50'
             }`}
           >
-            <tab.icon className="h-4 w-4" />
+            <Icon name={tab.icon} className="h-4 w-4" />
             <span className="hidden sm:inline">{tab.label}</span>
           </button>
         ))}
@@ -198,19 +192,19 @@ function AnalyticsTab({ analytics, loading }: { analytics?: AIAnalytics; loading
     <div className="space-y-6">
       {/* Top Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        <MiniStat icon={Zap} label="Total Tokens (30d)" value={(ts.total_tokens ?? 0).toLocaleString()} sub={`~$${ts.estimated_cost_usd ?? 0}`} iconBg="bg-amber-50" iconColor="text-amber-600" />
-        <MiniStat icon={MessageSquare} label="AI Requests (30d)" value={ts.request_count ?? 0} iconBg="bg-blue-50" iconColor="text-blue-600" />
-        <MiniStat icon={Activity} label="Sessions (30d)" value={analytics.sessions.active_30d ?? 0} sub={`${analytics.sessions.total} total`} iconBg="bg-purple-50" iconColor="text-purple-600" />
-        <MiniStat icon={ClipboardList} label="BOQ Analyses" value={analytics.analyse_usage.count_30d ?? 0} sub={`${(analytics.analyse_usage.tokens_30d ?? 0).toLocaleString()} tokens`} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-        <MiniStat icon={Database} label="Training Docs" value={td.embedded_documents ?? 0} sub={`${td.knowledge_documents} uploaded`} iconBg="bg-indigo-50" iconColor="text-indigo-600" />
-        <MiniStat icon={DollarSign} label="Material Prices" value={td.material_prices ?? 0} sub={`${td.material_regions?.length ?? 0} regions`} iconBg="bg-green-50" iconColor="text-green-600" />
+        <MiniStat icon="bolt" label="Total Tokens (30d)" value={(ts.total_tokens ?? 0).toLocaleString()} sub={`~$${ts.estimated_cost_usd ?? 0}`} iconBg="bg-amber-50" iconColor="text-amber-600" />
+        <MiniStat icon="chat" label="AI Requests (30d)" value={ts.request_count ?? 0} iconBg="bg-blue-50" iconColor="text-blue-600" />
+        <MiniStat icon="monitoring" label="Sessions (30d)" value={analytics.sessions.active_30d ?? 0} sub={`${analytics.sessions.total} total`} iconBg="bg-purple-50" iconColor="text-purple-600" />
+        <MiniStat icon="assignment" label="BOQ Analyses" value={analytics.analyse_usage.count_30d ?? 0} sub={`${(analytics.analyse_usage.tokens_30d ?? 0).toLocaleString()} tokens`} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+        <MiniStat icon="database" label="Training Docs" value={td.embedded_documents ?? 0} sub={`${td.knowledge_documents} uploaded`} iconBg="bg-indigo-50" iconColor="text-indigo-600" />
+        <MiniStat icon="attach_money" label="Material Prices" value={td.material_prices ?? 0} sub={`${td.material_regions?.length ?? 0} regions`} iconBg="bg-green-50" iconColor="text-green-600" />
       </div>
 
       {/* 7-Day Quick Stats */}
       <Card className="border-border/60">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-indigo-500" />
+            <Icon name="trending_up" className="h-4 w-4 text-indigo-500" />
             7-Day Snapshot
           </CardTitle>
         </CardHeader>
@@ -241,7 +235,7 @@ function AnalyticsTab({ analytics, loading }: { analytics?: AIAnalytics; loading
         <Card className="border-border/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-blue-500" />
+              <Icon name="bar_chart" className="h-4 w-4 text-blue-500" />
               Endpoint Breakdown
             </CardTitle>
             <CardDescription className="text-xs">AI requests by command type (30 days)</CardDescription>
@@ -275,7 +269,7 @@ function AnalyticsTab({ analytics, loading }: { analytics?: AIAnalytics; loading
         <Card className="border-border/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <BrainCircuit className="h-4 w-4 text-purple-500" />
+              <Icon name="psychology" className="h-4 w-4 text-purple-500" />
               Model Performance
             </CardTitle>
             <CardDescription className="text-xs">Token usage by model (30 days)</CardDescription>
@@ -305,7 +299,7 @@ function AnalyticsTab({ analytics, loading }: { analytics?: AIAnalytics; loading
         <Card className="border-border/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Users className="h-4 w-4 text-emerald-500" />
+              <Icon name="group" className="h-4 w-4 text-emerald-500" />
               Top AI Users
             </CardTitle>
             <CardDescription className="text-xs">Heaviest token consumers (30 days)</CardDescription>
@@ -336,7 +330,7 @@ function AnalyticsTab({ analytics, loading }: { analytics?: AIAnalytics; loading
         <Card className="border-border/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-amber-500" />
+              <Icon name="assignment" className="h-4 w-4 text-amber-500" />
               Active BOQ Template
             </CardTitle>
             <CardDescription className="text-xs">Currently guiding /analyse output format</CardDescription>
@@ -369,7 +363,7 @@ function AnalyticsTab({ analytics, loading }: { analytics?: AIAnalytics; loading
               </div>
             ) : (
               <div className="text-center py-6">
-                <ClipboardList className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                <Icon name="assignment" className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">No active BOQ template</p>
                 <p className="text-xs text-muted-foreground mt-1">Create one in the BOQ Templates tab</p>
               </div>
@@ -382,7 +376,7 @@ function AnalyticsTab({ analytics, loading }: { analytics?: AIAnalytics; loading
       <Card className="border-border/60">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Activity className="h-4 w-4 text-indigo-500" />
+            <Icon name="monitoring" className="h-4 w-4 text-indigo-500" />
             AI Messages Per Day (Last 30 Days)
           </CardTitle>
         </CardHeader>
@@ -499,7 +493,7 @@ function BOQTemplatesTab({ templates, loading }: { templates: BOQTemplate[]; loa
           </p>
         </div>
         <Button onClick={openCreate} className="gap-1.5 bg-indigo-600 hover:bg-indigo-700">
-          <Plus className="h-4 w-4" /> New Template
+          <Icon name="add" className="h-4 w-4" /> New Template
         </Button>
       </div>
 
@@ -521,15 +515,15 @@ function BOQTemplatesTab({ templates, loading }: { templates: BOQTemplate[]; loa
                   </div>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}>
-                      {expandedId === t.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      {expandedId === t.id ? <Icon name="keyboard_arrow_up" className="h-4 w-4" /> : <Icon name="keyboard_arrow_down" className="h-4 w-4" />}
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-indigo-600" onClick={() => openEdit(t)}>
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Icon name="pencil" className="h-3.5 w-3.5" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => {
                       if (confirm('Delete this template?')) deleteMutation.mutate(t.id)
                     }}>
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Icon name="delete" className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -582,7 +576,7 @@ function BOQTemplatesTab({ templates, loading }: { templates: BOQTemplate[]; loa
         <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ClipboardList className="h-5 w-5 text-indigo-500" />
+              <Icon name="assignment" className="h-5 w-5 text-indigo-500" />
               {editing ? 'Edit BOQ Template' : 'Create BOQ Template'}
             </DialogTitle>
             <DialogDescription>
@@ -645,7 +639,7 @@ function BOQTemplatesTab({ templates, loading }: { templates: BOQTemplate[]; loa
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => { setCreating(false); setEditing(null) }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-indigo-600 hover:bg-indigo-700 gap-1.5">
-              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saveMutation.isPending ? <Icon name="progress_activity" className="h-4 w-4 animate-spin" /> : <Icon name="save" className="h-4 w-4" />}
               {editing ? 'Update' : 'Create'}
             </Button>
           </DialogFooter>
@@ -720,7 +714,7 @@ function MaterialPricesTab({ prices, loading }: { prices: MaterialPriceItem[]; l
           </p>
         </div>
         <Button onClick={() => { setForm(blankPrice); setEditing(null); setCreating(true) }} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
-          <Plus className="h-4 w-4" /> Add Price
+          <Icon name="add" className="h-4 w-4" /> Add Price
         </Button>
       </div>
 
@@ -756,12 +750,12 @@ function MaterialPricesTab({ prices, loading }: { prices: MaterialPriceItem[]; l
                       <td className="px-4 py-2 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-indigo-600" onClick={() => openEdit(p)}>
-                            <Pencil className="h-3.5 w-3.5" />
+                            <Icon name="pencil" className="h-3.5 w-3.5" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => {
                             if (confirm('Delete this price entry?')) deleteMutation.mutate(p.id)
                           }}>
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Icon name="delete" className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </td>
@@ -779,7 +773,7 @@ function MaterialPricesTab({ prices, loading }: { prices: MaterialPriceItem[]; l
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-emerald-500" />
+              <Icon name="attach_money" className="h-5 w-5 text-emerald-500" />
               {editing ? 'Edit Material Price' : 'Add Material Price'}
             </DialogTitle>
           </DialogHeader>
@@ -824,7 +818,7 @@ function MaterialPricesTab({ prices, loading }: { prices: MaterialPriceItem[]; l
           <DialogFooter className="mt-3">
             <Button variant="outline" onClick={() => { setCreating(false); setEditing(null) }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 gap-1.5">
-              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saveMutation.isPending ? <Icon name="progress_activity" className="h-4 w-4 animate-spin" /> : <Icon name="save" className="h-4 w-4" />}
               {editing ? 'Update' : 'Add'}
             </Button>
           </DialogFooter>
@@ -909,7 +903,7 @@ function StylePresetsTab({ presets }: { presets: any[] }) {
           </p>
         </div>
         <Button onClick={() => { setForm(blankPreset); setEditing(null); setCreating(true) }} className="gap-1.5 bg-purple-600 hover:bg-purple-700">
-          <Plus className="h-4 w-4" /> New Preset
+          <Icon name="add" className="h-4 w-4" /> New Preset
         </Button>
       </div>
 
@@ -922,7 +916,7 @@ function StylePresetsTab({ presets }: { presets: any[] }) {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Palette className="h-4 w-4 text-purple-500" />
+                    <Icon name="palette" className="h-4 w-4 text-purple-500" />
                     <CardTitle className="text-sm font-semibold">{p.name}</CardTitle>
                     {p.is_active ? (
                       <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">Active</Badge>
@@ -932,15 +926,15 @@ function StylePresetsTab({ presets }: { presets: any[] }) {
                   </div>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}>
-                      {expandedId === p.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      {expandedId === p.id ? <Icon name="keyboard_arrow_up" className="h-4 w-4" /> : <Icon name="keyboard_arrow_down" className="h-4 w-4" />}
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-indigo-600" onClick={() => openEdit(p)}>
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Icon name="pencil" className="h-3.5 w-3.5" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => {
                       if (confirm('Delete this preset?')) deleteMutation.mutate(p.id)
                     }}>
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Icon name="delete" className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -975,7 +969,7 @@ function StylePresetsTab({ presets }: { presets: any[] }) {
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Palette className="h-5 w-5 text-purple-500" />
+              <Icon name="palette" className="h-5 w-5 text-purple-500" />
               {editing ? 'Edit Preset' : 'Create Preset'}
             </DialogTitle>
           </DialogHeader>
@@ -1026,7 +1020,7 @@ function StylePresetsTab({ presets }: { presets: any[] }) {
           <DialogFooter className="mt-3">
             <Button variant="outline" onClick={() => { setCreating(false); setEditing(null) }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-purple-600 hover:bg-purple-700 gap-1.5">
-              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saveMutation.isPending ? <Icon name="progress_activity" className="h-4 w-4 animate-spin" /> : <Icon name="save" className="h-4 w-4" />}
               {editing ? 'Update' : 'Create'}
             </Button>
           </DialogFooter>
@@ -1044,7 +1038,7 @@ function StylePresetsTab({ presets }: { presets: any[] }) {
 function LoadingState() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[40vh]">
-      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <Icon name="progress_activity" size={32} className="animate-spin text-muted-foreground" />
       <p className="mt-3 text-sm text-muted-foreground">Loading...</p>
     </div>
   )
@@ -1053,7 +1047,7 @@ function LoadingState() {
 function EmptyState({ message }: { message: string }) {
   return (
     <div className="text-center py-12 bg-muted/20 rounded-xl border border-dashed border-border/60">
-      <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+      <Icon name="description" className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
       <p className="text-sm text-muted-foreground">{message}</p>
     </div>
   )

@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { Button } from '@/components/ui/button'
 import {
     Card,
@@ -14,10 +15,6 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { SystemOverview } from './components/system-overview'
 import { TransactionVolume } from './components/transaction-volume'
-import {
-    Users, Building2, Package2, DollarSign, ShieldCheck,
-    Activity, TrendingUp, Settings, Loader2
-} from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { adminApi } from '@/services/api'
 
@@ -25,14 +22,14 @@ function StatCard({
     title,
     value,
     sub,
-    icon: Icon,
+    icon,
     iconBg,
     iconColor,
 }: {
     title: string
     value: string | number
     sub: string
-    icon: React.ElementType
+    icon: string
     iconBg: string
     iconColor: string
 }) {
@@ -43,7 +40,7 @@ function StatCard({
                     {title}
                 </CardTitle>
                 <div className={`h-8 w-8 rounded-lg ${iconBg} flex items-center justify-center`}>
-                    <Icon className={`h-3.5 w-3.5 ${iconColor}`} />
+                    <Icon name={icon} className={`h-3.5 w-3.5 ${iconColor}`} />
                 </div>
             </CardHeader>
             <CardContent>
@@ -66,10 +63,17 @@ export function AdminDashboard() {
     })
 
     return (
+        <>
+            <Header>
+                <div className='ms-auto flex items-center space-x-4'>
+                    <Search />
+                    <ProfileDropdown />
+                </div>
+            </Header>
             <Main>
                 {isLoading ? (
                     <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        <Icon name="progress_activity" size={32} className="animate-spin text-muted-foreground" />
                         <p className="mt-3 text-sm text-muted-foreground">Loading dashboard...</p>
                     </div>
                 ) : (
@@ -82,7 +86,7 @@ export function AdminDashboard() {
                                 title="Total Users"
                                 value={metrics?.total_users ?? "—"}
                                 sub="Registered accounts"
-                                icon={Users}
+                                icon="group"
                                 iconBg="bg-indigo-50"
                                 iconColor="text-indigo-600"
                             />
@@ -90,7 +94,7 @@ export function AdminDashboard() {
                                 title="Active Projects"
                                 value={metrics?.active_projects ?? "—"}
                                 sub="Projects in progress"
-                                icon={Building2}
+                                icon="business"
                                 iconBg="bg-blue-50"
                                 iconColor="text-blue-600"
                             />
@@ -98,7 +102,7 @@ export function AdminDashboard() {
                                 title="Active Suppliers"
                                 value={metrics?.active_suppliers ?? "—"}
                                 sub="Verified vendors"
-                                icon={Package2}
+                                icon="inventory_2"
                                 iconBg="bg-purple-50"
                                 iconColor="text-purple-600"
                             />
@@ -106,7 +110,7 @@ export function AdminDashboard() {
                                 title="Total Volume"
                                 value={`$${(metrics?.total_volume ?? 0).toLocaleString()}`}
                                 sub="Platform transactions"
-                                icon={DollarSign}
+                                icon="monetization_on"
                                 iconBg="bg-green-50"
                                 iconColor="text-green-600"
                             />
@@ -117,7 +121,7 @@ export function AdminDashboard() {
                             <Card className='col-span-1 lg:col-span-4 border-border/60 bg-card'>
                                 <CardHeader className="pb-2">
                                     <CardTitle className="text-sm font-semibold font-display flex items-center gap-2 text-foreground">
-                                        <TrendingUp className="h-4 w-4 text-indigo-600" />
+                                        <Icon name="trending_up" className="h-4 w-4 text-indigo-600" />
                                         Transaction Volume
                                     </CardTitle>
                                     <CardDescription className="text-xs">Monthly platform activity</CardDescription>
@@ -132,7 +136,7 @@ export function AdminDashboard() {
                         <Card className="border-border/60 bg-card">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-sm font-semibold font-display flex items-center gap-2 text-foreground">
-                                    <Activity className="h-4 w-4 text-blue-600" />
+                                    <Icon name="monitoring" className="h-4 w-4 text-blue-600" />
                                     System Performance Analytics
                                 </CardTitle>
                                 <CardDescription className="text-xs">Platform performance and technical insights</CardDescription>

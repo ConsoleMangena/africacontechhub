@@ -3,7 +3,6 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-import { LayoutDashboard, Users, BookOpen, Image, BrainCircuit } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/admin')({

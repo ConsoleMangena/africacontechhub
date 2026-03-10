@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useEffect, useState } from 'react'
 import {
     Dialog,
@@ -9,21 +10,9 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { 
-    MapPin, 
-    DollarSign, 
-    Calendar, 
-    CheckCircle2, 
-    Clock, 
-    AlertCircle,
-    Users,
-    ShieldCheck
-} from 'lucide-react'
 import { builderApi } from '@/services/api'
 import { Project, Milestone, Payment } from '@/types/api'
 import { format } from 'date-fns'
-import { Loader2 } from 'lucide-react'
-
 const statusConfig = {
     PLANNING: { label: 'Planning', className: 'bg-blue-100 text-blue-800' },
     IN_PROGRESS: { label: 'In Progress', className: 'bg-amber-100 text-amber-800' },
@@ -32,8 +21,8 @@ const statusConfig = {
 }
 
 const tierConfig = {
-    DIT: { label: 'DIT', icon: Users, className: 'text-indigo-600 bg-indigo-100 border-indigo-200' },
-    DIFY: { label: 'DIFY', icon: ShieldCheck, className: 'text-teal-600 bg-teal-100 border-teal-200' },
+    DIT: { label: 'DIT', icon: 'group', className: 'text-indigo-600 bg-indigo-100 border-indigo-200' },
+    DIFY: { label: 'DIFY', icon: 'verified_user', className: 'text-teal-600 bg-teal-100 border-teal-200' },
 }
 
 const milestoneStatusConfig = {
@@ -90,7 +79,7 @@ export function ProjectDetailsDialog({ open, onOpenChange, projectId }: ProjectD
     if (!open) return null
 
     const tier = project?.engagement_tier || 'DIT'
-    const TierIcon = tierConfig[tier]?.icon || Users
+    const TierIcon = tierConfig[tier]?.icon || 'group'
 
     // Calculate payment summary
     const totalPaid = milestones
@@ -112,7 +101,7 @@ export function ProjectDetailsDialog({ open, onOpenChange, projectId }: ProjectD
 
                 {loading ? (
                     <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        <Icon name="progress_activity" className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
                 ) : project ? (
                     <div className="space-y-6">
@@ -123,7 +112,7 @@ export function ProjectDetailsDialog({ open, onOpenChange, projectId }: ProjectD
                                     <div className="flex-1">
                                         <CardTitle className="text-2xl mb-2">{project.title}</CardTitle>
                                         <CardDescription className="flex items-center gap-1">
-                                            <MapPin className="h-4 w-4" />
+                                            <Icon name="location_on" className="h-4 w-4" />
                                             {project.location}
                                         </CardDescription>
                                     </div>
@@ -287,7 +276,7 @@ export function ProjectDetailsDialog({ open, onOpenChange, projectId }: ProjectD
                                 </div>
                                 {project.si56_verified && (
                                     <div className="flex items-center gap-2 text-sm text-green-600">
-                                        <CheckCircle2 className="h-4 w-4" />
+                                        <Icon name="check_circle" className="h-4 w-4" />
                                         <span>SI 56 Verified</span>
                                     </div>
                                 )}

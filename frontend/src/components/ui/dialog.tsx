@@ -1,8 +1,8 @@
 'use client'
 
+import { Icon } from '@/components/ui/material-icon'
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { XIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 function Dialog({
@@ -70,7 +70,7 @@ function DialogContent({
             data-slot='dialog-close'
             className="ring-offset-white focus:ring-green-500 data-[state=open]:bg-gray-100 data-[state=open]:text-gray-600 absolute end-4 top-4 rounded-lg opacity-70 transition-opacity hover:opacity-100 hover:bg-gray-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none text-gray-500 hover:text-gray-700 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
-            <XIcon />
+            <Icon name="close" />
             <span className='sr-only'>Close</span>
           </DialogPrimitive.Close>
         )}

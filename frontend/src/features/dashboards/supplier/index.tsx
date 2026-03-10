@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/material-icon'
 import { useEffect, useState } from 'react'
 import {
     Card,
@@ -8,10 +9,6 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-    Plus, Package, Truck, ShieldCheck, Star,
-    TrendingUp, ClipboardList, BarChart3, Loader2
-} from 'lucide-react'
 import { supplierApi } from '@/services/api'
 import { MaterialOrder, Product } from '@/types/api'
 import { Header } from '@/components/layout/header'
@@ -23,7 +20,7 @@ function StatCard({
     title,
     value,
     sub,
-    icon: Icon,
+    icon,
     accentFrom,
     accentTo,
     iconBg,
@@ -32,7 +29,7 @@ function StatCard({
     title: string
     value: string | number
     sub: string
-    icon: React.ElementType
+    icon: string
     accentFrom: string
     accentTo: string
     iconBg: string
@@ -46,7 +43,7 @@ function StatCard({
                     {title}
                 </CardTitle>
                 <div className={`h-9 w-9 rounded-lg ${iconBg} flex items-center justify-center`}>
-                    <Icon className={`h-4 w-4 ${iconColor}`} />
+                    <Icon name={icon} className={`h-4 w-4 ${iconColor}`} />
                 </div>
             </CardHeader>
             <CardContent>
@@ -108,7 +105,7 @@ export default function SupplierDashboard() {
             <Main>
                 {loading ? (
                     <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                        <Icon name="progress_activity" size={40} className="animate-spin text-primary mb-3" />
                         <p className="mt-3 text-sm text-muted-foreground font-medium">Loading your dashboard...</p>
                     </div>
                 ) : (
@@ -128,7 +125,7 @@ export default function SupplierDashboard() {
                                     size="sm"
                                     className="rounded-lg bg-purple-600 text-white hover:bg-purple-700 shadow-sm"
                                 >
-                                    <Plus className="h-3.5 w-3.5 mr-1.5" />
+                                    <Icon name="add" className="h-3.5 w-3.5 mr-1.5" />
                                     Add Product
                                 </Button>
                             </div>
@@ -140,7 +137,7 @@ export default function SupplierDashboard() {
                                 title="Active Orders"
                                 value={activeOrders}
                                 sub="Processing or shipping"
-                                icon={Package}
+                                icon="package"
                                 accentFrom="from-purple-400"
                                 accentTo="to-purple-600"
                                 iconBg="bg-purple-100"
@@ -150,7 +147,7 @@ export default function SupplierDashboard() {
                                 title="On-Time Rate"
                                 value={`${onTimeRate}%`}
                                 sub="Based on completed orders"
-                                icon={Truck}
+                                icon="local_shipping"
                                 accentFrom="from-green-400"
                                 accentTo="to-green-600"
                                 iconBg="bg-green-100"
@@ -160,7 +157,7 @@ export default function SupplierDashboard() {
                                 title="Total Sales"
                                 value={`$${totalSales.toLocaleString()}`}
                                 sub="Guaranteed payment"
-                                icon={TrendingUp}
+                                icon="trending_up"
                                 accentFrom="from-amber-400"
                                 accentTo="to-amber-600"
                                 iconBg="bg-amber-100"
@@ -170,7 +167,7 @@ export default function SupplierDashboard() {
                                 title="TCO Score"
                                 value={`${tcoScore} / 5.0`}
                                 sub="Computed rating"
-                                icon={Star}
+                                icon="star"
                                 accentFrom="from-pink-400"
                                 accentTo="to-pink-600"
                                 iconBg="bg-pink-100"
@@ -183,7 +180,7 @@ export default function SupplierDashboard() {
                             <Card className="lg:col-span-4 border-border/60 bg-card">
                                 <CardHeader>
                                     <CardTitle className="text-base font-semibold font-display flex items-center gap-2">
-                                        <ClipboardList className="h-4 w-4 text-purple-600" />
+                                        <Icon name="assignment" className="h-4 w-4 text-purple-600" />
                                         Recent Orders
                                     </CardTitle>
                                     <CardDescription>Latest material requests from builders.</CardDescription>
@@ -192,7 +189,7 @@ export default function SupplierDashboard() {
                                     <div className="space-y-3">
                                         {orders.length === 0 ? (
                                             <div className="text-center py-10 text-muted-foreground">
-                                                <Package className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                                                <Icon name="package" className="h-10 w-10 mx-auto mb-2 opacity-40" />
                                                 <p className="text-sm">No orders yet.</p>
                                             </div>
                                         ) : (
@@ -215,7 +212,7 @@ export default function SupplierDashboard() {
                             <Card className="lg:col-span-3 border-border/60 bg-card">
                                 <CardHeader>
                                     <CardTitle className="text-base font-semibold font-display flex items-center gap-2">
-                                        <BarChart3 className="h-4 w-4 text-pink-600" />
+                                        <Icon name="bar_chart" className="h-4 w-4 text-pink-600" />
                                         Top Products
                                     </CardTitle>
                                     <CardDescription>Best-selling items this month.</CardDescription>
@@ -224,7 +221,7 @@ export default function SupplierDashboard() {
                                     <div className="space-y-3">
                                         {products.length === 0 ? (
                                             <div className="text-center py-10 text-muted-foreground">
-                                                <BarChart3 className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                                                <Icon name="bar_chart" className="h-10 w-10 mx-auto mb-2 opacity-40" />
                                                 <p className="text-sm">No products listed yet.</p>
                                             </div>
                                         ) : (
@@ -251,13 +248,13 @@ export default function SupplierDashboard() {
                         {/* Quality Assurance Strip */}
                         <div className="grid gap-4 sm:grid-cols-3">
                             {[
-                                { label: 'Verified Supplier', icon: ShieldCheck, iconColor: 'text-green-600', bg: 'bg-green-50', text: 'Certified & Trusted' },
-                                { label: 'On-Time Delivery', icon: Truck, iconColor: 'text-blue-600', bg: 'bg-blue-50', text: `${onTimeRate}% performance` },
-                                { label: 'Quality Score', icon: Star, iconColor: 'text-amber-600', bg: 'bg-amber-50', text: `${tcoScore} / 5.0 rating` },
-                            ].map(({ label, icon: Icon, iconColor, bg, text }) => (
+                                { label: 'Verified Supplier', icon: 'verified_user', iconColor: 'text-green-600', bg: 'bg-green-50', text: 'Certified & Trusted' },
+                                { label: 'On-Time Delivery', icon: 'local_shipping', iconColor: 'text-blue-600', bg: 'bg-blue-50', text: `${onTimeRate}% performance` },
+                                { label: 'Quality Score', icon: 'star', iconColor: 'text-amber-600', bg: 'bg-amber-50', text: `${tcoScore} / 5.0 rating` },
+                            ].map(({ label, icon: iconName, iconColor, bg, text }) => (
                                 <div key={label} className={`flex items-center gap-4 p-4 rounded-xl border border-border/60 ${bg}`}>
                                     <div className="h-9 w-9 rounded-lg bg-card flex items-center justify-center shadow-sm">
-                                        <Icon className={`h-4 w-4 ${iconColor}`} />
+                                        <Icon name={iconName} className={`h-4 w-4 ${iconColor}`} />
                                     </div>
                                     <div>
                                         <p className="text-sm font-semibold text-foreground">{label}</p>

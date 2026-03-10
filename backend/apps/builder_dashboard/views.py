@@ -1,11 +1,20 @@
-from rest_framework import viewsets, permissions, views
+from rest_framework import viewsets, permissions, views, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Sum, Q, Avg
 from django.db import models
 from django.utils import timezone
-from .models import Project, Milestone, SiteUpdate, ChangeOrder, Payment, FloorPlanCategory, FloorPlanDataset
-from .serializers import ProjectSerializer, MilestoneSerializer, SiteUpdateSerializer, ChangeOrderSerializer, PaymentSerializer, FloorPlanCategorySerializer, FloorPlanDatasetSerializer
-from django.utils import timezone
+from django.shortcuts import get_object_or_404
+from .models import (
+    Project, SiteUpdate, EscrowMilestone, CapitalSchedule,
+    MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera,
+    BOQItem
+)
+from .serializers import (
+    ProjectSerializer, SiteUpdateSerializer, EscrowMilestoneSerializer,
+    CapitalScheduleSerializer, MaterialAuditSerializer, WeatherEventSerializer,
+    ESignatureRequestSerializer, SiteCameraSerializer, BOQItemSerializer
+)
 from apps.authentication.permissions import IsBuilder, IsAdmin
 from apps.contractor_dashboard.models import Bid, ContractorProfile, ContractorRating
 from apps.supplier_dashboard.models import MaterialOrder, SupplierProfile
@@ -20,18 +29,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
-class MilestoneViewSet(viewsets.ModelViewSet):
-    serializer_class = MilestoneSerializer
-    permission_classes = [permissions.IsAuthenticated, IsBuilder]
-
-    def get_queryset(self):
-        queryset = Milestone.objects.filter(project__owner=self.request.user)
-        # Filter by project if provided
-        project_id = self.request.query_params.get('project', None)
-        if project_id:
-            queryset = queryset.filter(project_id=project_id)
-        return queryset
-
 class SiteUpdateViewSet(viewsets.ModelViewSet):
     serializer_class = SiteUpdateSerializer
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
@@ -39,12 +36,207 @@ class SiteUpdateViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return SiteUpdate.objects.filter(project__owner=self.request.user)
 
-class ChangeOrderViewSet(viewsets.ModelViewSet):
-    serializer_class = ChangeOrderSerializer
+class ProjectDashboardView(views.APIView):
+    """
+    Unified endpoint returning all widget data for a project detail view.
+    GET /api/v1/projects/<pk>/dashboard/
+    """
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get(self, request, pk):
+        try:
+            project = Project.objects.get(id=pk, owner=request.user)
+        except Project.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=404)
+
+        return Response({
+            'escrow_milestones': EscrowMilestoneSerializer(
+                project.escrow_milestones.all(), many=True
+            ).data,
+            'capital_schedule': CapitalScheduleSerializer(
+                project.capital_schedules.all(), many=True
+            ).data,
+            'material_audits': MaterialAuditSerializer(
+                project.material_audits.all(), many=True
+            ).data,
+            'weather_events': WeatherEventSerializer(
+                project.weather_events.all(), many=True
+            ).data,
+            'esignature_requests': ESignatureRequestSerializer(
+                project.esignature_requests.filter(status='pending'), many=True
+            ).data,
+            'site_cameras': SiteCameraSerializer(
+                project.site_cameras.all(), many=True
+            ).data,
+            'unverified_updates': SiteUpdateSerializer(
+                project.site_updates.filter(verified=False), many=True
+            ).data,
+        })
+
+class EscrowMilestoneViewSet(viewsets.ModelViewSet):
+    serializer_class = EscrowMilestoneSerializer
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
 
     def get_queryset(self):
-        return ChangeOrder.objects.filter(project__owner=self.request.user)
+        return EscrowMilestone.objects.filter(project__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        from django.shortcuts import get_object_or_404
+        project = get_object_or_404(Project, id=self.request.data.get('project'), owner=self.request.user)
+        serializer.save(project=project)
+
+class CapitalScheduleViewSet(viewsets.ModelViewSet):
+    serializer_class = CapitalScheduleSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get_queryset(self):
+        return CapitalSchedule.objects.filter(project__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        from django.shortcuts import get_object_or_404
+        project = get_object_or_404(Project, id=self.request.data.get('project'), owner=self.request.user)
+        serializer.save(project=project)
+
+class MaterialAuditViewSet(viewsets.ModelViewSet):
+    serializer_class = MaterialAuditSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get_queryset(self):
+        qs = MaterialAudit.objects.filter(project__owner=self.request.user)
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    def perform_create(self, serializer):
+        from django.shortcuts import get_object_or_404
+        project = get_object_or_404(Project, id=self.request.data.get('project'), owner=self.request.user)
+        serializer.save(project=project)
+
+class WeatherEventViewSet(viewsets.ModelViewSet):
+    serializer_class = WeatherEventSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get_queryset(self):
+        return WeatherEvent.objects.filter(project__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        from django.shortcuts import get_object_or_404
+        project = get_object_or_404(Project, id=self.request.data.get('project'), owner=self.request.user)
+        serializer.save(project=project)
+
+class ESignatureRequestViewSet(viewsets.ModelViewSet):
+    serializer_class = ESignatureRequestSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get_queryset(self):
+        qs = ESignatureRequest.objects.filter(project__owner=self.request.user)
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    def perform_create(self, serializer):
+        from django.shortcuts import get_object_or_404
+        project = get_object_or_404(Project, id=self.request.data.get('project'), owner=self.request.user)
+        serializer.save(project=project)
+
+class SiteCameraViewSet(viewsets.ModelViewSet):
+    serializer_class = SiteCameraSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get_queryset(self):
+        return SiteCamera.objects.filter(project__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        from django.shortcuts import get_object_or_404
+        project = get_object_or_404(Project, id=self.request.data.get('project'), owner=self.request.user)
+        serializer.save(project=project)
+
+class BOQItemViewSet(viewsets.ModelViewSet):
+    serializer_class = BOQItemSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get_queryset(self):
+        qs = BOQItem.objects.filter(project__owner=self.request.user)
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    def perform_create(self, serializer):
+        from django.shortcuts import get_object_or_404
+        project = get_object_or_404(Project, id=self.request.data.get('project'), owner=self.request.user)
+        serializer.save(project=project)
+
+    @action(detail=False, methods=['post'])
+    def generate_template(self, request):
+        project_id = request.data.get('project')
+        if not project_id:
+            return Response({'error': 'Project ID required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            project = Project.objects.get(id=project_id, owner=request.user)
+        except Project.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Idempotency check: don't generate if items already exist
+        if BOQItem.objects.filter(project=project).exists():
+            return Response({'error': 'BOQ template has already been generated for this project.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Idempotency check: don't generate if items already exist
+        if BOQItem.objects.filter(project=project).exists():
+            return Response({'error': 'BOQ template has already been generated for this project.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Basic ZIQS Home Template Items
+        template_items = [
+            # Bill 1
+            {'category': '1. Preliminaries & General', 'item_name': 'Site Clearance', 'unit': 'm²', 'description': 'Clear site of all rubbish, grass, and bushes'},
+            {'category': '1. Preliminaries & General', 'item_name': 'Setting Out', 'unit': 'item', 'description': 'Setting out of the building'},
+            # Bill 2
+            {'category': '2. Earthworks & Excavation', 'item_name': 'Trench Excavation', 'unit': 'm³', 'description': 'Excavate trenches for foundations'},
+            {'category': '2. Earthworks & Excavation', 'item_name': 'Hardcore Filling', 'unit': 'm³', 'description': 'Supply and fill with approved hardcore'},
+            {'category': '2. Earthworks & Excavation', 'item_name': 'Ant Poisoning', 'unit': 'm²', 'description': 'Apply approved ant poison to surfaces'},
+            # Bill 3
+            {'category': '3. Concrete, Formwork & Reinforcement', 'item_name': 'Strip Footings', 'unit': 'm³', 'description': '20MPa concrete in strip footings'},
+            {'category': '3. Concrete, Formwork & Reinforcement', 'item_name': 'Surface Bed', 'unit': 'm³', 'description': '20MPa concrete in surface bed'},
+            {'category': '3. Concrete, Formwork & Reinforcement', 'item_name': 'BRC Mesh', 'unit': 'm²', 'description': 'Supply and fix welded mesh reinforcement'},
+            # Bill 4
+            {'category': '4. Brickwork & Blockwork', 'item_name': 'Foundation Brickwork', 'unit': 'm²', 'description': 'Half brick/one brick walling in foundation'},
+            {'category': '4. Brickwork & Blockwork', 'item_name': 'Superstructure Brickwork', 'unit': 'm²', 'description': 'Common bricks in superstructure'},
+            # Bill 5
+            {'category': '5. Waterproofing', 'item_name': 'DPC (Damp Proof Course)', 'unit': 'm', 'description': 'Lay standard DPC under all brick walls'},
+            {'category': '5. Waterproofing', 'item_name': 'DPM (Damp Proof Membrane)', 'unit': 'm²', 'description': 'Lay 250 micron polythene sheet under surface bed'},
+            # Bill 7
+            {'category': '7. Roof Coverings', 'item_name': 'Timber Trusses', 'unit': 'nr', 'description': 'Supply and fix standard sawn timber roof trusses'},
+            {'category': '7. Roof Coverings', 'item_name': 'Roof Sheeting/Tiles', 'unit': 'm²', 'description': 'Supply and fit chromadek sheeting or concrete tiles'},
+            # Bill 8
+            {'category': '8. Plumbing & Drainage', 'item_name': 'Internal Plumbing', 'unit': 'item', 'description': 'First and second fix plumbing'},
+            {'category': '8. Plumbing & Drainage', 'item_name': 'Sewer Connection', 'unit': 'item', 'description': 'Connect to main municipal sewer line'},
+            # Bill 9
+            {'category': '9. Electrical Installations', 'item_name': 'Tubing & Wiring', 'unit': 'item', 'description': 'First fix electrical tubing and wiring'},
+            # Bill 10
+            {'category': '10. Floor, Wall & Ceiling Finishes', 'item_name': 'Internal Plaster', 'unit': 'm²', 'description': 'Apply 15mm cement plaster to internal walls'},
+            {'category': '10. Floor, Wall & Ceiling Finishes', 'item_name': 'Floor Screed', 'unit': 'm²', 'description': '30mm thick cement screed finishing'},
+            {'category': '10. Floor, Wall & Ceiling Finishes', 'item_name': 'Ceiling Boards', 'unit': 'm²', 'description': 'Supply and fix skimmed ceiling boards'},
+            # Bill 11
+            {'category': '11. Glazing & Painting', 'item_name': 'Internal Painting', 'unit': 'm²', 'description': 'Prepare and apply 2 coats PVA'},
+        ]
+
+        created_count = 0
+        for item in template_items:
+            BOQItem.objects.create(
+                project=project,
+                category=item['category'],
+                item_name=item['item_name'],
+                unit=item['unit'],
+                description=item['description'],
+                quantity=0,
+                rate=0
+            )
+            created_count += 1
+
+        return Response({'message': f'Successfully generated {created_count} BOQ template line items.'})
 
 class BuilderConnectionsView(views.APIView):
     """
@@ -197,56 +389,6 @@ class ProjectConnectionsView(views.APIView):
             'suppliers': list(suppliers.values()),
         })
 
-class EscrowSummaryView(views.APIView):
-    """
-    Get escrow/payment summary for all builder's projects
-    """
-    permission_classes = [permissions.IsAuthenticated, IsBuilder]
-
-    def get(self, request):
-        user = request.user
-        projects = Project.objects.filter(owner=user).prefetch_related('milestones')
-        
-        escrow_data = []
-        
-        for project in projects:
-            # Calculate total paid (sum of PAID milestones)
-            total_paid = project.milestones.filter(status='PAID').aggregate(
-                total=Sum('amount')
-            )['total'] or 0
-            
-            # Calculate remaining balance
-            remaining_balance = float(project.budget) - float(total_paid)
-            
-            # Get next payment milestone (next PENDING milestone, ordered by due_date)
-            next_milestone = project.milestones.filter(
-                status='PENDING'
-            ).order_by('due_date').first()
-            
-            escrow_data.append({
-                'project': {
-                    'id': project.id,
-                    'title': project.title,
-                    'location': project.location,
-                    'status': project.status,
-                    'budget': str(project.budget),
-                },
-                'budget': str(project.budget),
-                'total_paid': str(total_paid),
-                'remaining_balance': str(remaining_balance),
-                'next_payment': {
-                    'milestone_id': next_milestone.id if next_milestone else None,
-                    'milestone_name': next_milestone.name if next_milestone else None,
-                    'amount': str(next_milestone.amount) if next_milestone else None,
-                    'due_date': next_milestone.due_date.isoformat() if next_milestone else None,
-                    'status': next_milestone.status if next_milestone else None,
-                } if next_milestone else None,
-            })
-        
-        return Response({
-            'projects': escrow_data,
-        })
-
 class AllContractorsView(views.APIView):
     """
     Get all contractors in the system for builders to browse
@@ -299,47 +441,6 @@ class AllContractorsView(views.APIView):
             'contractors': contractors_data,
         })
 
-class PaymentViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for creating and managing milestone payments
-    """
-    serializer_class = PaymentSerializer
-    permission_classes = [permissions.IsAuthenticated, IsBuilder]
-
-    def get_queryset(self):
-        queryset = Payment.objects.filter(project__owner=self.request.user)
-        # Filter by project if provided
-        project_id = self.request.query_params.get('project', None)
-        if project_id:
-            queryset = queryset.filter(project_id=project_id)
-        return queryset
-
-    def perform_create(self, serializer):
-        milestone_id = self.request.data.get('milestone')
-        project_id = self.request.data.get('project')
-        
-        try:
-            milestone = Milestone.objects.get(id=milestone_id, project__owner=self.request.user)
-            project = Project.objects.get(id=project_id, owner=self.request.user)
-        except (Milestone.DoesNotExist, Project.DoesNotExist):
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError('Milestone or project not found or you do not have permission.')
-        
-        # Create payment
-        payment = serializer.save(
-            milestone=milestone,
-            project=project,
-            status='COMPLETED',
-            paid_at=timezone.now()
-        )
-        
-        # Update milestone status to PAID
-        milestone.status = 'PAID'
-        milestone.save()
-        
-        return payment
-
-
 class IsAdminOrReadOnlyBuilder(permissions.BasePermission):
     """
     Custom permission:
@@ -358,16 +459,3 @@ class IsAdminOrReadOnlyBuilder(permissions.BasePermission):
             return True
             
         return False
-
-class FloorPlanCategoryViewSet(viewsets.ModelViewSet):
-    queryset = FloorPlanCategory.objects.all()
-    serializer_class = FloorPlanCategorySerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnlyBuilder]
-
-class FloorPlanDatasetViewSet(viewsets.ModelViewSet):
-    queryset = FloorPlanDataset.objects.all()
-    serializer_class = FloorPlanDatasetSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnlyBuilder]
-
-    def perform_create(self, serializer):
-        serializer.save(uploaded_by=self.request.user)

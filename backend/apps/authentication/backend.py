@@ -1,8 +1,22 @@
 import os
+import logging
+from functools import lru_cache
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from supabase import create_client, Client
 from django.contrib.auth.models import User
+
+logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def _get_supabase_client() -> Client:
+    """Return a cached Supabase client singleton."""
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_KEY")
+    if not supabase_url or not supabase_key:
+        raise AuthenticationFailed('Supabase credentials not configured.')
+    return create_client(supabase_url, supabase_key)
 
 
 class SupabaseAuthentication(BaseAuthentication):
@@ -21,13 +35,7 @@ class SupabaseAuthentication(BaseAuthentication):
         except IndexError:
             raise AuthenticationFailed('Invalid token header.')
 
-        supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_KEY")
-
-        if not supabase_url or not supabase_key:
-            raise AuthenticationFailed('Supabase credentials not configured.')
-
-        supabase: Client = create_client(supabase_url, supabase_key)
+        supabase: Client = _get_supabase_client()
 
         try:
             user_response = supabase.auth.get_user(jwt=token)

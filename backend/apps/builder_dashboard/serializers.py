@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import Project, Milestone, SiteUpdate, ChangeOrder, Payment, FloorPlanCategory, FloorPlanDataset
+from .models import (
+    Project, SiteUpdate, EscrowMilestone, CapitalSchedule,
+    MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera,
+    BOQItem
+)
 
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
@@ -7,41 +11,50 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('owner', 'created_at', 'updated_at')
 
-class MilestoneSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Milestone
-        fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
-
 class SiteUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = SiteUpdate
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
 
-class ChangeOrderSerializer(serializers.ModelSerializer):
+class EscrowMilestoneSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ChangeOrder
+        model = EscrowMilestone
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
 
-class PaymentSerializer(serializers.ModelSerializer):
+class CapitalScheduleSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Payment
+        model = CapitalSchedule
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
 
-class FloorPlanCategorySerializer(serializers.ModelSerializer):
+class MaterialAuditSerializer(serializers.ModelSerializer):
     class Meta:
-        model = FloorPlanCategory
+        model = MaterialAudit
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
 
-class FloorPlanDatasetSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
-
+class WeatherEventSerializer(serializers.ModelSerializer):
     class Meta:
-        model = FloorPlanDataset
+        model = WeatherEvent
         fields = '__all__'
-        read_only_fields = ('uploaded_by', 'created_at', 'updated_at')
+        read_only_fields = ('created_at', 'updated_at')
+
+class ESignatureRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ESignatureRequest
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+class SiteCameraSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SiteCamera
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+class BOQItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BOQItem
+        fields = '__all__'
+        read_only_fields = ('total_amount', 'created_at', 'updated_at')
