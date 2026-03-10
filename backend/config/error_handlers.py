@@ -1,6 +1,7 @@
 """
 Custom error handlers for Africa ConTech Hub API
 """
+from django.http import JsonResponse
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
@@ -37,7 +38,7 @@ def handle_404(request, exception=None):
     """
     Custom 404 handler
     """
-    return Response({
+    return JsonResponse({
         'error': True,
         'message': 'The requested resource was not found.',
         'status_code': 404,
@@ -49,7 +50,7 @@ def handle_500(request):
     """
     Custom 500 handler
     """
-    return Response({
+    return JsonResponse({
         'error': True,
         'message': 'An internal server error occurred. Please try again later.',
         'status_code': 500,
