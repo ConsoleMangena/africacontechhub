@@ -25,6 +25,9 @@ class SupabaseAuthentication(BaseAuthentication):
     data with Django on every authenticated request.
     """
 
+    def authenticate_header(self, request):
+        return 'Bearer'
+
     def authenticate(self, request):
         auth_header = request.headers.get('Authorization')
         if not auth_header:
