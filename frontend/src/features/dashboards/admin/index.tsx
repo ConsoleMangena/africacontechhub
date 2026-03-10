@@ -148,5 +148,6 @@ export function AdminDashboard() {
                     </div>
                 )}
             </Main>
+        </>
     )
 }
