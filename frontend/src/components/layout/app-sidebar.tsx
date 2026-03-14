@@ -32,7 +32,7 @@ export function AppSidebar() {
   const currentUser = {
     name: getUserName(),
     email: user?.email || 'No email',
-    avatar: '/avatars/shadcn.jpg',
+    avatar: '',
   }
 
   return (
