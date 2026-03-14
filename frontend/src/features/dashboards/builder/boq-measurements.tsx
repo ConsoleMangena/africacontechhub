@@ -1,38 +1,71 @@
 import { Icon } from '@/components/ui/material-icon'
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { builderApi } from '@/services/api';
 import type { Project, BOQItem } from '@/types/api';
 import { toast } from 'sonner';
+import { Link, useNavigate } from '@tanstack/react-router'
+import { useAuthStore } from '@/stores/auth-store'
+import { Button } from '@/components/ui/button'
 
 const CATEGORIES = [
-    '1. Preliminaries & General',
-    '2. Earthworks & Excavation',
-    '3. Concrete, Formwork & Reinforcement',
-    '4. Brickwork & Blockwork',
-    '5. Waterproofing',
-    '6. Carpentry, Joinery & Ironmongery',
-    '7. Roof Coverings',
-    '8. Plumbing & Drainage',
-    '9. Electrical Installations',
-    '10. Floor, Wall & Ceiling Finishes',
-    '11. Glazing & Painting',
-    '12. External Works',
-    '13. Provisional & Prime Cost Sums',
+    '1. Site Prep & Setup',
+    '2. Digging & Foundation',
+    '3. Concrete & Structure',
+    '4. Walls & Bricks',
+    '5. Water Protection',
+    '6. Woodwork, Doors & Windows',
+    '7. Roofing',
+    '8. Plumbing',
+    '9. Electricity',
+    '10. Inside Finishes',
+    '11. Painting & Glass',
+    '12. Yard & Outside',
+    '13. Extra Costs',
 ];
 
-const UNITS = ['m²', 'm³', 'm', 'nr', 'kg', 'ton', 'item', 'sum', 'lot'];
+const UNITS = ['m²', 'm³', 'm', 'nr', 'kg', 'ton', 'item', 'sum', 'lot', 'bags', 'bricks', 'hours'];
 
 const emptyForm = {
-    category: '1. Preliminaries & General', item_name: '', description: '', unit: 'm²',
-    quantity: '', rate: '', labour_rate: '', measurement_formula: '',
+    category: '1. Site Prep & Setup', item_name: '', description: '', unit: 'm²',
+    quantity: '', rate: '', labour_rate: '', measurement_formula: '', material_type: '',
+    // Formula variables
+    var_L: '', var_W: '', var_H: '', var_D: '',
 };
+
+// Formula calculator - evaluates expressions with variables
+type FormulaVars = { L?: number; W?: number; H?: number; D?: number };
+
+function evaluateFormula(formula: string, vars: FormulaVars): number | null {
+    if (!formula) return null;
+    
+    // Replace multiplication symbols
+    let expr = formula.replace(/×/g, '*').replace(/x/gi, '*').replace(/÷/g, '/');
+    
+    // Replace variables with values
+    expr = expr.replace(/L/gi, String(vars.L || 0));
+    expr = expr.replace(/W/gi, String(vars.W || 0));
+    expr = expr.replace(/H/gi, String(vars.H || 0));
+    expr = expr.replace(/D/gi, String(vars.D || 0));
+    
+    // Only allow numbers, operators, parentheses, and decimals
+    if (!/^[\d\s\+\-\*\/\(\)\.]+$/.test(expr)) {
+        return null;
+    }
+    
+    try {
+        // Safe evaluation
+        const result = Function('"use strict"; return (' + expr + ')')();
+        return typeof result === 'number' && !isNaN(result) && isFinite(result) ? result : null;
+    } catch {
+        return null;
+    }
+}
 
 export default function BOQMeasurements() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [selectedProject, setSelectedProject] = useState<number | null>(null);
     const [items, setItems] = useState<BOQItem[]>([]);
     const [loading, setLoading] = useState(false);
-    const [generating, setGenerating] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
@@ -40,6 +73,9 @@ export default function BOQMeasurements() {
     const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
     const [form, setForm] = useState(emptyForm);
     const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+    const [isBudgetSigned, setIsBudgetSigned] = useState(false);
+    const user = useAuthStore(state => state.auth.user);
+    const navigate = useNavigate();
 
     // Fetch projects on mount — with cleanup to prevent stale updates from StrictMode double-mount
     useEffect(() => {
@@ -73,6 +109,13 @@ export default function BOQMeasurements() {
     useEffect(() => {
         let cancelled = false;
         if (!selectedProject) return;
+        
+        // Sync budget signing status from project object
+        const project = projects.find(p => p.id === selectedProject);
+        if (project) {
+            setIsBudgetSigned(project.is_budget_signed);
+        }
+
         setLoading(true);
         builderApi.getProjectBOQItems(selectedProject)
             .then(res => {
@@ -88,21 +131,6 @@ export default function BOQMeasurements() {
             });
         return () => { cancelled = true; };
     }, [selectedProject]);
-
-    const handleGenerateTemplate = async () => {
-        if (!selectedProject) return;
-        setGenerating(true);
-        try {
-            await builderApi.generateBOQTemplate(selectedProject);
-            loadItems();
-            toast.success('Standard BOQ template generated');
-        } catch (err) {
-            console.error(err);
-            toast.error('Failed to generate template. Please try again.');
-        } finally {
-            setGenerating(false);
-        }
-    };
 
     const handleSubmit = async () => {
         if (!form.item_name || !form.quantity || !form.rate || !selectedProject) return;
@@ -141,6 +169,8 @@ export default function BOQMeasurements() {
             rate: item.rate,
             labour_rate: item.labour_rate || '',
             measurement_formula: item.measurement_formula || '',
+            material_type: '',
+            var_L: '', var_W: '', var_H: '', var_D: '',
         });
         setEditingId(item.id);
         setShowForm(true);
@@ -162,9 +192,55 @@ export default function BOQMeasurements() {
     };
 
     const resetForm = () => {
-        setForm(emptyForm);
+        setForm({
+            category: '1. Preliminaries & General',
+            item_name: '',
+            description: '',
+            unit: 'm²',
+            quantity: '',
+            rate: '',
+            labour_rate: '',
+            measurement_formula: '',
+            material_type: '',
+            var_L: '', var_W: '', var_H: '', var_D: '',
+        });
         setEditingId(null);
         setShowForm(false);
+    };
+
+    const handleSignBudget = () => {
+        if (!user) {
+            toast.error('Please log in to sign the budget');
+            return;
+        }
+
+        // Check if user has a signature in their profile
+        if (!user.profile?.has_signature) {
+            toast.info('Please set up your e-signature in your profile first');
+            navigate({ to: '/settings' }); // Redirect to profile/settings
+            return;
+        }
+
+        // Persist signing to backend
+        setSaving(true);
+        builderApi.updateProject(selectedProject, { is_budget_signed: true })
+            .then(() => {
+                setIsBudgetSigned(true);
+                // Update local projects list to reflect the change
+                setProjects(prev => prev.map(p => 
+                    p.id === selectedProject ? { ...p, is_budget_signed: true } : p
+                ));
+                toast.success('Budget signed successfully', {
+                    description: 'The construction budget has been officially authorized.',
+                    icon: <Icon name="verified" className="text-emerald-500" />
+                });
+            })
+            .catch(() => {
+                toast.error('Failed to sign budget. Please try again.');
+            })
+            .finally(() => {
+                setSaving(false);
+            });
     };
 
     const toggleCategory = (cat: string) => {
@@ -252,20 +328,69 @@ export default function BOQMeasurements() {
     }
 
     const totalValue = items.reduce((sum, i) => sum + parseFloat(i.total_amount || '0'), 0);
-    const categoryCount = Object.keys(grouped).length;
     const selectedProjectObj = projects.find(p => p.id === selectedProject);
 
+    // Calculate budget breakdowns
+    const budgetBreakdown = useMemo(() => {
+        const materials = items.filter(i => 
+            i.category.includes('Concrete') || 
+            i.category.includes('Brickwork') || 
+            i.category.includes('Roof') ||
+            i.category.includes('Timber') ||
+            i.category.includes('Plumbing') ||
+            i.category.includes('Electrical') ||
+            i.category.includes('Finishes')
+        ).reduce((sum, i) => sum + parseFloat(i.total_amount || '0'), 0);
+
+        const labour = items.filter(i => 
+            i.category.includes('Preliminaries') || 
+            i.item_name.toLowerCase().includes('labour') ||
+            i.labour_rate
+        ).reduce((sum, i) => sum + (parseFloat(i.labour_rate || '0') * parseFloat(i.quantity || '0')), 0);
+
+        const machinery = items.filter(i => 
+            i.item_name.toLowerCase().includes('machine') ||
+            i.item_name.toLowerCase().includes('equipment') ||
+            i.item_name.toLowerCase().includes('hire') ||
+            i.category.includes('Earthworks')
+        ).reduce((sum, i) => sum + parseFloat(i.total_amount || '0'), 0);
+
+        const provisional = items.filter(i => 
+            i.category.includes('Provisional')
+        ).reduce((sum, i) => sum + parseFloat(i.total_amount || '0'), 0);
+
+        // Estimate material quantities based on common construction ratios
+        const estimatedBricks = Math.floor((totalValue * 0.15) / 0.85); // ~15% of budget on bricks
+        const estimatedCement = Math.floor((totalValue * 0.08) / 12.5); // ~8% on cement
+        const estimatedSand = Math.floor((totalValue * 0.06) / 45); // ~6% on sand
+        const estimatedSteel = Math.floor((totalValue * 0.12) / 2.8); // ~12% on steel
+
+        return {
+            materials,
+            labour,
+            machinery,
+            provisional,
+            estimatedBricks,
+            estimatedCement,
+            estimatedSand,
+            estimatedSteel,
+            materialPercentage: totalValue > 0 ? (materials / totalValue) * 100 : 0,
+            labourPercentage: totalValue > 0 ? (labour / totalValue) * 100 : 0,
+            machineryPercentage: totalValue > 0 ? (machinery / totalValue) * 100 : 0,
+        };
+    }, [items, totalValue]);
+
     return (
-        <div className="space-y-5 max-w-6xl mx-auto">
+        <div className="space-y-5 max-w-7xl mx-auto">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                        <Icon name="assignment" className="h-5 w-5 text-emerald-600" />
+                        <Icon name="receipt_long" className="h-5 w-5 text-emerald-600" />
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold font-display tracking-tight text-slate-900">Bill of Quantities</h2>
-                        <p className="text-xs text-slate-500">Manage standard BOQ items</p>
+                        <h2 className="text-xl font-bold font-display tracking-tight text-slate-900">Construction Budget</h2>
+                        <p className="text-xs text-slate-500">Full project cost breakdown including materials, labour & machinery</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -279,16 +404,6 @@ export default function BOQMeasurements() {
                             <option key={p.id} value={p.id}>{p.title}</option>
                         ))}
                     </select>
-                    {items.length === 0 && selectedProject && (
-                        <button
-                            onClick={handleGenerateTemplate}
-                            disabled={generating}
-                            className="bg-amber-100/50 hover:bg-amber-100 text-amber-700 disabled:opacity-50 text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm border border-amber-200"
-                        >
-                            {generating ? <Icon name="progress_activity" size={14} className="animate-spin" /> : <Icon name="auto_fix_high" size={14} />} 
-                            {generating ? 'Generating...' : 'Standard Template'}
-                        </button>
-                    )}
                     {/* Export buttons */}
                     {items.length > 0 && (
                         <>
@@ -318,25 +433,65 @@ export default function BOQMeasurements() {
                 </div>
             </div>
 
-            {/* Stats Row */}
+            {/* Compact Budget Stats */}
             {selectedProject && !loading && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Project</p>
-                        <span className="text-sm font-bold text-slate-900 line-clamp-1">{selectedProjectObj?.title}</span>
+                <div className="space-y-3">
+                    {/* Main Budget Summary - Compact Horizontal */}
+                    <div className="flex flex-wrap items-center gap-4 bg-white rounded-lg border border-slate-200 p-3">
+                        <div className="flex items-center gap-2 min-w-[120px]">
+                            <div className="h-8 w-8 rounded-md bg-emerald-100 flex items-center justify-center">
+                                <Icon name="account_balance" size={16} className="text-emerald-600" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-semibold text-slate-500 uppercase">Total Budget</p>
+                                <span className="text-lg font-bold text-emerald-700">${totalValue.toLocaleString()}</span>
+                            </div>
+                        </div>
+                        <div className="h-8 w-px bg-slate-200 hidden sm:block" />
+                        <div className="flex items-center gap-4 text-sm">
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-slate-500">Materials</span>
+                                <span className="font-semibold text-blue-600">${budgetBreakdown.materials.toLocaleString()}</span>
+                                <span className="text-[10px] text-slate-400">({Math.round(budgetBreakdown.materialPercentage)}%)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-slate-500">Labour</span>
+                                <span className="font-semibold text-amber-600">${budgetBreakdown.labour.toLocaleString()}</span>
+                                <span className="text-[10px] text-slate-400">({Math.round(budgetBreakdown.labourPercentage)}%)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-slate-500">Machinery</span>
+                                <span className="font-semibold text-purple-600">${budgetBreakdown.machinery.toLocaleString()}</span>
+                                <span className="text-[10px] text-slate-400">({Math.round(budgetBreakdown.machineryPercentage)}%)</span>
+                            </div>
+                        </div>
                     </div>
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Items</p>
-                        <span className="text-2xl font-bold text-slate-900">{items.length}</span>
-                    </div>
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Trade Bills</p>
-                        <span className="text-2xl font-bold text-slate-900">{categoryCount}</span>
-                    </div>
-                    <div className="bg-white rounded-xl shadow-sm border border-emerald-200/50 p-4">
-                        <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider mb-1">Total Value</p>
-                        <span className="text-2xl font-bold text-emerald-600">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                    </div>
+
+                    {/* Material Estimates - Compact Row */}
+                    {items.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            {[
+                                { icon: 'foundation', color: 'orange', label: 'Bricks', value: budgetBreakdown.estimatedBricks, unit: '', cost: budgetBreakdown.estimatedBricks * 0.85 },
+                                { icon: 'inventory_2', color: 'slate', label: 'Cement', value: budgetBreakdown.estimatedCement, unit: 'bags', cost: budgetBreakdown.estimatedCement * 18 },
+                                { icon: 'grain', color: 'yellow', label: 'Sand', value: budgetBreakdown.estimatedSand, unit: 'm³', cost: budgetBreakdown.estimatedSand * 45 },
+                                { icon: 'straighten', color: 'slate', label: 'Steel', value: budgetBreakdown.estimatedSteel, unit: 'kg', cost: budgetBreakdown.estimatedSteel * 2.8 },
+                                { icon: 'schedule', color: 'green', label: 'Labour', value: Math.floor(budgetBreakdown.labour / 25), unit: 'hrs', cost: null },
+                            ].map((item) => (
+                                <div key={item.label} className="flex items-center gap-2 bg-white rounded-md border border-slate-200 px-3 py-2">
+                                    <div className={`h-6 w-6 rounded bg-${item.color}-100 flex items-center justify-center shrink-0`}>
+                                        <Icon name={item.icon} size={14} className={`text-${item.color}-600`} />
+                                    </div>
+                                    <div className="flex items-baseline gap-1.5">
+                                        <span className="text-sm font-semibold text-slate-900">{item.value.toLocaleString()}</span>
+                                        <span className="text-[10px] text-slate-500">{item.unit}</span>
+                                        {item.cost !== null && (
+                                            <span className="text-[10px] text-slate-400">~${item.cost.toLocaleString()}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -375,10 +530,6 @@ export default function BOQMeasurements() {
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div>
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Quantity</label>
-                            <input value={form.quantity} onChange={e => setForm({...form, quantity: e.target.value})} placeholder="0" type="number" step="0.01" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
-                        </div>
-                        <div>
                             <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Rate ($)</label>
                             <input value={form.rate} onChange={e => setForm({...form, rate: e.target.value})} placeholder="0.00" type="number" step="0.01" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
                         </div>
@@ -387,8 +538,186 @@ export default function BOQMeasurements() {
                             <input value={form.labour_rate} onChange={e => setForm({...form, labour_rate: e.target.value})} placeholder="Optional" type="number" step="0.01" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
                         </div>
                         <div>
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Unit</label>
+                            <select value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                            </select>
+                        </div>
+                        <div>
                             <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Formula</label>
-                            <input value={form.measurement_formula} onChange={e => setForm({...form, measurement_formula: e.target.value})} placeholder="e.g. L×W×D" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                            <input 
+                                value={form.measurement_formula} 
+                                onChange={e => {
+                                    const newFormula = e.target.value;
+                                    setForm(prev => {
+                                        const vars: FormulaVars = {
+                                            L: parseFloat(prev.var_L || '0') || 0,
+                                            W: parseFloat(prev.var_W || '0') || 0,
+                                            H: parseFloat(prev.var_H || '0') || 0,
+                                            D: parseFloat(prev.var_D || '0') || 0,
+                                        };
+                                        const calculated = evaluateFormula(newFormula, vars);
+                                        return {
+                                            ...prev,
+                                            measurement_formula: newFormula,
+                                            quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
+                                        };
+                                    });
+                                }} 
+                                placeholder="e.g. L*W*H" 
+                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" 
+                            />
+                        </div>
+                    </div>
+
+                    {/* Formula Variables - Show when formula has variables */}
+                    {form.measurement_formula && /[LWHDI]/i.test(form.measurement_formula) && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                            <div className="flex items-center gap-2">
+                                <Icon name="calculate" size={16} className="text-slate-500" />
+                                <span className="text-xs font-semibold text-slate-600">Formula Calculator</span>
+                                <span className="text-xs text-slate-400 font-mono bg-white px-2 py-0.5 rounded border">{form.measurement_formula}</span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Length (L)</label>
+                                    <input 
+                                        value={form.var_L} 
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setForm(prev => {
+                                                const vars: FormulaVars = {
+                                                    L: parseFloat(val || '0') || 0,
+                                                    W: parseFloat(prev.var_W || '0') || 0,
+                                                    H: parseFloat(prev.var_H || '0') || 0,
+                                                    D: parseFloat(prev.var_D || '0') || 0,
+                                                };
+                                                const calculated = evaluateFormula(prev.measurement_formula, vars);
+                                                return {
+                                                    ...prev,
+                                                    var_L: val,
+                                                    quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
+                                                };
+                                            });
+                                        }} 
+                                        placeholder="0.00" 
+                                        type="number" 
+                                        step="0.01" 
+                                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Width (W)</label>
+                                    <input 
+                                        value={form.var_W} 
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setForm(prev => {
+                                                const vars: FormulaVars = {
+                                                    L: parseFloat(prev.var_L || '0') || 0,
+                                                    W: parseFloat(val || '0') || 0,
+                                                    H: parseFloat(prev.var_H || '0') || 0,
+                                                    D: parseFloat(prev.var_D || '0') || 0,
+                                                };
+                                                const calculated = evaluateFormula(prev.measurement_formula, vars);
+                                                return {
+                                                    ...prev,
+                                                    var_W: val,
+                                                    quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
+                                                };
+                                            });
+                                        }} 
+                                        placeholder="0.00" 
+                                        type="number" 
+                                        step="0.01" 
+                                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Height (H)</label>
+                                    <input 
+                                        value={form.var_H} 
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setForm(prev => {
+                                                const vars: FormulaVars = {
+                                                    L: parseFloat(prev.var_L || '0') || 0,
+                                                    W: parseFloat(prev.var_W || '0') || 0,
+                                                    H: parseFloat(val || '0') || 0,
+                                                    D: parseFloat(prev.var_D || '0') || 0,
+                                                };
+                                                const calculated = evaluateFormula(prev.measurement_formula, vars);
+                                                return {
+                                                    ...prev,
+                                                    var_H: val,
+                                                    quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
+                                                };
+                                            });
+                                        }} 
+                                        placeholder="0.00" 
+                                        type="number" 
+                                        step="0.01" 
+                                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Depth/Dia (D)</label>
+                                    <input 
+                                        value={form.var_D} 
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setForm(prev => {
+                                                const vars: FormulaVars = {
+                                                    L: parseFloat(prev.var_L || '0') || 0,
+                                                    W: parseFloat(prev.var_W || '0') || 0,
+                                                    H: parseFloat(prev.var_H || '0') || 0,
+                                                    D: parseFloat(val || '0') || 0,
+                                                };
+                                                const calculated = evaluateFormula(prev.measurement_formula, vars);
+                                                return {
+                                                    ...prev,
+                                                    var_D: val,
+                                                    quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
+                                                };
+                                            });
+                                        }} 
+                                        placeholder="0.00" 
+                                        type="number" 
+                                        step="0.01" 
+                                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" 
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <span>Use L, W, H, D in formula. Operators: + - * / ( )</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Manual Quantity Override */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                Calculated Quantity
+                                {form.measurement_formula && <span className="text-[10px] text-emerald-600 font-normal">(auto from formula)</span>}
+                            </label>
+                            <input 
+                                value={form.quantity} 
+                                onChange={e => setForm({...form, quantity: e.target.value})} 
+                                placeholder="0" 
+                                type="number" 
+                                step="0.01" 
+                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 bg-slate-50" 
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Formula Reference</label>
+                            <input 
+                                value={form.measurement_formula} 
+                                readOnly
+                                placeholder="No formula set" 
+                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 bg-slate-100 text-slate-500" 
+                            />
                         </div>
                     </div>
                     {/* Live total preview */}
@@ -431,27 +760,16 @@ export default function BOQMeasurements() {
                         <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
                             <Icon name="assignment" size={32} className="text-slate-300" />
                         </div>
-                        <h3 className="text-lg font-bold text-slate-800 mb-2">No Bill of Quantities</h3>
+                        <h3 className="text-lg font-bold text-slate-800 mb-2">No Budget Items</h3>
                         <p className="text-sm text-slate-500 max-w-sm mx-auto mb-6">
-                            Start building your standard BOQ from scratch or generate a prepopulated template based on standard ZIQS Trade Bills.
+                            Start building your construction budget by adding items manually.
                         </p>
-                        <div className="flex items-center justify-center gap-3">
-                            <button
-                                onClick={handleGenerateTemplate}
-                                disabled={generating}
-                                className="bg-amber-100/50 hover:bg-amber-100 text-amber-700 border border-amber-200 disabled:opacity-50 text-sm font-semibold px-5 py-2.5 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
-                            >
-                                {generating ? <Icon name="progress_activity" size={16} className="animate-spin" /> : <Icon name="auto_fix_high" size={16} />} 
-                                {generating ? 'Generating...' : 'Standard Template'}
-                            </button>
-                            <span className="text-xs text-slate-400 font-medium">OR</span>
-                            <button
-                                onClick={() => setShowForm(true)}
-                                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-sm font-semibold px-5 py-2.5 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
-                            >
-                                <Icon name="add" size={16} /> Enter Manually
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => setShowForm(true)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg flex items-center gap-2 transition-colors shadow-sm mx-auto"
+                        >
+                            <Icon name="add" size={16} /> Add First Item
+                        </button>
                     </div>
                 ) : (
                     <div>
@@ -542,6 +860,49 @@ export default function BOQMeasurements() {
                             <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Grand Total</span>
                             <span className="text-base font-bold text-emerald-700">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                         </div>
+                        {/* Signature & Procurement Section */}
+                        {selectedProject && items.length > 0 && (
+                            <div className="flex items-center justify-between px-4 py-4 bg-white border-t border-slate-200">
+                                {/* Sign Budget Button */}
+                                {!isBudgetSigned ? (
+                                    <Button
+                                        onClick={handleSignBudget}
+                                        disabled={saving}
+                                        className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold h-8 px-4 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+                                    >
+                                        {saving ? (
+                                            <Icon name="progress_activity" size={16} className="animate-spin" />
+                                        ) : (
+                                            <Icon name="edit_note" size={18} className="-ml-1" />
+                                        )}
+                                        {saving ? 'Signing...' : 'Sign Budget'}
+                                    </Button>
+                                ) : (
+                                    <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg">
+                                        <Icon name="verified" size={18} className="text-emerald-600" />
+                                        <span className="text-sm font-semibold">Budget Signed</span>
+                                    </div>
+                                )}
+                                {/* Procure Materials Button */}
+                                <Link
+                                    to="/builder/procurement"
+                                    search={{ projectId: selectedProject }}
+                                    className={`text-white text-xs font-bold h-8 px-4 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm ${
+                                        isBudgetSigned 
+                                            ? 'bg-blue-600 hover:bg-blue-700' 
+                                            : 'bg-slate-400 cursor-not-allowed pointer-events-none'
+                                    }`}
+                                    onClick={(e) => {
+                                        if (!isBudgetSigned) {
+                                            e.preventDefault();
+                                            toast.error('Please sign the budget first before procuring materials');
+                                        }
+                                    }}
+                                >
+                                    <Icon name="inventory_2" size={18} className="-ml-1" /> Procure Materials
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

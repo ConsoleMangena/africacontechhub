@@ -1,4 +1,5 @@
 import { Icon } from '@/components/ui/material-icon'
+import { Loading } from '@/components/ui/loading'
 import { useBuilderConnections } from '../hooks/use-builder-data'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,8 +16,10 @@ export function BuilderConnectionsView() {
             <Card>
                 <CardHeader>
                     <CardTitle>My Connections</CardTitle>
-                    <CardDescription>Loading your connections...</CardDescription>
                 </CardHeader>
+                <CardContent>
+                    <Loading className="py-8" text="Connecting..." />
+                </CardContent>
             </Card>
         )
     }

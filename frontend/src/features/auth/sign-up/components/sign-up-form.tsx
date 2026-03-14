@@ -188,7 +188,7 @@ export function SignUpForm({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className={cn('grid gap-3', className)}
+        className={cn('grid gap-2.5', className)}
         {...props}
       >
         <FormField
@@ -204,7 +204,7 @@ export function SignUpForm({
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="BUILDER">Builder</SelectItem>
+                  <SelectItem value="BUILDER">Aspirational Builder</SelectItem>
                   <SelectItem value="CONTRACTOR">Contractor</SelectItem>
                   <SelectItem value="SUPPLIER">Supplier</SelectItem>
                   <SelectItem value="ADMIN">Administrator</SelectItem>
@@ -301,11 +301,11 @@ export function SignUpForm({
           />
         </div>
 
-        <Button className='mt-2 w-full' disabled={isLoading}>
+        <Button className='mt-1.5 w-full' disabled={isLoading}>
           Create Account
         </Button>
 
-        <div className='relative my-2'>
+        <div className='relative my-1.5'>
           <div className='absolute inset-0 flex items-center'>
             <span className='w-full border-t' />
           </div>

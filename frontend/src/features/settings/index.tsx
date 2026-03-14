@@ -12,7 +12,7 @@ const sidebarNavItems = [
   {
     title: 'Profile',
     href: '/settings',
-    icon: <Icon name="user_cog" size={16} />,
+    icon: <Icon name="manage_accounts" size={16} />,
   },
   {
     title: 'Account',
@@ -35,7 +35,6 @@ const sidebarNavItems = [
 export function Settings() {
   return (
     <>
-      {/* ===== Top Heading ===== */}
       <Header>
         <Search />
         <div className='ms-auto flex items-center space-x-4'>
@@ -43,22 +42,35 @@ export function Settings() {
         </div>
       </Header>
 
-      <Main fixed>
-        <div>
-          <h1 className='text-lg font-bold font-display tracking-tight text-foreground'>
-            Settings
-          </h1>
-          <p className='text-xs text-muted-foreground mt-0.5'>
-            Manage your account settings and set e-mail preferences.
-          </p>
-        </div>
-        <Separator className='my-3 lg:my-4' />
-        <div className='flex flex-1 flex-col space-y-2 overflow-hidden md:space-y-2 lg:flex-row lg:space-y-0 lg:space-x-12'>
-          <aside className='top-0 lg:sticky lg:w-1/5'>
-            <SidebarNav items={sidebarNavItems} />
-          </aside>
-          <div className='flex-1 w-full overflow-y-auto p-1 pb-16'>
-            <Outlet />
+      <Main>
+        <div className="flex flex-col gap-6 pb-8">
+          {/* Page Header */}
+          <div>
+            <h1 className='text-xl font-bold font-display tracking-tight text-foreground'>
+              Settings
+            </h1>
+            <p className='text-sm text-muted-foreground mt-1'>
+              Manage your account settings and preferences.
+            </p>
+          </div>
+
+          <Separator />
+
+          {/* Content Layout */}
+          <div className='flex flex-col lg:flex-row gap-6 items-start'>
+            {/* Sidebar */}
+            <aside className='lg:w-64 flex-shrink-0 w-full'>
+              <div className="bg-white rounded-lg border border-slate-200 p-2 sticky top-0">
+                <SidebarNav items={sidebarNavItems} />
+              </div>
+            </aside>
+
+            {/* Main Content */}
+            <div className='flex-1 min-w-0 w-full'>
+              <div className="bg-white rounded-lg border border-slate-200 p-6">
+                <Outlet />
+              </div>
+            </div>
           </div>
         </div>
       </Main>

@@ -21,8 +21,9 @@ from typing import List, Optional
 from .models import (
     KnowledgeDocument, AIInstruction, ChatSession, ChatMessage,
     DrawingStylePreset, ImageFeedback, MaterialPrice, TokenUsage,
-    BOQTemplate,
+    BOQTemplate, SiteIntel,
 )
+from apps.builder_dashboard.models import Project
 
 logger = logging.getLogger(__name__)
 
@@ -270,6 +271,54 @@ def _extract_scan_description(text: str) -> str:
         if stripped.lower().startswith(kw):
             return stripped[len(kw):].strip()
     return stripped
+
+
+# ── Site intelligence helpers ──────────────────────────────────────
+
+_SITE_INTEL_KEYWORDS = ['site intel', 'site intelligence', 'site analysis', 'site conditions']
+
+
+def _is_site_intel_request(text: str) -> bool:
+    lower = text.lower()
+    return any(kw in lower for kw in _SITE_INTEL_KEYWORDS)
+
+
+def _build_site_intel_prompt(project: Project) -> str:
+    lines = [
+        f"Project: {project.title}",
+        f"Location: {project.location}",
+    ]
+    if project.latitude and project.longitude:
+        lines.append(f"Coordinates: {project.latitude}, {project.longitude}")
+    if project.ai_brief:
+        lines.append(f"Brief: {project.ai_brief}")
+    if project.site_notes:
+        lines.append(f"Site notes: {project.site_notes}")
+    if project.constraints:
+        lines.append(f"Constraints: {project.constraints}")
+    lines.append(
+        "Generate concise site intelligence in JSON only: { 'summary': string, "
+        "'insights': [{ 'aspect': string, 'finding': string, 'risk': string, 'recommendation': string }] }."
+    )
+    lines.append("No markdown or tables. If data is limited, make reasonable assumptions and state them.")
+    return "\n".join(lines)
+
+
+def _parse_site_intel_response(raw_text: str) -> dict:
+    """Best-effort parse of Claude JSON for site intel."""
+    try:
+        return json.loads(raw_text)
+    except Exception:
+        pass
+    # Try to extract JSON substring
+    try:
+        start = raw_text.find('{')
+        end = raw_text.rfind('}')
+        if start != -1 and end != -1 and end > start:
+            return json.loads(raw_text[start:end+1])
+    except Exception:
+        return {}
+
 
 
 def _search_floor_plans(query: str, limit: int = 6) -> list:
@@ -667,10 +716,20 @@ class ChatCompletionView(APIView):
         session_id = request.data.get('session_id')
         user_image_data = request.data.get('image')  # Optional base64 image
         user_pdf_data = request.data.get('pdf')  # Optional base64 PDF
+        project_id = request.data.get('project_id')
+        project = None
         user = request.user
 
         if not messages:
             return Response({'error': 'No messages provided.'}, status=400)
+
+        if project_id:
+            try:
+                project = Project.objects.get(pk=project_id)
+            except Project.DoesNotExist:
+                return Response({'error': 'Project not found'}, status=404)
+            if not (user.is_staff or project.owner_id == user.id):
+                return Response({'error': 'Not authorized for this project'}, status=403)
 
         # Get or create session
         if session_id:
@@ -769,7 +828,16 @@ class ChatCompletionView(APIView):
             "helpful, and professional."
         )
 
-        system_content = base_instruction
+        system_content = base_instruction + (
+            "\n\nDo not refuse to answer. If data is limited, make reasonable, clearly labeled assumptions "
+            "and provide the best possible, concise answer without disclaimers."
+        )
+
+        if project:
+            system_content += (
+                f"\n\nProject Context: Title={project.title}; Location={project.location}; "
+                f"Brief={project.ai_brief or ''}; Site notes={project.site_notes or ''}; Constraints={project.constraints or ''}."
+            )
 
         if context_text:
             system_content += (
@@ -1976,5 +2044,116 @@ class MaterialPriceView(APIView):
             'supplier_name': mp.supplier_name,
             'notes': mp.notes,
             'updated_at': mp.updated_at.isoformat() if mp.updated_at else None,
+            'created_at': mp.created_at.isoformat() if mp.created_at else None,
         }
+
+
+# ── Site Intelligence (Project) ─────────────────────────────────────
+
+class SiteIntelView(APIView):
+    """Generate and fetch site intelligence for a project."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, project_id):
+        try:
+            project = Project.objects.get(pk=project_id)
+        except Project.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=404)
+
+        if not (request.user.is_staff or project.owner_id == request.user.id):
+            return Response({'error': 'Not authorized for this project'}, status=403)
+
+        intel = SiteIntel.objects.filter(project=project).order_by('-created_at').first()
+        if not intel:
+            return Response({'error': 'No site intel found'}, status=404)
+
+        return Response({
+            'id': intel.id,
+            'project': project.id,
+            'summary': intel.summary,
+            'rows': intel.rows,
+            'raw_response': intel.raw_response,
+            'source': intel.source,
+            'created_at': intel.created_at.isoformat(),
+        })
+
+    def post(self, request):
+        project_id = request.data.get('project_id')
+        prompt_override = request.data.get('prompt')
+
+        if not project_id:
+            return Response({'error': 'project_id is required'}, status=400)
+        try:
+            project = Project.objects.get(pk=project_id)
+        except Project.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=404)
+
+        if not (request.user.is_staff or project.owner_id == request.user.id):
+            return Response({'error': 'Not authorized for this project'}, status=403)
+
+        instruction_obj = AIInstruction.objects.filter(is_active=True).first()
+        base_instruction = instruction_obj.instruction_text if instruction_obj else (
+            "You are the DzeNhare Architecture AI, a helpful, professional AI assistant "
+            "built into the builder dashboard. You specialize in construction, compliance "
+            "regulations (like SI-56), and architectural guidance. Keep answers concise, "
+            "helpful, and professional."
+        )
+
+        system_content = base_instruction + (
+            "\n\nGenerate concise site intelligence. Respond ONLY with JSON matching: "
+            "{ 'summary': string, 'insights': [{aspect, finding, risk, recommendation}] }. "
+            "No markdown, no tables. Provide best-effort findings; if data is limited, state assumptions."
+        )
+
+        prompt = prompt_override or _build_site_intel_prompt(project)
+
+        try:
+            response_content = _call_claude_with_tools(
+                messages=[{"role": "user", "content": prompt}],
+                system=system_content,
+            )
+        except Exception as e:
+            logger.exception("Site intel generation failed")
+            return Response({'error': str(e)}, status=502)
+
+        parsed = _parse_site_intel_response(response_content or "")
+        candidate_rows = (
+            parsed.get('insights')
+            or parsed.get('rows')
+            or parsed.get('data')
+            or parsed.get('table')
+            or []
+        )
+        normalized_rows = []
+        if isinstance(candidate_rows, list):
+            for row in candidate_rows:
+                normalized_rows.append({
+                    'aspect': row.get('aspect') or row.get('category') or row.get('topic') or '',
+                    'finding': row.get('finding') or row.get('detail') or row.get('summary') or '',
+                    'risk': row.get('risk') or row.get('issue') or '',
+                    'recommendation': row.get('recommendation') or row.get('action') or row.get('mitigation') or '',
+                })
+
+        summary = parsed.get('summary') or parsed.get('overview') or ''
+
+        if not normalized_rows:
+            return Response({'error': 'AI did not return structured site intel', 'raw': response_content}, status=502)
+
+        intel = SiteIntel.objects.create(
+            project=project,
+            user=request.user,
+            summary=summary,
+            rows=normalized_rows,
+            raw_response=response_content or '',
+            source='ai',
+        )
+
+        return Response({
+            'id': intel.id,
+            'project': project.id,
+            'summary': intel.summary,
+            'rows': intel.rows,
+            'raw_response': intel.raw_response,
+            'created_at': intel.created_at.isoformat(),
+        }, status=201)
 

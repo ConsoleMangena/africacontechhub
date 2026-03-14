@@ -1,22 +1,20 @@
 import { Separator } from '@/components/ui/separator'
 
-type ContentSectionProps = {
+interface ContentSectionProps {
   title: string
   desc: string
-  children: React.JSX.Element
+  children: React.ReactNode
 }
 
 export function ContentSection({ title, desc, children }: ContentSectionProps) {
   return (
-    <div className='flex flex-1 flex-col'>
-      <div className='flex-none'>
-        <h3 className='text-sm font-semibold text-foreground'>{title}</h3>
-        <p className='text-xs text-muted-foreground mt-0.5'>{desc}</p>
+    <div className='space-y-6'>
+      <div>
+        <h2 className='text-lg font-semibold text-foreground'>{title}</h2>
+        <p className='text-sm text-muted-foreground mt-1'>{desc}</p>
       </div>
-      <Separator className='my-3 flex-none' />
-      <div className='faded-bottom h-full w-full overflow-y-auto scroll-smooth pe-4 pb-12'>
-        <div className='-mx-1 px-1.5 lg:max-w-xl'>{children}</div>
-      </div>
+      <Separator />
+      <div className='max-w-2xl'>{children}</div>
     </div>
   )
 }

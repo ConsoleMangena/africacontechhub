@@ -11,24 +11,24 @@ export function SignUp2() {
   const [privacyOpen, setPrivacyOpen] = useState(false)
 
   return (
-    <div className='flex min-h-svh bg-white'>
+    <div className='flex h-screen bg-white overflow-hidden'>
       {/* Left — Form (scrollable) */}
-      <div className='flex w-full flex-col items-center overflow-y-auto px-6 py-10 lg:w-1/2'>
-        <div className='w-full max-w-sm space-y-6'>
+      <div className='flex w-full flex-col items-center overflow-y-auto px-5 py-6 lg:w-1/2 lg:px-8 lg:py-8'>
+        <div className='w-full max-w-sm space-y-4'>
           {/* Logo & brand */}
-          <div className='flex items-center gap-3'>
+          <div className='flex items-center gap-2.5'>
             <img
               src='/images/logo.png'
-              alt='DzeNhare SQB Logo'
-              className='h-10 w-10 object-contain'
+              alt='Dzenhare SQB Logo'
+              className='h-9 w-9 object-contain'
             />
-            <span className='text-lg font-semibold text-gray-900'>DzeNhare SQB</span>
+            <span className='text-lg font-semibold text-gray-900'>Dzenhare SQB</span>
           </div>
 
           {/* Heading */}
-          <div className='space-y-1'>
-            <h2 className='text-2xl font-bold tracking-tight text-gray-900'>Create an account</h2>
-            <p className='text-sm text-gray-500'>
+          <div className='space-y-1.5'>
+            <h2 className='text-xl font-bold tracking-tight text-gray-900'>Create an account</h2>
+            <p className='text-sm text-gray-500 leading-relaxed'>
               Join the platform connecting builders, contractors, and suppliers
             </p>
           </div>
@@ -37,7 +37,7 @@ export function SignUp2() {
           <SignUpForm />
 
           {/* Links */}
-          <div className='space-y-3 pb-6 text-center text-sm'>
+          <div className='space-y-2 pb-2 text-center text-sm'>
             <p className='text-gray-500'>
               Already have an account?{' '}
               <Link
@@ -71,7 +71,7 @@ export function SignUp2() {
       </div>
 
       {/* Right — Hero panel */}
-      <div className='relative hidden overflow-hidden lg:flex lg:w-1/2 lg:flex-col lg:items-center lg:justify-center border-l bg-gradient-to-br from-green-50 via-emerald-50 to-lime-50'>
+      <div className='relative hidden overflow-hidden lg:flex lg:h-screen lg:w-1/2 lg:flex-col lg:items-center lg:justify-center border-l bg-gradient-to-br from-green-50 via-emerald-50 to-lime-50'>
         {/* Animated gradient background */}
         <div className='absolute inset-0 bg-gradient-to-br from-green-50 via-emerald-50 to-lime-50 animate-gradient-shift' />
 
@@ -84,27 +84,27 @@ export function SignUp2() {
         <div className='absolute inset-0 bg-diagonal-pattern opacity-5' />
 
         {/* Content */}
-        <div className='relative z-20 flex flex-col items-center space-y-8 px-12 text-center'>
+        <div className='relative z-20 flex flex-col items-center space-y-6 px-10 text-center'>
           <div className='animate-fade-in-up'>
             <img
               src='/images/logo.png'
               alt='DzeNhare SQB Logo'
-              className='h-32 w-32 drop-shadow-2xl object-contain animate-bounce-slow'
+              className='h-24 w-24 drop-shadow-2xl object-contain animate-bounce-slow'
             />
           </div>
 
-          <div className='animate-fade-in-up animation-delay-200 space-y-3'>
-            <h1 className='text-4xl font-bold tracking-tight text-gray-900'>
-              DzeNhare SQB
+          <div className='animate-fade-in-up animation-delay-200 space-y-2'>
+            <h1 className='text-3xl font-bold tracking-tight text-gray-900'>
+              Dzenhare SQB
             </h1>
-            <p className='max-w-xs text-sm text-gray-600'>
+            <p className='max-w-xs text-sm text-gray-600 leading-relaxed'>
               Build smarter with verified projects, escrow protection, and SI&nbsp;56 compliance
             </p>
           </div>
 
           {/* Feature cards */}
-          <div className='w-full max-w-xs space-y-3 animate-fade-in-up animation-delay-400'>
-            <div className='flex items-center gap-3 rounded-xl border border-green-100 bg-white/60 p-3 backdrop-blur-sm'>
+          <div className='w-full max-w-xs space-y-2.5 animate-fade-in-up animation-delay-400'>
+            <div className='flex items-center gap-3 rounded-xl border border-green-100 bg-white/60 p-3 backdrop-blur-sm shadow-sm'>
               <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-500/15'>
                 <svg className='h-5 w-5 text-green-700' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                   <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' />
@@ -116,7 +116,7 @@ export function SignUp2() {
               </div>
             </div>
 
-            <div className='flex items-center gap-3 rounded-xl border border-green-100 bg-white/60 p-3 backdrop-blur-sm'>
+            <div className='flex items-center gap-3 rounded-xl border border-green-100 bg-white/60 p-3 backdrop-blur-sm shadow-sm'>
               <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15'>
                 <svg className='h-5 w-5 text-emerald-700' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                   <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' />

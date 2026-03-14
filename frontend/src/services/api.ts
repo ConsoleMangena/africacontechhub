@@ -5,7 +5,7 @@ import {
     PaginatedResponse, ProjectDashboard,
     Project, SiteUpdate, EscrowMilestone, CapitalScheduleItem,
     MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera,
-    BOQItem
+    BOQItem, DrawingRequest, DrawingFile, MaterialRequest, ProjectTeam, ProfessionalProfile
 } from '../types/api';
 const api = axios.create({
     baseURL: `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1`,
@@ -225,11 +225,41 @@ export const builderApi = {
     createBOQItem: (data: Partial<BOQItem>) => api.post<BOQItem>('/boq-items/', data),
     updateBOQItem: (id: number, data: Partial<BOQItem>) => api.patch<BOQItem>(`/boq-items/${id}/`, data),
     deleteBOQItem: (id: number) => api.delete(`/boq-items/${id}/`),
-    generateBOQTemplate: (projectId: number) => api.post<{message: string}>('/boq-items/generate_template/', { project: projectId }),
+
+    // Material Requests
+    getProjectMaterialRequests: (projectId: number) => api.get<PaginatedResponse<MaterialRequest>>(`/material-requests/?project=${projectId}`),
+    createMaterialRequest: (data: any) => api.post<MaterialRequest>('/material-requests/', data),
+
+    // Drawing Requests
+    getProjectDrawingRequests: (projectId: number) => api.get<PaginatedResponse<DrawingRequest>>(`/drawing-requests/?project=${projectId}`),
+    createDrawingRequest: (data: Partial<DrawingRequest>) => api.post<DrawingRequest>('/drawing-requests/', data),
+    uploadDrawingFile: (data: FormData) => api.post<DrawingFile>('/drawing-files/', data, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    }),
+    deleteDrawingRequest: (id: number) => api.delete(`/drawing-requests/${id}/`),
+    deleteDrawingFile: (id: number) => api.delete(`/drawing-files/${id}/`),
+
+    // Project Team management
+    getProjectTeam: (projectId: number) => api.get<PaginatedResponse<ProjectTeam>>(`/project-team/?project=${projectId}`),
+    addToTeam: (data: Partial<ProjectTeam>) => api.post<ProjectTeam>('/project-team/', data),
+    updateTeamMember: (id: number, data: Partial<ProjectTeam>) => api.patch<ProjectTeam>(`/project-team/${id}/`, data),
+    removeFromTeam: (id: number) => api.delete(`/project-team/${id}/`),
+    
+    // Professional Directory
+    getProfessionals: (params?: any) => api.get<PaginatedResponse<ProfessionalProfile>>('/professionals/', { params }),
+    getProfessional: (id: number) => api.get<ProfessionalProfile>(`/professionals/${id}/`),
 };
 
 export const aiApi = {
-    sendMessage: (messages: {role: string, content: string}[], sessionId?: number, image?: string, pdf?: string) => 
+    sendMessage: (
+        messages: {role: string, content: string}[],
+        sessionId?: number,
+        image?: string,
+        pdf?: string,
+        projectId?: number,
+    ) => 
         api.post<{
             message: string;
             session_id: number;
@@ -238,6 +268,13 @@ export const aiApi = {
             preset_id?: number;
             preset_name?: string;
             floor_plans?: any[];
+            site_intel?: {
+                id: number;
+                project: number;
+                summary: string;
+                rows: any[];
+                created_at: string;
+            };
             analyse?: {
                 summary: string;
                 items: Array<{
@@ -252,7 +289,7 @@ export const aiApi = {
                 compliance_notes: string[];
                 recommendations: string[];
             };
-        }>('/ai/chat/', { messages, session_id: sessionId, image, pdf }),
+        }>('/ai/chat/', { messages, session_id: sessionId, image, pdf, project_id: projectId }),
 
     /**
      * Stream chat via SSE — returns a ReadableStream.
@@ -264,6 +301,7 @@ export const aiApi = {
         sessionId?: number,
         image?: string,
         pdf?: string,
+        projectId?: number,
     ): Promise<Response> => {
         const token = cachedSession;
         return fetch(`${api.defaults.baseURL}/ai/chat/stream/`, {
@@ -272,9 +310,18 @@ export const aiApi = {
                 'Content-Type': 'application/json',
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
-            body: JSON.stringify({ messages, session_id: sessionId, image, pdf }),
+            body: JSON.stringify({ messages, session_id: sessionId, image, pdf, project_id: projectId }),
         });
     },
+    generateSiteIntel: (projectId: number, prompt?: string) =>
+        api.post<{ id: number; project: number; summary: string; rows: any[]; raw_response: string; created_at: string }>(
+            '/ai/site-intel/',
+            { project_id: projectId, prompt }
+        ),
+    getSiteIntel: (projectId: number) =>
+        api.get<{ id: number; project: number; summary: string; rows: any[]; raw_response: string; created_at: string }>(
+            `/ai/site-intel/${projectId}/`
+        ),
     generateImage: (prompt: string) =>
         api.post<{ image_url: string; prompt: string }>('/ai/generate-image/', { prompt }),
     getSessions: () => api.get<{id: number, title: string, updated_at: string}[]>('/ai/chat/sessions/'),

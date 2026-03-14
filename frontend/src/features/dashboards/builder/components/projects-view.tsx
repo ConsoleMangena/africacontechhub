@@ -97,6 +97,10 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
                                             SI 56
                                         </Badge>
                                     )}
+                                    <Badge variant="outline" className="text-xs text-blue-600 bg-blue-50">
+                                        <Icon name="groups" size={12} className="mr-1" />
+                                        {project.total_team_count} Artisans
+                                    </Badge>
                                 </div>
 
                                 <div className="flex items-center gap-2 pt-2 border-t border-border/40">

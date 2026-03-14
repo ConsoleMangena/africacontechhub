@@ -18,6 +18,8 @@ export interface Profile {
     last_name?: string;
     supabase_id?: string;
     is_approved?: boolean;
+    has_signature?: boolean;
+    signature?: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -36,11 +38,46 @@ export interface Project {
     budget: string;
     status: 'PLANNING' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD';
     si56_verified: boolean;
+    is_budget_signed: boolean;
     latitude?: string;
     longitude?: string;
     engagement_tier: 'DIT' | 'DIFY';
+    // Optional project summary generated from form inputs
+    ai_brief?: string;
+    building_type?: string | null;
+    use_case?: string | null;
+    occupants?: number | null;
+    bedrooms?: number | null;
+    bathrooms?: number | null;
+    floors?: number | null;
+    has_garage?: boolean | null;
+    parking_spaces?: number | null;
+    lot_size?: string | null;
+    footprint?: string | null;
+    preferred_style?: string | null;
+    roof_type?: string | null;
+    special_spaces?: string | null;
+    sustainability?: string | null;
+    accessibility?: string | null;
+    site_notes?: string | null;
+    constraints?: string | null;
+    timeline?: string | null;
+    budget_flex?: string | null;
     created_at: string;
     updated_at: string;
+    architect?: number | null;
+    architect_details?: {
+        full_name: string;
+        email: string;
+        phone: string;
+        avatar: string | null;
+    } | null;
+    total_team_count: number;
+    team_stats: {
+        pending: number;
+        assigned: number;
+        completed: number;
+    };
 }
 
 export interface SiteUpdate {
@@ -149,6 +186,8 @@ export interface ProjectDashboard {
     esignature_requests: ESignatureRequest[];
     site_cameras: SiteCamera[];
     unverified_updates: SiteUpdate[];
+    contractors?: any[];
+    suppliers?: any[];
 }
 
 // Contractor Dashboard Types
@@ -225,6 +264,89 @@ export interface Delivery {
     date: string;
     proof_of_delivery: string;
     verified: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface MaterialRequest {
+    id: number;
+    project: number;
+    boq_item?: number;
+    material_name: string;
+    quantity_requested: string;
+    unit: string;
+    procurement_method: 'SELF' | 'GROUP_BUY';
+    price_at_request: string;
+    transport_cost: string;
+    group_buy_deduction: string;
+    total_calculated_cost: string;
+    status: 'PENDING' | 'APPROVED' | 'ORDERED' | 'DELIVERED' | 'CANCELLED';
+    notes: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface DrawingFile {
+    id: number;
+    request: number;
+    file: string;
+    original_name: string;
+    file_type: string;
+    file_size: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface DrawingRequest {
+    id: number;
+    project: number;
+    drawing_type: 'floor_plan' | 'elevation' | 'section' | '3d_render' | 'blueprint';
+    title: string;
+    status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
+    files: DrawingFile[];
+    created_at: string;
+    updated_at: string;
+}
+export interface ProjectTeam {
+    id: number;
+    project: number;
+    user: number;
+    role: 'architect' | 'structural_engineer' | 'contractor' | 'project_manager' | 'quantity_surveyor' | 'electrician' | 'plumber' | 'mason' | 'carpenter' | 'painter' | 'roofer' | 'tiler';
+    status: 'pending' | 'assigned' | 'completed';
+    notes: string;
+    user_details?: {
+        full_name: string;
+        email: string;
+        phone: string;
+        avatar: string | null;
+    };
+    full_name: string;
+    created_at: string;
+}
+export interface ProfessionalProfile {
+    id: number;
+    user: number;
+    user_details?: {
+        id: number;
+        email: string;
+        first_name: string;
+        last_name: string;
+        full_name: string;
+        avatar?: string;
+        phone_number?: string;
+    };
+    role: 'architect' | 'structural_engineer' | 'contractor' | 'project_manager' | 'quantity_surveyor' | 'electrician' | 'plumber' | 'mason' | 'carpenter' | 'painter' | 'roofer' | 'tiler';
+    company_name: string;
+    location: string;
+    experience_years: number;
+    bio: string;
+    hourly_rate?: string;
+    availability: 'available' | 'busy' | 'unavailable';
+    is_verified: boolean;
+    specialties: string[];
+    certifications: string[];
+    average_rating: string;
+    completed_projects_count: number;
     created_at: string;
     updated_at: string;
 }

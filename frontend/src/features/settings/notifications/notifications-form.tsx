@@ -16,6 +16,8 @@ import {
 } from '@/components/ui/form'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
+import { Card, CardContent } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 
 const notificationsFormSchema = z.object({
   type: z.enum(['all', 'mentions', 'none'], {
@@ -33,7 +35,6 @@ const notificationsFormSchema = z.object({
 
 type NotificationsFormValues = z.infer<typeof notificationsFormSchema>
 
-// This can come from your database or API.
 const defaultValues: Partial<NotificationsFormValues> = {
   communication_emails: false,
   marketing_emails: false,
@@ -51,37 +52,33 @@ export function NotificationsForm() {
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit((data) => showSubmittedData(data))}
-        className='space-y-5'
+        className='space-y-8'
       >
         <FormField
           control={form.control}
           name='type'
           render={({ field }) => (
-            <FormItem className='relative space-y-2'>
-              <FormLabel className='text-xs'>Notify me about...</FormLabel>
+            <FormItem className='space-y-4'>
+              <FormLabel className='text-sm font-medium'>Notify me about...</FormLabel>
               <FormControl>
                 <RadioGroup
                   onValueChange={field.onChange}
                   defaultValue={field.value}
-                  className='flex flex-col gap-1.5'
+                  className='space-y-3'
                 >
-                  <FormItem className='flex items-center'>
+                  <FormItem className='flex items-center space-x-3 space-y-0'>
                     <FormControl>
                       <RadioGroupItem value='all' />
                     </FormControl>
-                    <FormLabel className='font-normal text-sm'>
-                      All new messages
-                    </FormLabel>
+                    <FormLabel className='font-normal text-sm'>All new messages</FormLabel>
                   </FormItem>
-                  <FormItem className='flex items-center'>
+                  <FormItem className='flex items-center space-x-3 space-y-0'>
                     <FormControl>
                       <RadioGroupItem value='mentions' />
                     </FormControl>
-                    <FormLabel className='font-normal text-sm'>
-                      Direct messages and mentions
-                    </FormLabel>
+                    <FormLabel className='font-normal text-sm'>Direct messages and mentions</FormLabel>
                   </FormItem>
-                  <FormItem className='flex items-center'>
+                  <FormItem className='flex items-center space-x-3 space-y-0'>
                     <FormControl>
                       <RadioGroupItem value='none' />
                     </FormControl>
@@ -93,28 +90,33 @@ export function NotificationsForm() {
             </FormItem>
           )}
         />
-        <div className='relative'>
-          <h3 className='mb-3 text-xs font-semibold text-foreground'>Email Notifications</h3>
-          <div className='space-y-2.5'>
+
+        <Separator />
+
+        <div className='space-y-4'>
+          <h3 className='text-sm font-medium'>Email Notifications</h3>
+          <div className='grid gap-4'>
             <FormField
               control={form.control}
               name='communication_emails'
               render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3'>
-                  <div className='space-y-0.5'>
-                    <FormLabel className='text-sm'>
-                      Communication emails
-                    </FormLabel>
-                    <FormDescription className='text-xs'>
-                      Receive emails about your account activity.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
+                <FormItem>
+                  <Card className='border-slate-200'>
+                    <CardContent className='p-4 flex items-center justify-between'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-sm'>Communication emails</FormLabel>
+                        <FormDescription className='text-xs text-slate-500'>
+                          Receive emails about your account activity.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </CardContent>
+                  </Card>
                 </FormItem>
               )}
             />
@@ -122,21 +124,23 @@ export function NotificationsForm() {
               control={form.control}
               name='marketing_emails'
               render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3'>
-                  <div className='space-y-0.5'>
-                    <FormLabel className='text-sm'>
-                      Marketing emails
-                    </FormLabel>
-                    <FormDescription className='text-xs'>
-                      Receive emails about new products, features, and more.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
+                <FormItem>
+                  <Card className='border-slate-200'>
+                    <CardContent className='p-4 flex items-center justify-between'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-sm'>Marketing emails</FormLabel>
+                        <FormDescription className='text-xs text-slate-500'>
+                          Receive emails about new products, features, and more.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </CardContent>
+                  </Card>
                 </FormItem>
               )}
             />
@@ -144,19 +148,23 @@ export function NotificationsForm() {
               control={form.control}
               name='social_emails'
               render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3'>
-                  <div className='space-y-0.5'>
-                    <FormLabel className='text-sm'>Social emails</FormLabel>
-                    <FormDescription className='text-xs'>
-                      Receive emails for friend requests, follows, and more.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
+                <FormItem>
+                  <Card className='border-slate-200'>
+                    <CardContent className='p-4 flex items-center justify-between'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-sm'>Social emails</FormLabel>
+                        <FormDescription className='text-xs text-slate-500'>
+                          Receive emails for friend requests, follows, and more.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </CardContent>
+                  </Card>
                 </FormItem>
               )}
             />
@@ -164,31 +172,37 @@ export function NotificationsForm() {
               control={form.control}
               name='security_emails'
               render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3'>
-                  <div className='space-y-0.5'>
-                    <FormLabel className='text-sm'>Security emails</FormLabel>
-                    <FormDescription className='text-xs'>
-                      Receive emails about your account activity and security.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      disabled
-                      aria-readonly
-                    />
-                  </FormControl>
+                <FormItem>
+                  <Card className='border-slate-200'>
+                    <CardContent className='p-4 flex items-center justify-between'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-sm'>Security emails</FormLabel>
+                        <FormDescription className='text-xs text-slate-500'>
+                          Receive emails about your account activity and security.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          disabled
+                        />
+                      </FormControl>
+                    </CardContent>
+                  </Card>
                 </FormItem>
               )}
             />
           </div>
         </div>
+
+        <Separator />
+
         <FormField
           control={form.control}
           name='mobile'
           render={({ field }) => (
-            <FormItem className='relative flex flex-row items-start'>
+            <FormItem className='flex flex-row items-start space-x-3 space-y-0'>
               <FormControl>
                 <Checkbox
                   checked={field.value}
@@ -199,11 +213,11 @@ export function NotificationsForm() {
                 <FormLabel className='text-sm'>
                   Use different settings for my mobile devices
                 </FormLabel>
-                <FormDescription className='text-xs'>
+                <FormDescription className='text-xs text-slate-500'>
                   You can manage your mobile notifications in the{' '}
                   <Link
                     to='/settings'
-                    className='underline decoration-dashed underline-offset-4 hover:decoration-solid'
+                    className='underline underline-offset-2 hover:text-primary'
                   >
                     mobile settings
                   </Link>{' '}
@@ -213,7 +227,8 @@ export function NotificationsForm() {
             </FormItem>
           )}
         />
-        <Button type='submit' size='sm' className='h-8'>
+
+        <Button type='submit' className='h-10 px-6'>
           Save Changes
         </Button>
       </form>

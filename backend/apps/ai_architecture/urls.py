@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ChatCompletionView, ChatStreamView, KnowledgeDocumentView, ImageGenerationView,
     AIInstructionView, ChatSessionListView, ChatSessionDetailView,
-    ImageFeedbackView, DrawingStylePresetView, BOQTemplateView, MaterialPriceView,
+    ImageFeedbackView, DrawingStylePresetView, BOQTemplateView, MaterialPriceView, SiteIntelView,
 )
 
 router = DefaultRouter()
@@ -24,5 +24,7 @@ urlpatterns = [
     path('boq-templates/<int:pk>/', BOQTemplateView.as_view(), name='ai-boq-templates-detail'),
     path('material-prices/', MaterialPriceView.as_view(), name='ai-material-prices'),
     path('material-prices/<int:pk>/', MaterialPriceView.as_view(), name='ai-material-prices-detail'),
+    path('site-intel/', SiteIntelView.as_view(), name='ai-site-intel-create'),
+    path('site-intel/<int:project_id>/', SiteIntelView.as_view(), name='ai-site-intel-latest'),
     path('', include(router.urls)),
 ]

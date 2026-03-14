@@ -18,10 +18,10 @@ export function SignIn2() {
           <div className='flex items-center gap-3'>
             <img
               src='/images/logo.png'
-              alt='DzeNhare SQB Logo'
+              alt='Dzenhare SQB Logo'
               className='h-10 w-10 object-contain'
             />
-            <span className='text-lg font-semibold text-gray-900'>DzeNhare SQB</span>
+            <span className='text-lg font-semibold text-gray-900'>Dzenhare SQB</span>
           </div>
 
           {/* Heading */}
@@ -87,14 +87,14 @@ export function SignIn2() {
           <div className='animate-fade-in-up'>
             <img
               src='/images/logo.png'
-              alt='DzeNhare SQB Logo'
+              alt='Dzenhare SQB Logo'
               className='h-32 w-32 drop-shadow-2xl object-contain'
             />
           </div>
 
           <div className='animate-fade-in-up animation-delay-200 space-y-3'>
             <h1 className='text-4xl font-bold tracking-tight text-gray-900'>
-              DzeNhare SQB
+                              Dzenhare SQB
             </h1>
             <p className='max-w-xs text-sm text-gray-600'>
               Zimbabwe&apos;s digital ecosystem connecting builders, contractors, and suppliers

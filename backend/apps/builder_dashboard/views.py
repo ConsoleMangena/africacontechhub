@@ -8,12 +8,14 @@ from django.shortcuts import get_object_or_404
 from .models import (
     Project, SiteUpdate, EscrowMilestone, CapitalSchedule,
     MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera,
-    BOQItem
+    BOQItem, MaterialRequest, DrawingRequest, DrawingFile, ProjectTeam
 )
 from .serializers import (
     ProjectSerializer, SiteUpdateSerializer, EscrowMilestoneSerializer,
     CapitalScheduleSerializer, MaterialAuditSerializer, WeatherEventSerializer,
-    ESignatureRequestSerializer, SiteCameraSerializer, BOQItemSerializer
+    ESignatureRequestSerializer, SiteCameraSerializer, BOQItemSerializer,
+    MaterialRequestSerializer, DrawingRequestSerializer, DrawingFileSerializer,
+    ProjectTeamSerializer
 )
 from apps.authentication.permissions import IsBuilder, IsAdmin
 from apps.contractor_dashboard.models import Bid, ContractorProfile, ContractorRating
@@ -459,3 +461,64 @@ class IsAdminOrReadOnlyBuilder(permissions.BasePermission):
             return True
             
         return False
+
+class MaterialRequestViewSet(viewsets.ModelViewSet):
+    serializer_class = MaterialRequestSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get_queryset(self):
+        qs = MaterialRequest.objects.filter(project__owner=self.request.user)
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    def perform_create(self, serializer):
+        from django.shortcuts import get_object_or_404
+        project_id = self.request.data.get('project')
+        project = get_object_or_404(Project, id=project_id, owner=self.request.user)
+        serializer.save(project=project)
+
+class DrawingRequestViewSet(viewsets.ModelViewSet):
+    serializer_class = DrawingRequestSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get_queryset(self):
+        qs = DrawingRequest.objects.filter(project__owner=self.request.user).prefetch_related('files')
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    def perform_create(self, serializer):
+        from django.shortcuts import get_object_or_404
+        project_id = self.request.data.get('project')
+        project = get_object_or_404(Project, id=project_id, owner=self.request.user)
+        serializer.save(project=project)
+
+class DrawingFileViewSet(viewsets.ModelViewSet):
+    serializer_class = DrawingFileSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get_queryset(self):
+        return DrawingFile.objects.filter(request__project__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        request_id = self.request.data.get('request')
+        drawing_request = get_object_or_404(DrawingRequest, id=request_id, project__owner=self.request.user)
+        serializer.save(request=drawing_request)
+class ProjectTeamViewSet(viewsets.ModelViewSet):
+    serializer_class = ProjectTeamSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get_queryset(self):
+        qs = ProjectTeam.objects.filter(project__owner=self.request.user)
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    def perform_create(self, serializer):
+        project_id = self.request.data.get('project')
+        project = get_object_or_404(Project, id=project_id, owner=self.request.user)
+        serializer.save(project=project)

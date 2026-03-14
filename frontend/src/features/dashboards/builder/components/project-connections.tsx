@@ -1,4 +1,5 @@
 import { Icon } from '@/components/ui/material-icon'
+import { Loading } from '@/components/ui/loading'
 import { useProjectConnections } from '../hooks/use-builder-data'
 import { Badge } from '@/components/ui/badge'
 
@@ -11,8 +12,9 @@ export function ProjectConnections({ projectId }: ProjectConnectionsProps) {
 
     if (isLoading) {
         return (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Loading connections...</span>
+            <div className="flex items-center gap-2 py-1">
+                <Loading size={14} text="" />
+                <span className="text-[10px] text-muted-foreground font-medium animate-pulse">Syncing...</span>
             </div>
         )
     }

@@ -58,14 +58,24 @@ export const sidebarData: SidebarData = {
           icon: 'dashboard',
         },
         {
-          title: 'Floor Plans',
-          url: '/builder/floor-plans',
-          icon: 'image',
+          title: 'Design Drafting',
+          url: '/builder/design-drafting',
+          icon: 'architecture',
         },
         {
-          title: 'BOQ & Measurements',
+          title: 'Construction Budget',
           url: '/builder/measurements',
           icon: 'receipt_long',
+        },
+        {
+          title: 'Procurement',
+          url: '/builder/procurement',
+          icon: 'inventory_2',
+        },
+        {
+          title: 'Building the Project',
+          url: '/builder/building',
+          icon: 'construction',
         },
       ],
     },
@@ -122,6 +132,11 @@ export const sidebarData: SidebarData = {
     {
       title: 'Other',
       items: [
+        {
+          title: 'SQB Building Team',
+          url: '/sqb-team',
+          icon: 'verified_user',
+        },
         {
           title: 'Settings',
           icon: 'settings',

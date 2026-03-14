@@ -1,22 +1,14 @@
 import { Icon } from '@/components/ui/material-icon'
+import { Loading } from '@/components/ui/loading'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 
 import { usePaymentMethods } from './hooks/use-billing'
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table'
 import { AddPaymentMethodDialog } from './components/add-payment-method-dialog'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
@@ -40,6 +32,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
     Select,
     SelectContent,
@@ -57,15 +50,26 @@ const billingAddressSchema = z.object({
     phone_number: z.string().optional(),
 })
 
+const loanRequestSchema = z.object({
+    loan_amount: z.string().min(1, 'Loan amount is required'),
+    loan_purpose: z.string().min(10, 'Please describe the loan purpose'),
+    loan_term: z.string().min(1, 'Loan term is required'),
+    monthly_income: z.string().min(1, 'Monthly income is required'),
+    employment_status: z.string().min(1, 'Employment status is required'),
+    additional_notes: z.string().optional(),
+})
+
 type BillingAddressFormData = z.infer<typeof billingAddressSchema>
+type LoanRequestFormData = z.infer<typeof loanRequestSchema>
 
 export default function BillingPage() {
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
     const [addressDialogOpen, setAddressDialogOpen] = useState(false)
+    const [loanDialogOpen, setLoanDialogOpen] = useState(false)
     const [deletingId, setDeletingId] = useState<number | null>(null)
     const queryClient = useQueryClient()
     
-    const { data: paymentMethods, isLoading } = usePaymentMethods()
+    const { data: paymentMethods, isLoading, error: paymentMethodsError } = usePaymentMethods()
     
     const { data: billingAddress, isLoading: isLoadingAddress } = useQuery({
         queryKey: ['billing-address'],
@@ -156,6 +160,33 @@ export default function BillingPage() {
         setDefaultMutation.mutate(id)
     }
 
+    const loanForm = useForm<LoanRequestFormData>({
+        resolver: zodResolver(loanRequestSchema),
+        defaultValues: {
+            loan_amount: '',
+            loan_purpose: '',
+            loan_term: '',
+            monthly_income: '',
+            employment_status: '',
+            additional_notes: '',
+        },
+    })
+
+    const loanRequestMutation = useMutation({
+        mutationFn: async (data: LoanRequestFormData) => {
+            const response = await apiClient.post('/api/v1/billing/loan-requests/', data)
+            return response.data
+        },
+        onSuccess: () => {
+            toast.success('Loan request submitted successfully! We will contact you within 24 hours.')
+            setLoanDialogOpen(false)
+            loanForm.reset()
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to submit loan request. Please try again.')
+        },
+    })
+
     const handleDelete = (id: number) => {
         if (confirm('Are you sure you want to delete this payment method?')) {
             setDeletingId(id)
@@ -177,8 +208,8 @@ export default function BillingPage() {
                 <div className='space-y-6 w-full p-6 md:p-8 min-h-screen bg-gray-50'>
             {/* Header */}
             <div>
-                <h1 className='text-lg font-bold font-display tracking-tight text-foreground'>Billing</h1>
-                <p className='text-xs text-muted-foreground mt-0.5'>
+                <h1 className='text-2xl font-bold font-display tracking-tight text-foreground'>Billing</h1>
+                <p className='text-sm text-muted-foreground mt-1'>
                     Manage your payment methods and billing information
                 </p>
             </div>
@@ -187,47 +218,46 @@ export default function BillingPage() {
                 {/* Main Content */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Payment Methods */}
-                    <Card className="border-gray-200 shadow-sm">
-                        <CardHeader className="border-b border-gray-200">
-                            <div className='flex items-center justify-between'>
-                                <div>
-                                    <CardTitle className="text-gray-900">Payment Methods</CardTitle>
-                                    <CardDescription className="text-gray-600">Manage your payment information</CardDescription>
-                                </div>
-                                <Button 
-                                    onClick={() => setPaymentDialogOpen(true)}
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                >
-                                    <Icon name="add" className='mr-2 h-4 w-4' />
-                                    Add Payment Method
-                                </Button>
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <div>
+                                <CardTitle>Payment Methods</CardTitle>
+                                <CardDescription>Manage your cards</CardDescription>
                             </div>
+                            <Button 
+                                onClick={() => setPaymentDialogOpen(true)}
+                                size="sm"
+                                className="h-8 px-3 rounded-md font-semibold flex items-center"
+                            >
+                                <Icon name="add" className='mr-1.5 h-4 w-4 -ml-0.5' />
+                                Add Card
+                            </Button>
                         </CardHeader>
-                        <CardContent className="pt-6">
-                            {isLoading ? (
-                                <div className='text-center py-8 text-gray-600'>
-                                    <Icon name="progress_activity" className="h-6 w-6 animate-spin mx-auto mb-2" />
-                                    Loading payment methods...
+                        <CardContent>
+                            {paymentMethodsError ? (
+                                <div className='text-center py-8 text-red-600'>
+                                    <Icon name="error" className="h-6 w-6 mx-auto mb-2" />
+                                    <p className='text-sm'>Failed to load</p>
                                 </div>
+                            ) : isLoading ? (
+                                <Loading className="py-8" text="Fetching methods..." />
                             ) : paymentMethods && paymentMethods.length > 0 ? (
-                                <div className="space-y-3">
+                                <div className="space-y-2">
                                     {paymentMethods.map((method) => (
                                         <div
                                             key={method.id}
-                                            className="flex items-center justify-between p-4 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow"
+                                            className="flex items-center justify-between p-3 rounded-lg border"
                                         >
-                                            <div className='flex items-center gap-4'>
-                                                <div className="p-2 rounded-lg bg-green-100">
-                                                    <Icon name="credit_card" className='h-5 w-5 text-green-600' />
-                                                </div>
+                                            <div className='flex items-center gap-3'>
+                                                <Icon name="credit_card" className='h-5 w-5 text-muted-foreground' />
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <p className='font-semibold text-gray-900'>{method.card_brand} •••• {method.last_four}</p>
+                                                        <p className='font-medium'>{method.card_brand} •••• {method.last_four}</p>
                                                         {method.is_default && (
-                                                            <Badge className="bg-green-100 text-green-700 border-green-200">Default</Badge>
+                                                            <Badge variant="secondary">Default</Badge>
                                                         )}
                                                     </div>
-                                                    <p className='text-sm text-gray-600 mt-1'>
+                                                    <p className='text-xs text-muted-foreground'>
                                                         Expires {String(method.exp_month).padStart(2, '0')}/{method.exp_year}
                                                     </p>
                                                 </div>
@@ -235,24 +265,24 @@ export default function BillingPage() {
                                             <div className="flex items-center gap-2">
                                                 {!method.is_default && (
                                                     <Button
-                                                        variant="outline"
+                                                        variant="ghost"
                                                         size="sm"
+                                                        className="h-8 px-3 text-xs font-medium hover:bg-slate-100"
                                                         onClick={() => handleSetDefault(method.id)}
                                                         disabled={setDefaultMutation.isPending}
-                                                        className="text-gray-700 hover:text-gray-900"
                                                     >
-                                                        Set as default
+                                                        Set Default
                                                     </Button>
                                                 )}
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() => handleDelete(method.id)}
-                                                    disabled={deletingId === method.id || deleteMutation.isPending}
-                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                    disabled={deletingId === method.id}
+                                                    className="h-8 w-8 text-destructive hover:bg-red-50 hover:text-destructive flex items-center justify-center shrink-0"
                                                 >
                                                     {deletingId === method.id ? (
-                                                        <Icon name="progress_activity" className='h-4 w-4 animate-spin' />
+                                                        <Loading size={14} text="" />
                                                     ) : (
                                                         <Icon name="delete" className='h-4 w-4' />
                                                     )}
@@ -262,21 +292,54 @@ export default function BillingPage() {
                                     ))}
                                 </div>
                             ) : (
-                                <div className='text-center py-12'>
-                                    <div className="p-3 rounded-full bg-green-100 w-fit mx-auto mb-4">
-                                        <Icon name="credit_card" className='h-8 w-8 text-green-600' />
-                                    </div>
-                                    <h3 className='text-lg font-semibold text-gray-900 mb-2'>No payment methods</h3>
-                                    <p className='text-gray-600 mb-4'>Add a payment method to get started</p>
+                                <div className='text-center py-8'>
+                                    <Icon name="credit_card" className='h-8 w-8 mx-auto mb-2 text-muted-foreground' />
+                                    <p className='text-sm text-muted-foreground'>No payment methods</p>
                                     <Button
                                         onClick={() => setPaymentDialogOpen(true)}
-                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-4"
                                     >
-                                        <Icon name="add" className='mr-2 h-4 w-4' />
                                         Add Payment Method
                                     </Button>
                                 </div>
                             )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Loan Request */}
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <div>
+                                <CardTitle>Construction Loan</CardTitle>
+                                <CardDescription>Quick financing for your projects</CardDescription>
+                            </div>
+                            <Button 
+                                onClick={() => setLoanDialogOpen(true)}
+                                size="sm"
+                                variant="secondary"
+                                className="h-8 px-4 font-semibold flex items-center"
+                            >
+                                <Icon name="bolt" className="mr-1.5 h-4 w-4 text-amber-600 -ml-0.5" />
+                                Apply Now
+                            </Button>
+                        </CardHeader>
+                        <CardContent>
+                            <div className='flex items-center justify-between py-4'>
+                                <div className="text-center flex-1">
+                                    <p className="text-xl font-bold">5.9%</p>
+                                    <p className="text-xs text-muted-foreground">Rate</p>
+                                </div>
+                                <div className="text-center flex-1 border-x">
+                                    <p className="text-xl font-bold">24h</p>
+                                    <p className="text-xs text-muted-foreground">Approval</p>
+                                </div>
+                                <div className="text-center flex-1">
+                                    <p className="text-xl font-bold">$50K</p>
+                                    <p className="text-xs text-muted-foreground">Max</p>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
@@ -284,59 +347,41 @@ export default function BillingPage() {
                 {/* Sidebar */}
                 <div className="space-y-6">
                     {/* Billing Address */}
-                    <Card className="border-gray-200 shadow-sm">
-                        <CardHeader className="border-b border-gray-200">
-                            <div className='flex items-center justify-between'>
-                                <div>
-                                    <CardTitle className="text-gray-900">Billing Address</CardTitle>
-                                    <CardDescription className="text-gray-600">Your billing information</CardDescription>
-                                </div>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setAddressDialogOpen(true)}
-                                    className="text-gray-600 hover:text-gray-900"
-                                >
-                                    <Icon name="edit" className="h-4 w-4" />
-                                </Button>
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <div>
+                                <CardTitle>Billing Address</CardTitle>
+                                <CardDescription>Your address</CardDescription>
                             </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setAddressDialogOpen(true)}
+                            >
+                                <Icon name="edit" className="h-4 w-4" />
+                            </Button>
                         </CardHeader>
-                        <CardContent className="pt-6">
+                        <CardContent>
                             {isLoadingAddress ? (
-                                <div className='text-center py-4 text-gray-600'>
-                                    <Icon name="progress_activity" className="h-5 w-5 animate-spin mx-auto" />
-                                </div>
+                                <Loading className="py-4" size={20} text="" />
                             ) : billingAddress ? (
-                                <div className="space-y-3">
-                                    <div className="flex items-start gap-3">
-                                        <div className="p-2 rounded-lg bg-green-100">
-                                            <Icon name="location_on" className="h-4 w-4 text-green-600" />
-                                        </div>
-                                        <div className="flex-1 text-sm text-gray-700">
-                                            <p className="font-medium text-gray-900">{billingAddress.street_address}</p>
-                                            <p>{billingAddress.city}, {billingAddress.state}</p>
-                                            <p>{billingAddress.postal_code}</p>
-                                            <p className="mt-1">{billingAddress.country}</p>
-                                            {billingAddress.phone_number && (
-                                                <p className="mt-2 text-gray-600">Phone: {billingAddress.phone_number}</p>
-                                            )}
-                                        </div>
-                                    </div>
+                                <div className="text-sm">
+                                    <p className="font-medium">{billingAddress.street_address}</p>
+                                    <p className="text-muted-foreground">{billingAddress.city}, {billingAddress.state} {billingAddress.postal_code}</p>
+                                    <p className="text-muted-foreground">{billingAddress.country}</p>
                                 </div>
                             ) : (
-                                <div className='text-center py-8'>
-                                    <div className="p-3 rounded-full bg-gray-100 w-fit mx-auto mb-4">
-                                        <Icon name="location_on" className='h-6 w-6 text-gray-400' />
-                                    </div>
-                                    <p className='text-gray-600 mb-4 text-sm'>No billing address on file</p>
+                                <div className='text-center py-6 px-4 bg-muted/50 rounded-lg border border-dashed'>
+                                    <Icon name="location_off" className='h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-50' />
+                                    <p className='text-sm text-muted-foreground mb-3 font-medium'>No address on file</p>
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         onClick={() => setAddressDialogOpen(true)}
-                                        className="w-full"
+                                        className="w-full h-9 font-semibold hover:bg-white"
                                     >
-                                        <Icon name="add" className='mr-2 h-4 w-4' />
-                                        Add Billing Address
+                                        <Icon name="add" className="h-4 w-4 mr-2" />
+                                        Add Address
                                     </Button>
                                 </div>
                             )}
@@ -353,17 +398,9 @@ export default function BillingPage() {
 
             {/* Billing Address Dialog */}
             <Dialog open={addressDialogOpen} onOpenChange={setAddressDialogOpen}>
-                <DialogContent className="max-w-2xl bg-white">
-                    <DialogHeader className="pb-4 border-b border-gray-200">
-                        <DialogTitle className="flex items-center gap-3 text-xl font-bold text-gray-900">
-                            <div className="p-2 rounded-lg bg-green-100">
-                                <Icon name="location_on" className="h-5 w-5 text-green-600" />
-                            </div>
-                            {billingAddress ? 'Edit Billing Address' : 'Add Billing Address'}
-                        </DialogTitle>
-                        <DialogDescription className="text-gray-600 mt-2">
-                            Update your billing address information
-                        </DialogDescription>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>{billingAddress ? 'Edit Address' : 'Add Address'}</DialogTitle>
                     </DialogHeader>
 
                     <Form {...addressForm}>
@@ -472,7 +509,7 @@ export default function BillingPage() {
                                 )}
                             />
 
-                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                            <div className="flex justify-end gap-2 pt-4">
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -484,16 +521,159 @@ export default function BillingPage() {
                                 <Button
                                     type="submit"
                                     disabled={saveAddressMutation.isPending}
-                                    className="bg-green-600 hover:bg-green-700 text-white"
                                 >
-                                    {saveAddressMutation.isPending ? (
-                                        <>
-                                            <Icon name="progress_activity" className="mr-2 h-4 w-4 animate-spin" />
-                                            Saving...
-                                        </>
-                                    ) : (
-                                        'Save Address'
+                                    {saveAddressMutation.isPending ? 'Saving...' : 'Save'}
+                                </Button>
+                            </div>
+                        </form>
+                    </Form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Loan Request Dialog */}
+            <Dialog open={loanDialogOpen} onOpenChange={setLoanDialogOpen}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Apply for Loan</DialogTitle>
+                    </DialogHeader>
+
+                    <Form {...loanForm}>
+                        <form
+                            onSubmit={loanForm.handleSubmit((data) => loanRequestMutation.mutate(data))}
+                            className="space-y-4 pt-4"
+                        >
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={loanForm.control}
+                                    name="loan_amount"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Loan Amount ($)</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="50000" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
                                     )}
+                                />
+
+                                <FormField
+                                    control={loanForm.control}
+                                    name="loan_term"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Loan Term</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="6_months">6 Months</SelectItem>
+                                                    <SelectItem value="1_year">1 Year</SelectItem>
+                                                    <SelectItem value="2_years">2 Years</SelectItem>
+                                                    <SelectItem value="3_years">3 Years</SelectItem>
+                                                    <SelectItem value="5_years">5 Years</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={loanForm.control}
+                                    name="monthly_income"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Monthly Income ($)</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="5000" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <FormField
+                                    control={loanForm.control}
+                                    name="employment_status"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Employment Status</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="employed">Employed</SelectItem>
+                                                    <SelectItem value="self_employed">Self Employed</SelectItem>
+                                                    <SelectItem value="business_owner">Business Owner</SelectItem>
+                                                    <SelectItem value="contractor">Contractor</SelectItem>
+                                                    <SelectItem value="other">Other</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            <FormField
+                                control={loanForm.control}
+                                name="loan_purpose"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Loan Purpose</FormLabel>
+                                        <FormControl>
+                                            <Textarea 
+                                                placeholder="Describe your project" 
+                                                {...field} 
+                                                rows={2}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={loanForm.control}
+                                name="additional_notes"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Notes (Optional)</FormLabel>
+                                        <FormControl>
+                                            <Textarea 
+                                                placeholder="Additional information" 
+                                                {...field} 
+                                                rows={2}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <div className="flex justify-end gap-2 pt-4">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setLoanDialogOpen(false)}
+                                    disabled={loanRequestMutation.isPending}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={loanRequestMutation.isPending}
+                                >
+                                    {loanRequestMutation.isPending ? 'Submitting...' : 'Submit'}
                                 </Button>
                             </div>
                         </form>

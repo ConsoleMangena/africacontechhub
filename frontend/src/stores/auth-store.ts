@@ -4,6 +4,10 @@ import { supabase } from '@/lib/supabase'
 import { apiClient } from '@/lib/api-client'
 import { User } from '@/types/api'
 
+// Track backend availability to avoid spamming requests when API is down
+let backendUnavailable = false
+let backendWarned = false
+
 interface AuthState {
   auth: {
     user: User | null
@@ -71,11 +75,25 @@ export const useAuthStore = create<AuthState>()((set) => ({
       set((state) => ({ auth: { ...state.auth, isLoading: true } }))
 
       const syncUserFromBackend = async (session: Session | null) => {
+        if (backendUnavailable) {
+          set((state) => ({ auth: { ...state.auth, isLoading: false } }))
+          return
+        }
+
         if (session) {
           try {
             const response = await apiClient.get<any>('/api/v1/auth/me/')
             if (!response.success) {
               if (response.message?.includes('Unauthorized') || response.message?.includes('credentials')) {
+                set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
+                return
+              }
+              if (response.message?.includes('Backend unreachable')) {
+                backendUnavailable = true
+                if (!backendWarned) {
+                  console.warn(response.message)
+                  backendWarned = true
+                }
                 set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
                 return
               }
@@ -108,6 +126,15 @@ export const useAuthStore = create<AuthState>()((set) => ({
               }
             }
           } catch (error) {
+            if (!backendUnavailable && error instanceof Error && error.message.includes('Backend unreachable')) {
+              backendUnavailable = true
+              if (!backendWarned) {
+                console.warn(error.message)
+                backendWarned = true
+              }
+              set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
+              return
+            }
             console.error('Failed to fetch profile on init/auth change:', error)
             set((state) => ({
               auth: { ...state.auth, user: null, isLoading: false },

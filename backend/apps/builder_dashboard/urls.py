@@ -5,7 +5,8 @@ from .views import (
     ProjectConnectionsView, AllContractorsView, ProjectDashboardView,
     EscrowMilestoneViewSet, CapitalScheduleViewSet, MaterialAuditViewSet,
     WeatherEventViewSet, ESignatureRequestViewSet, SiteCameraViewSet,
-    BOQItemViewSet
+    BOQItemViewSet, MaterialRequestViewSet, DrawingRequestViewSet, DrawingFileViewSet,
+    ProjectTeamViewSet
 )
 
 router = DefaultRouter()
@@ -18,6 +19,10 @@ router.register(r'weather-events', WeatherEventViewSet, basename='weatherevent')
 router.register(r'esignature-requests', ESignatureRequestViewSet, basename='esignaturerequest')
 router.register(r'site-cameras', SiteCameraViewSet, basename='sitecamera')
 router.register(r'boq-items', BOQItemViewSet, basename='boqitem')
+router.register(r'material-requests', MaterialRequestViewSet, basename='materialrequest')
+router.register(r'drawing-requests', DrawingRequestViewSet, basename='drawingrequest')
+router.register(r'drawing-files', DrawingFileViewSet, basename='drawingfile')
+router.register(r'project-team', ProjectTeamViewSet, basename='projectteam')
 
 urlpatterns = [
     path('', include(router.urls)),

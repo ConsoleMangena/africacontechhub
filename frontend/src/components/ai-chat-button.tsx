@@ -1,9 +1,10 @@
 import { Icon } from '@/components/ui/material-icon'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { aiApi, builderApi } from '@/services/api'
+import type { Project } from '@/types/api'
 import ReactMarkdown from 'react-markdown'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { toast } from 'sonner'
@@ -54,16 +55,20 @@ interface ChatMessage {
   feedbackGiven?: 'up' | 'down';
 }
 
-export function AiChatButton() {
+type SiteIntelRow = {
+  aspect: string;
+  finding: string;
+  risk: string;
+  recommendation: string;
+}
+
+type AiChatButtonProps = {
+  project?: Project
+}
+
+export function AiChatButton({ project }: AiChatButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: 'Hello! I\'m your **DzeNhare Architecture AI**. I can help with construction advice, compliance questions, and architectural guidance.\n\n**Commands:**\n- `/draw [description]` — Generate a 2D architectural drawing\n- `/scan` — Scan a hand-drawn plan & generate a professional drawing\n- `/plans [search]` — Search existing floor plans\n- `/analyse` — Analyse an uploaded floor plan / blueprint for BOQ\n- `/clear` — Start a fresh conversation',
-      timestamp: new Date()
-    }
-  ])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [sessionId, setSessionId] = useState<number | undefined>(undefined)
   const sessionIdRef = useRef<number | undefined>(undefined)
@@ -91,20 +96,23 @@ export function AiChatButton() {
   // Analyse multi-step progress
   const [analyseStep, setAnalyseStep] = useState<'idle' | 'uploading' | 'analysing' | 'extracting' | 'done'>('idle')
 
+  // Site intel quick action
+
   // Drag-and-drop
   const [isDragOver, setIsDragOver] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const siteIntelRef = useRef<() => void>(() => {})
 
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
   // Fetch chat history on open
   useEffect(() => {
-    if (isOpen && !sessionId && messages.length <= 1) {
+    if (isOpen && !sessionId && messages.length === 0) {
        loadLatestSession()
     }
-  }, [isOpen])
+  }, [isOpen, sessionId, messages.length])
 
   // Fetch projects for BOQ saving
   const [projects, setProjects] = useState<{id: number, title: string}[]>([])
@@ -112,15 +120,76 @@ export function AiChatButton() {
   const [isSavingBOQ, setIsSavingBOQ] = useState(false)
   const [boqSaveSuccessMsg, setBoqSaveSuccessMsg] = useState<string | null>(null)
 
+  const resolvedProjectId = useMemo(() => {
+    if (project?.id) return project.id
+    if (typeof selectedProjectId === 'number') return selectedProjectId
+    return undefined
+  }, [project?.id, selectedProjectId])
+
   useEffect(() => {
-    if (isOpen && projects.length === 0) {
+    if (isOpen && projects.length === 0 && !project) {
       builderApi.getProjects().then(res => {
         const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
         setProjects(data)
         if (data.length > 0) setSelectedProjectId(data[0].id)
       }).catch(err => console.error("Failed to load projects", err))
     }
-  }, [isOpen, projects.length])
+  }, [isOpen, projects.length, project])
+
+  // Seed context when a specific project is provided (project pages only)
+  const lastProjectIdRef = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    if (!project) return
+    if (lastProjectIdRef.current === project.id) return
+    lastProjectIdRef.current = project.id
+
+    const summaryLines = [
+      `Title: ${project.title}`,
+      project.location ? `Location: ${project.location}` : null,
+      project.budget ? `Budget: ${project.budget}` : null,
+      project.engagement_tier ? `Tier: ${project.engagement_tier}` : null,
+      project.building_type ? `Building type: ${project.building_type}` : null,
+      project.use_case ? `Use case: ${project.use_case}` : null,
+      project.occupants ? `Occupants: ${project.occupants}` : null,
+      project.bedrooms ? `Bedrooms: ${project.bedrooms}` : null,
+      project.bathrooms ? `Bathrooms: ${project.bathrooms}` : null,
+      project.floors ? `Floors: ${project.floors}` : null,
+      project.has_garage !== null && project.has_garage !== undefined ? `Garage: ${project.has_garage ? 'Yes' : 'No'}` : null,
+      project.parking_spaces ? `Parking: ${project.parking_spaces}` : null,
+      project.lot_size ? `Lot size: ${project.lot_size}` : null,
+      project.footprint ? `Footprint: ${project.footprint}` : null,
+      project.preferred_style ? `Style: ${project.preferred_style}` : null,
+      project.roof_type ? `Roof: ${project.roof_type}` : null,
+      project.special_spaces ? `Special spaces: ${project.special_spaces}` : null,
+      project.sustainability ? `Sustainability: ${project.sustainability}` : null,
+      project.accessibility ? `Accessibility: ${project.accessibility}` : null,
+      project.site_notes ? `Site notes: ${project.site_notes}` : null,
+      project.constraints ? `Constraints: ${project.constraints}` : null,
+      project.timeline ? `Timeline: ${project.timeline}` : null,
+      project.budget_flex ? `Budget flexibility: ${project.budget_flex}` : null,
+    ].filter(Boolean)
+
+    const contextMessage: ChatMessage = {
+      id: `project-${project.id}-context`,
+      role: 'assistant',
+      content: `I loaded the current project details so I can help with relevant answers:\n${summaryLines.map(line => `- ${line}`).join('\n')}`,
+      timestamp: new Date(),
+    }
+
+    const welcome: ChatMessage = {
+      id: 'welcome',
+      role: 'assistant',
+      content: 'Hello! I\'m your **Dzenhare Budget Engineer**. I can help with construction advice, budgeting, compliance questions, and architectural guidance.\n\n**Commands:**\n- `/draw [description]` — Generate a 2D architectural drawing\n- `/scan` — Scan a hand-drawn plan & generate a professional drawing\n- `/plans [search]` — Search existing floor plans\n- `/analyse` — Analyse an uploaded floor plan / blueprint for BOQ\n- `/clear` — Start a fresh conversation',
+      timestamp: new Date(),
+    }
+
+    setMessages([welcome, contextMessage])
+    setSelectedProjectId(project.id)
+    setProjects((prev) => {
+      if (prev.find((p) => p.id === project.id)) return prev
+      return [...prev, { id: project.id, title: project.title }]
+    })
+  }, [project])
 
   const loadLatestSession = async () => {
       setIsLoadingHistory(true)
@@ -282,7 +351,7 @@ export function AiChatButton() {
     const hasFormula = analyse.items.some(i => i.measurement_formula != null)
     const colCount = 7 + (hasLabour ? 1 : 0) + (hasFormula ? 1 : 0)
     const html = `
-      <html><head><title>BOQ Analysis — DzeNhare SQB</title>
+      <html><head><title>BOQ Analysis — Dzenhare SQB</title>
       <style>
         body { font-family: 'Inter', sans-serif; padding: 2rem; }
         h1 { font-size: 1.3rem; }
@@ -293,7 +362,7 @@ export function AiChatButton() {
         .notes { margin-top: 1rem; font-size: 0.8rem; color: #b45309; }
         .recs { margin-top: 0.5rem; font-size: 0.8rem; color: #1d4ed8; }
       </style></head><body>
-      <h1>📋 BOQ Analysis — DzeNhare SQB</h1>
+      <h1>📋 BOQ Analysis — Dzenhare SQB</h1>
       <p>${analyse.summary}</p>
       <table>
         <thead><tr><th>Category</th><th>Item</th><th>Description</th><th>Unit</th><th>Qty</th><th>Rate</th><th>Total</th>${hasLabour ? '<th>Labour</th>' : ''}${hasFormula ? '<th>Formula</th>' : ''}</tr></thead>
@@ -555,7 +624,13 @@ export function AiChatButton() {
           setTimeout(() => setAnalyseStep('extracting'), 3000)
         }
         // Commands use the synchronous endpoint (they return structured data)
-        const response = await aiApi.sendMessage(chatHistory, sessionId, currentImage || undefined, currentPdf || undefined)
+        const response = await aiApi.sendMessage(
+          chatHistory,
+          sessionId,
+          currentImage || undefined,
+          currentPdf || undefined,
+          resolvedProjectId,
+        )
         if (isAnalyse) setAnalyseStep('done')
 
         if (response.data.session_id && !sessionIdRef.current) {
@@ -578,7 +653,11 @@ export function AiChatButton() {
       } else {
         // Regular chat uses SSE streaming
         const streamResponse = await aiApi.sendMessageStream(
-          chatHistory, sessionId, currentImage || undefined, currentPdf || undefined
+          chatHistory,
+          sessionId,
+          currentImage || undefined,
+          currentPdf || undefined,
+          resolvedProjectId,
         )
 
         // Check if the backend fell back to JSON (e.g. for commands)
@@ -722,9 +801,86 @@ export function AiChatButton() {
     }
   }
 
+  const handleSiteIntel = async () => {
+    if (!resolvedProjectId || !project) {
+      toast.error('Select a project with location/site notes before requesting site intel.')
+      setIsOpen(true)
+      return
+    }
+
+    if (!project.location && !project.site_notes) {
+      toast.error('Add a project location or site notes first to request site intel.')
+      setIsOpen(true)
+      return
+    }
+
+    const infoLines = [
+      project.location ? `Location: ${project.location}` : null,
+      project.latitude && project.longitude ? `Coordinates: ${project.latitude}, ${project.longitude}` : null,
+      project.site_notes ? `Site notes: ${project.site_notes}` : null,
+      project.constraints ? `Constraints: ${project.constraints}` : null,
+      project.lot_size ? `Lot size: ${project.lot_size}` : null,
+      project.footprint ? `Footprint: ${project.footprint}` : null,
+    ].filter(Boolean)
+
+    const userContent = `Requesting site intelligence for this project.\n${infoLines.join('\n')}`
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: userContent,
+      timestamp: new Date(),
+    }
+    setMessages(prev => [...prev, userMsg])
+
+    try {
+      const res = await aiApi.generateSiteIntel(resolvedProjectId)
+      const rows = (res.data.rows || []) as SiteIntelRow[]
+      const summary = res.data.summary
+      const markdownTable = rows.length ? toMarkdownTable(rows) : ''
+      const assistantContent = rows.length
+        ? `${summary ? `**Summary:** ${summary}\n\n` : ''}Here is the site intel table:\n\n${markdownTable}`
+        : res.data.raw_response || 'No site intel returned.'
+
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: assistantContent,
+        timestamp: new Date()
+      }])
+
+      window.dispatchEvent(new CustomEvent('site-intel-updated', { detail: { projectId: resolvedProjectId } }))
+    } catch (err) {
+      console.error('Site intel request failed', err)
+      toast.error('Failed to generate site intelligence')
+    }
+  }
+
+  // Keep latest site intel handler in a ref for stable event listener
+  useEffect(() => {
+    siteIntelRef.current = () => {
+      setIsOpen(true)
+      // Slight delay ensures the panel is visible before message appears
+      setTimeout(() => handleSiteIntel(), 120)
+    }
+  }, [handleSiteIntel])
+
+  // Global event listener once, using ref to avoid stale closures
+  useEffect(() => {
+    const listener = () => siteIntelRef.current()
+    window.addEventListener('ai:site-intel', listener)
+    return () => window.removeEventListener('ai:site-intel', listener)
+  }, [])
+
   const resolveImageUrl = (url: string) => {
     if (url.startsWith('http')) return url
     return `${apiBase}${url}`
+  }
+
+  const toMarkdownTable = (rows: SiteIntelRow[]) => {
+    if (!rows.length) return ''
+    const header = '| Aspect | Finding | Risk | Recommendation |\n| --- | --- | --- | --- |'
+    const body = rows.map(r => `| ${r.aspect || '-'} | ${r.finding || '-'} | ${r.risk || '-'} | ${r.recommendation || '-'} |`).join('\n')
+    return `${header}\n${body}`
   }
 
   if (!isOpen) {
@@ -732,7 +888,7 @@ export function AiChatButton() {
       <Button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:-translate-y-1 transition-all duration-300 z-50 bg-gradient-to-tr from-slate-900 via-gray-800 to-slate-700 text-white p-0 border-2 border-slate-700/50 flex items-center justify-center group"
-        aria-label="Open AI Architecture Chat"
+        aria-label="Open Budget Engineer Chat"
       >
         <Icon name="psychology" className="h-6 w-6 group-hover:scale-110 transition-all duration-300 text-white" />
       </Button>
@@ -741,8 +897,9 @@ export function AiChatButton() {
 
   return (
     <>
-      {/* Full Chat Panel */}
-      <div className="fixed bottom-0 right-0 z-50 w-full sm:w-[460px] md:w-[520px] h-[100dvh] sm:h-[calc(100dvh-2rem)] sm:bottom-4 sm:right-4 flex flex-col bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-gray-200/60 overflow-hidden">
+      {/* Full Chat Panel with modal-style layout */}
+      <div className="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-sm flex items-end sm:items-center justify-center p-2 sm:p-6">
+        <div className="w-full max-w-5xl h-[92vh] sm:h-[88vh] flex flex-col bg-white rounded-none sm:rounded-2xl shadow-2xl border border-gray-200/60 overflow-hidden">
         
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-4 shrink-0 flex items-center gap-3">
@@ -750,14 +907,13 @@ export function AiChatButton() {
             <Icon name="smart_toy" className="h-5 w-5 text-indigo-300" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-white tracking-tight text-sm">AI Architecture Assistant</h3>
-            <p className="text-[11px] text-indigo-200/70 font-medium">Powered by Claude AI + Gemini</p>
+            <h3 className="font-semibold text-white tracking-tight text-sm">Budget Engineer</h3>
           </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => { setShowSessions(prev => !prev); if (!showSessions) loadSessions() }}
-            className="h-8 w-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+            className="h-8 w-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 flex items-center justify-center"
             title="Chat history"
           >
             <Icon name="history" className="h-4 w-4" />
@@ -766,11 +922,13 @@ export function AiChatButton() {
             variant="ghost"
             size="icon"
             onClick={() => setIsOpen(false)}
-            className="h-8 w-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+            className="h-8 w-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 flex items-center justify-center"
           >
             <Icon name="close" className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Project quick actions removed per request */}
 
         {/* Session sidebar panel */}
         {showSessions && (
@@ -1284,7 +1442,7 @@ export function AiChatButton() {
               variant="ghost"
               size="icon"
               onClick={() => fileInputRef.current?.click()}
-              className="h-10 w-10 shrink-0 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl"
+              className="h-10 w-10 shrink-0 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl flex items-center justify-center"
             >
               <Icon name="attach_file" className="h-5 w-5" />
             </Button>
@@ -1300,9 +1458,9 @@ export function AiChatButton() {
                 type="submit" 
                 size="icon" 
                 disabled={(!inputValue.trim() && !selectedImage) || isTyping}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm flex items-center justify-center"
               >
-                <Icon name="send" className="h-4 w-4 ml-0.5" />
+                <Icon name="send" className="h-4 w-4" />
               </Button>
             </div>
           </form>
@@ -1311,6 +1469,7 @@ export function AiChatButton() {
               <span className="text-indigo-500">/draw</span> generate • <span className="text-cyan-500">/scan</span> redraw • <span className="text-violet-500">/plans</span> search • <span className="text-emerald-500">/analyse</span> BOQ • <span className="text-red-400">/clear</span> reset
             </p>
           </div>
+        </div>
         </div>
       </div>
 

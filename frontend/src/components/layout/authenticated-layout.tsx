@@ -1,4 +1,5 @@
 import { Outlet } from '@tanstack/react-router'
+import { Loading } from '@/components/ui/loading'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 import { LayoutProvider } from '@/context/layout-provider'
@@ -7,9 +8,8 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { SkipToMain } from '@/components/skip-to-main'
 import { useAuthStore } from '@/stores/auth-store'
-import { useNavigate, useLocation } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { AiChatButton } from '@/components/ai-chat-button'
 
 type AuthenticatedLayoutProps = {
   children?: React.ReactNode
@@ -19,7 +19,6 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
   const { user, isLoading } = useAuthStore((state) => state.auth)
   const navigate = useNavigate()
-  const { pathname } = useLocation()
 
   useEffect(() => {
     if (!isLoading) {
@@ -36,7 +35,7 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   }, [isLoading, user, navigate])
 
   if (isLoading) {
-    return <div className="flex h-screen items-center justify-center">Loading...</div>
+    return <Loading fullPage text="Securing your session..." />
   }
 
   if (!user) return null // Will redirect via useEffect
@@ -72,7 +71,6 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
           >
             {children ?? <Outlet />}
           </SidebarInset>
-          {pathname.startsWith('/builder') && <AiChatButton />}
         </SidebarProvider>
       </LayoutProvider>
     </SearchProvider>

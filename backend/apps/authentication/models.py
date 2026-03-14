@@ -20,6 +20,7 @@ class Profile(models.Model):
 
     # Supabase UUID (if needed for direct mapping, though User.username usually holds the ID)
     supabase_id = models.CharField(max_length=100, blank=True, null=True)
+    signature = models.TextField(blank=True, null=True, help_text="Base64 encoded signature image")
 
     # Account approval gate
     is_approved = models.BooleanField(

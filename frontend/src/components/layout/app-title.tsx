@@ -1,13 +1,10 @@
-import { Icon } from '@/components/ui/material-icon'
 import { Link } from '@tanstack/react-router'
-import { cn } from '@/lib/utils'
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { Button } from '../ui/button'
 
 export function AppTitle() {
   const { setOpenMobile } = useSidebar()
@@ -19,46 +16,16 @@ export function AppTitle() {
           className='gap-0 py-0 hover:bg-transparent active:bg-transparent'
           asChild
         >
-          <div>
-            <Link
-              to='/'
-              onClick={() => setOpenMobile(false)}
-              className='grid flex-1 text-start text-sm leading-tight'
-            >
-              <span className='truncate font-bold text-gray-900'>DzeNhare SQB</span>
-              <span className='truncate text-xs text-gray-600'>Construction Platform</span>
-            </Link>
-            <ToggleSidebar />
-          </div>
+          <Link
+            to='/'
+            onClick={() => setOpenMobile(false)}
+            className='grid flex-1 text-start text-sm leading-tight'
+          >
+            <span className='truncate font-bold text-gray-900'>Dzenhare SQB</span>
+            <span className='truncate text-xs text-gray-600'>Construction Platform</span>
+          </Link>
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
-  )
-}
-
-function ToggleSidebar({
-  className,
-  onClick,
-  ...props
-}: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar()
-
-  return (
-    <Button
-      data-sidebar='trigger'
-      data-slot='sidebar-trigger'
-      variant='ghost'
-      size='icon'
-      className={cn('aspect-square size-8 max-md:scale-125', className)}
-      onClick={(event) => {
-        onClick?.(event)
-        toggleSidebar()
-      }}
-      {...props}
-    >
-      <Icon name="close" className='md:hidden' />
-      <Icon name="menu" className='max-md:hidden' />
-      <span className='sr-only'>Toggle Sidebar</span>
-    </Button>
   )
 }

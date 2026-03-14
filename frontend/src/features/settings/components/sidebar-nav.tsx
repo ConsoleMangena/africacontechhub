@@ -1,8 +1,6 @@
 import { useState, type JSX } from 'react'
-import { useLocation, useNavigate, Link } from '@tanstack/react-router'
+import { useLocation, Link } from '@tanstack/react-router'
 import { cn } from '@/lib/utils'
-import { buttonVariants } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -11,36 +9,32 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-type SidebarNavProps = React.HTMLAttributes<HTMLElement> & {
+interface SidebarNavProps {
   items: {
     href: string
     title: string
     icon: JSX.Element
   }[]
+  className?: string
 }
 
-export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
+export function SidebarNav({ className, items }: SidebarNavProps) {
   const { pathname } = useLocation()
-  const navigate = useNavigate()
   const [val, setVal] = useState(pathname ?? '/settings')
-
-  const handleSelect = (e: string) => {
-    setVal(e)
-    navigate({ to: e })
-  }
 
   return (
     <>
-      <div className='p-1 md:hidden'>
-        <Select value={val} onValueChange={handleSelect}>
-          <SelectTrigger className='h-9 sm:w-48'>
-            <SelectValue placeholder='Theme' />
+      {/* Mobile Select */}
+      <div className='lg:hidden p-2'>
+        <Select value={val} onValueChange={setVal}>
+          <SelectTrigger className='h-10'>
+            <SelectValue placeholder='Select section' />
           </SelectTrigger>
           <SelectContent>
             {items.map((item) => (
               <SelectItem key={item.href} value={item.href}>
-                <div className='flex gap-x-2.5 px-1 py-0.5'>
-                  <span className='scale-100'>{item.icon}</span>
+                <div className='flex items-center gap-2'>
+                  {item.icon}
                   <span className='text-sm'>{item.title}</span>
                 </div>
               </SelectItem>
@@ -49,36 +43,29 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
         </Select>
       </div>
 
-      <ScrollArea
-        orientation='horizontal'
-        type='always'
-        className='hidden w-full min-w-40 px-1 py-1 md:block'
-      >
-        <nav
-          className={cn(
-            'flex space-x-1 py-0.5 lg:flex-col lg:space-y-0.5 lg:space-x-0',
-            className
-          )}
-          {...props}
-        >
-          {items.map((item) => (
+      {/* Desktop Nav */}
+      <nav className={cn('hidden lg:flex flex-col gap-1 p-2', className)}>
+        {items.map((item) => {
+          const isActive = pathname === item.href
+          return (
             <Link
               key={item.href}
               to={item.href}
               className={cn(
-                buttonVariants({ variant: 'ghost', size: 'sm' }),
-                pathname === item.href
-                  ? 'bg-primary/10 text-primary hover:bg-primary/15 border-l-2 border-primary font-medium'
-                  : 'hover:bg-muted hover:text-foreground text-muted-foreground',
-                'justify-start text-sm h-8'
+                'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               )}
             >
-              <span className='me-2'>{item.icon}</span>
+              <span className={cn('shrink-0', isActive ? 'text-primary' : 'text-slate-400')}>
+                {item.icon}
+              </span>
               {item.title}
             </Link>
-          ))}
-        </nav>
-      </ScrollArea>
+          )
+        })}
+      </nav>
     </>
   )
 }

@@ -4,9 +4,14 @@ from django.conf import settings
 from .models import Profile
 
 class ProfileSerializer(serializers.ModelSerializer):
+    has_signature = serializers.SerializerMethodField()
+
     class Meta:
         model = Profile
-        fields = ['role', 'phone_number', 'first_name', 'last_name', 'supabase_id', 'avatar', 'address', 'is_approved']
+        fields = ['role', 'phone_number', 'first_name', 'last_name', 'supabase_id', 'avatar', 'address', 'is_approved', 'signature', 'has_signature']
+    
+    def get_has_signature(self, obj):
+        return bool(obj.signature)
     
     def to_representation(self, instance):
         representation = super().to_representation(instance)
@@ -19,7 +24,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         return representation
 
 class UserSerializer(serializers.ModelSerializer):
-    profile = ProfileSerializer(read_only=True)
+    profile = ProfileSerializer(required=False)
     avatar = serializers.ImageField(write_only=True, required=False)
 
     class Meta:

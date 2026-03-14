@@ -1,4 +1,5 @@
 import { Icon } from '@/components/ui/material-icon'
+import { Loading } from '@/components/ui/loading'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { helpCenterApi } from '@/services/api'
@@ -11,13 +12,15 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-const iconMap: Record<string, any> = {
-    Rocket,
-    Construction,
-    CreditCard,
-    Users,
-    Settings,
-    HelpCircle,
+
+// Map category icons to Material icon names
+const iconMap: Record<string, string> = {
+    Rocket: 'rocket',
+    Construction: 'construction',
+    CreditCard: 'credit_card',
+    Users: 'group',
+    Settings: 'settings',
+    HelpCircle: 'help',
 }
 
 export function HelpCenter() {
@@ -104,7 +107,7 @@ export function HelpCenter() {
             <div className="space-y-4">
                 <div>
                     <h1 className="text-lg font-bold font-display tracking-tight text-foreground">Help Center</h1>
-                    <p className="text-xs text-muted-foreground mt-0.5">Find answers to common questions and learn how to use DzeNhare SQB</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Find answers to common questions and learn how to use Dzenhare SQB</p>
                 </div>
 
                 {/* Search */}
@@ -128,7 +131,7 @@ export function HelpCenter() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {featured.map((article) => {
-                            const Icon = iconMap[article.category_name] || BookOpen
+                            const iconName = iconMap[article.category_name] || 'menu_book'
                             return (
                                 <Card 
                                     key={article.id} 
@@ -138,7 +141,7 @@ export function HelpCenter() {
                                     <CardHeader>
                                         <div className="flex items-start justify-between">
                                             <div className="p-2 rounded-lg bg-green-100">
-                                                <Icon className="h-5 w-5 text-green-600" />
+                                                <Icon name={iconName} className="h-5 w-5 text-green-600" />
                                             </div>
                                             <Badge className="bg-amber-100 text-amber-800 border-amber-200">Featured</Badge>
                                         </div>
@@ -173,12 +176,12 @@ export function HelpCenter() {
             {(!searchQuery || filteredFAQs.length > 0) && (
                 <div className="space-y-4">
                     <div className="flex items-center gap-2">
-                        <Icon name="message_circle" className="h-5 w-5 text-green-600" />
+                        <Icon name="chat" className="h-5 w-5 text-green-600" />
                         <h2 className="text-xl font-semibold text-gray-900">Frequently Asked Questions</h2>
                     </div>
                     {filteredFAQs.length === 0 ? (
                         <div className="text-center py-8 text-gray-600">
-                            <Icon name="message_circle" className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                            <Icon name="help_outline" className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                             <p>No FAQs found matching your search.</p>
                         </div>
                     ) : (
@@ -241,22 +244,22 @@ export function HelpCenter() {
                 </div>
 
                 {isLoading ? (
-                    <div className="text-center py-12 text-gray-600">Loading help center...</div>
+                    <Loading fullPage text="Finding answers..." />
                 ) : filteredCategories.length === 0 ? (
                     <div className="text-center py-12 text-gray-600">
-                        <Icon name="help_circle" className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                        <Icon name="help_outline" className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                         <p>No articles found matching your search.</p>
                     </div>
                 ) : (
                     filteredCategories.map((category) => {
-                        const Icon = iconMap[category.icon || ''] || HelpCircle
+                        const iconName = iconMap[category.icon || ''] || 'help'
                         return (
                             <div key={category.id} className="space-y-4">
                                 <Card className="border-gray-200">
                                     <CardHeader>
                                         <div className="flex items-center gap-3">
                                             <div className="p-2 rounded-lg bg-green-100">
-                                                <Icon className="h-5 w-5 text-green-600" />
+                                                <Icon name={iconName} className="h-5 w-5 text-green-600" />
                                             </div>
                                             <div>
                                                 <CardTitle className="text-lg">{category.name}</CardTitle>

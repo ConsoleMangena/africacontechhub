@@ -1,5 +1,5 @@
 import { Icon } from '@/components/ui/material-icon'
-import { Button } from '@/components/ui/button'
+import { Loading } from '@/components/ui/loading'
 import {
     Card,
     CardContent,
@@ -7,7 +7,6 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -39,8 +38,8 @@ function StatCard({
                 <CardTitle className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
                     {title}
                 </CardTitle>
-                <div className={`h-8 w-8 rounded-lg ${iconBg} flex items-center justify-center`}>
-                    <Icon name={icon} className={`h-3.5 w-3.5 ${iconColor}`} />
+                <div className={`h-10 w-10 rounded-xl ${iconBg} flex items-center justify-center shrink-0 shadow-sm border border-white/20`}>
+                    <Icon name={icon} size={20} className={iconColor} />
                 </div>
             </CardHeader>
             <CardContent>
@@ -72,10 +71,7 @@ export function AdminDashboard() {
             </Header>
             <Main>
                 {isLoading ? (
-                    <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                        <Icon name="progress_activity" size={32} className="animate-spin text-muted-foreground" />
-                        <p className="mt-3 text-sm text-muted-foreground">Loading dashboard...</p>
-                    </div>
+                    <Loading fullPage text="Preparing your dashboard..." />
                 ) : (
                     <div className="w-full max-w-7xl mx-auto space-y-6">
 

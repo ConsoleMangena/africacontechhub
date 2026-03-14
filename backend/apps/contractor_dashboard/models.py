@@ -11,6 +11,47 @@ class ContractorProfile(TimeStampedModel):
     def __str__(self):
         return self.company_name
 
+class ProfessionalProfile(TimeStampedModel):
+    ROLE_CHOICES = [
+        ('architect', 'Architect'),
+        ('structural_engineer', 'Structural Engineer'),
+        ('contractor', 'General Contractor'),
+        ('project_manager', 'Project Manager'),
+        ('quantity_surveyor', 'Quantity Surveyor'),
+        ('electrician', 'Electrician'),
+        ('plumber', 'Plumber'),
+        ('mason', 'Mason/Bricklayer'),
+        ('carpenter', 'Carpenter'),
+        ('painter', 'Painter'),
+        ('roofer', 'Roofer'),
+        ('tiler', 'Tiler'),
+    ]
+    AVAILABILITY_CHOICES = [
+        ('available', 'Available'),
+        ('busy', 'Busy'),
+        ('unavailable', 'Unavailable'),
+    ]
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='professional_profile')
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES)
+    company_name = models.CharField(max_length=255)
+    location = models.CharField(max_length=255)
+    experience_years = models.PositiveIntegerField(default=0)
+    bio = models.TextField(blank=True, default='')
+    hourly_rate = models.CharField(max_length=100, blank=True, null=True, help_text="e.g. $150/hour or Contract basis")
+    availability = models.CharField(max_length=20, choices=AVAILABILITY_CHOICES, default='available')
+    is_verified = models.BooleanField(default=False)
+    specialties = models.JSONField(default=list, help_text="List of strings")
+    certifications = models.JSONField(default=list, help_text="List of strings")
+    average_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
+    completed_projects_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.get_full_name() or self.user.username} - {self.role}"
+
 class Bid(TimeStampedModel):
     STATUS_CHOICES = [
         ('DRAFT', 'Draft'),
@@ -57,7 +98,8 @@ class ContractorRating(TimeStampedModel):
     """
     Ratings given by clients (builders) to contractors after project completion
     """
-    contractor = models.ForeignKey(ContractorProfile, on_delete=models.CASCADE, related_name='ratings')
+    contractor = models.ForeignKey(ContractorProfile, on_delete=models.CASCADE, related_name='ratings', null=True, blank=True)
+    professional = models.ForeignKey(ProfessionalProfile, on_delete=models.CASCADE, related_name='ratings', null=True, blank=True)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='contractor_ratings')
     builder = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='given_ratings')
     rating = models.IntegerField(choices=[(i, i) for i in range(1, 6)], help_text="Rating from 1 to 5")

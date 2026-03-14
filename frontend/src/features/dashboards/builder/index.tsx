@@ -1,4 +1,5 @@
 import { Icon } from '@/components/ui/material-icon'
+import { Loading } from '@/components/ui/loading'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Project } from '@/types/api'
@@ -21,7 +22,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { WalletStats } from './components/wallet-stats'
+import { WalletStats, WalletRates } from './components/wallet-stats'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 export default function BuilderDashboard() {
@@ -58,6 +59,7 @@ export default function BuilderDashboard() {
     const inProgressProjects = projects.filter(p => p.status === 'IN_PROGRESS')
     const completedProjects = projects.filter(p => p.status === 'COMPLETED')
 
+
     return (
         <>
             <Header>
@@ -69,12 +71,12 @@ export default function BuilderDashboard() {
 
             <Main className="bg-slate-50 min-h-[calc(100vh-theme(spacing.16))]">
                 {isLoading ? (
-                    <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                        <Icon name="progress_activity" size={40} className="animate-spin text-primary mb-3" />
-                        <p className="mt-3 text-sm text-muted-foreground font-medium">Building your fortress...</p>
-                    </div>
+                    <Loading fullPage text="Building your fortress..." />
                 ) : (
                     <div className="w-full max-w-7xl mx-auto space-y-5 pb-12">
+                        {/* Top Stats - Multi-Currency Wallet */}
+                        <WalletRates totalBudget={totalBudget} />
+
                         {/* Header Section */}
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 py-2 border-b border-slate-200">
                             <div>
@@ -97,15 +99,16 @@ export default function BuilderDashboard() {
                                     setSelectedProject(null)
                                     setIsCreateDialogOpen(true)
                                 }}
-                                className="w-full sm:w-auto rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all active:scale-[0.98]"
+                                className="w-full sm:w-auto h-8 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all active:scale-[0.98] flex items-center justify-center text-xs gap-1.5"
                             >
-                                <Icon name="add" className="h-4 w-4 mr-2" />
-                                New Project
+                                <Icon name="add" size={18} className="-ml-1" />
+                                <span className="font-bold">New Project</span>
                             </Button>
                         </div>
 
-                        {/* Top Stats - Multi-Currency Wallet */}
+                        {/* Dashboard Stats - Compact */}
                         <WalletStats totalBudget={totalBudget} />
+
 
                         {/* Active Sites (Tabs) */}
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">

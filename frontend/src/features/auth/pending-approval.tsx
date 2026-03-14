@@ -27,7 +27,6 @@ export default function PendingApprovalPage() {
                         Awaiting Approval
                     </h1>
                     <p className="text-gray-500 text-sm leading-relaxed mb-6">
-                        Your account has been created and your email is verified.<br />
                         An <span className="font-semibold text-indigo-600">administrator</span> still needs to
                         approve your access before you can enter the platform.
                     </p>
@@ -60,7 +59,7 @@ export default function PendingApprovalPage() {
 
                 {/* Footer note */}
                 <p className="text-center text-xs text-gray-400 mt-4">
-                    DzeNhare SQB · Secure Platform Access
+                    Dzenhare SQB · Secure Platform Access
                 </p>
             </div>
         </div>
