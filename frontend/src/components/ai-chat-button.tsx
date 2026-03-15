@@ -119,7 +119,6 @@ export function AiChatButton({ project }: AiChatButtonProps) {
       builderApi.getProjects().then(res => {
         const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
         setProjects(data)
-        if (data.length > 0) setSelectedProjectId(data[0].id)
       }).catch(err => console.error("Failed to load projects", err))
     }
   }, [isOpen, projects.length, project])
