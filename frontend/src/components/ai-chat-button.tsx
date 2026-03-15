@@ -9,9 +9,6 @@ import ReactMarkdown from 'react-markdown'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10 MB
-const MAX_PDF_SIZE = 20 * 1024 * 1024   // 20 MB
-
 interface AnalyseItem {
   category: string;
   item_name: string;
@@ -80,12 +77,6 @@ export function AiChatButton({ project }: AiChatButtonProps) {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   
-  // New state for user image/PDF upload
-  const [selectedImage, setSelectedImage] = useState<File | null>(null)
-  const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(null)
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
-  const [selectedPdfBase64, setSelectedPdfBase64] = useState<string | null>(null)
-  const [selectedPdfName, setSelectedPdfName] = useState<string | null>(null)
   const [toolStatus, setToolStatus] = useState<string | null>(null)
   
   // Session sidebar
@@ -98,10 +89,6 @@ export function AiChatButton({ project }: AiChatButtonProps) {
 
   // Site intel quick action
 
-  // Drag-and-drop
-  const [isDragOver, setIsDragOver] = useState(false)
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const siteIntelRef = useRef<() => void>(() => {})
 
@@ -142,48 +129,14 @@ export function AiChatButton({ project }: AiChatButtonProps) {
     if (!project) return
     if (lastProjectIdRef.current === project.id) return
     lastProjectIdRef.current = project.id
-
-    const summaryLines = [
-      `Title: ${project.title}`,
-      project.location ? `Location: ${project.location}` : null,
-      project.budget ? `Budget: ${project.budget}` : null,
-      project.engagement_tier ? `Tier: ${project.engagement_tier}` : null,
-      project.building_type ? `Building type: ${project.building_type}` : null,
-      project.use_case ? `Use case: ${project.use_case}` : null,
-      project.occupants ? `Occupants: ${project.occupants}` : null,
-      project.bedrooms ? `Bedrooms: ${project.bedrooms}` : null,
-      project.bathrooms ? `Bathrooms: ${project.bathrooms}` : null,
-      project.floors ? `Floors: ${project.floors}` : null,
-      project.has_garage !== null && project.has_garage !== undefined ? `Garage: ${project.has_garage ? 'Yes' : 'No'}` : null,
-      project.parking_spaces ? `Parking: ${project.parking_spaces}` : null,
-      project.lot_size ? `Lot size: ${project.lot_size}` : null,
-      project.footprint ? `Footprint: ${project.footprint}` : null,
-      project.preferred_style ? `Style: ${project.preferred_style}` : null,
-      project.roof_type ? `Roof: ${project.roof_type}` : null,
-      project.special_spaces ? `Special spaces: ${project.special_spaces}` : null,
-      project.sustainability ? `Sustainability: ${project.sustainability}` : null,
-      project.accessibility ? `Accessibility: ${project.accessibility}` : null,
-      project.site_notes ? `Site notes: ${project.site_notes}` : null,
-      project.constraints ? `Constraints: ${project.constraints}` : null,
-      project.timeline ? `Timeline: ${project.timeline}` : null,
-      project.budget_flex ? `Budget flexibility: ${project.budget_flex}` : null,
-    ].filter(Boolean)
-
-    const contextMessage: ChatMessage = {
-      id: `project-${project.id}-context`,
-      role: 'assistant',
-      content: `I loaded the current project details so I can help with relevant answers:\n${summaryLines.map(line => `- ${line}`).join('\n')}`,
-      timestamp: new Date(),
-    }
-
     const welcome: ChatMessage = {
       id: 'welcome',
       role: 'assistant',
-      content: 'Hello! I\'m your **Dzenhare Budget Engineer**. I can help with construction advice, budgeting, compliance questions, and architectural guidance.\n\n**Commands:**\n- `/draw [description]` — Generate a 2D architectural drawing\n- `/scan` — Scan a hand-drawn plan & generate a professional drawing\n- `/plans [search]` — Search existing floor plans\n- `/analyse` — Analyse an uploaded floor plan / blueprint for BOQ\n- `/clear` — Start a fresh conversation',
+      content: `Hello! I'm your **Dzenhare Budget Engineer**. I've synchronized with **${project.title}**'s survey data and site intelligence tools.\n\nI'm ready to assist with architectural design, BOQ generation, and regulatory compliance for this project. How can I help you today?`,
       timestamp: new Date(),
     }
 
-    setMessages([welcome, contextMessage])
+    setMessages([welcome])
     setSelectedProjectId(project.id)
     setProjects((prev) => {
       if (prev.find((p) => p.id === project.id)) return prev
@@ -260,59 +213,6 @@ export function AiChatButton({ project }: AiChatButtonProps) {
       setIsLoadingHistory(false)
     }
   }
-
-  // ── Drag-and-drop handlers ──
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragOver(true)
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragOver(false)
-  }, [])
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragOver(false)
-    const file = e.dataTransfer.files?.[0]
-    if (!file) return
-    // Validate file size
-    if (file.type === 'application/pdf' && file.size > MAX_PDF_SIZE) {
-      toast.error(`PDF too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max ${MAX_PDF_SIZE / 1024 / 1024}MB.`)
-      return
-    }
-    if (file.type.startsWith('image/') && file.size > MAX_IMAGE_SIZE) {
-      toast.error(`Image too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max ${MAX_IMAGE_SIZE / 1024 / 1024}MB.`)
-      return
-    }
-    if (file.type === 'application/pdf') {
-      setSelectedImage(file)
-      setSelectedPdfName(file.name)
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const base64String = (reader.result as string).split(',')[1]
-        setSelectedPdfBase64(base64String)
-        setSelectedImageBase64(null)
-        setImagePreviewUrl(null)
-      }
-      reader.readAsDataURL(file)
-    } else if (file.type.startsWith('image/')) {
-      setSelectedImage(file)
-      setSelectedPdfBase64(null)
-      setSelectedPdfName(null)
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const base64String = reader.result as string
-        setSelectedImageBase64(base64String)
-        setImagePreviewUrl(base64String)
-      }
-      reader.readAsDataURL(file)
-    }
-  }, [])
 
   // ── BOQ Export helpers ──
   const exportBOQToCSV = (analyse: AnalyseResult) => {
@@ -467,57 +367,6 @@ export function AiChatButton({ project }: AiChatButtonProps) {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [messages, isTyping])
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      // Validate file size
-      if (file.type === 'application/pdf' && file.size > MAX_PDF_SIZE) {
-        toast.error(`PDF too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max ${MAX_PDF_SIZE / 1024 / 1024}MB.`)
-        if (fileInputRef.current) fileInputRef.current.value = ''
-        return
-      }
-      if (file.type.startsWith('image/') && file.size > MAX_IMAGE_SIZE) {
-        toast.error(`Image too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max ${MAX_IMAGE_SIZE / 1024 / 1024}MB.`)
-        if (fileInputRef.current) fileInputRef.current.value = ''
-        return
-      }
-      if (file.type === 'application/pdf') {
-        // PDF upload
-        setSelectedImage(file)
-        setSelectedPdfName(file.name)
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          const base64String = (reader.result as string).split(',')[1] // raw base64
-          setSelectedPdfBase64(base64String)
-          setSelectedImageBase64(null)
-          setImagePreviewUrl(null)
-        }
-        reader.readAsDataURL(file)
-      } else {
-        // Image upload
-        setSelectedImage(file)
-        setSelectedPdfBase64(null)
-        setSelectedPdfName(null)
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          const base64String = reader.result as string
-          setSelectedImageBase64(base64String)
-          setImagePreviewUrl(base64String)
-        }
-        reader.readAsDataURL(file)
-      }
-    }
-  }
-
-  const clearSelectedImage = () => {
-    setSelectedImage(null)
-    setSelectedImageBase64(null)
-    setImagePreviewUrl(null)
-    setSelectedPdfBase64(null)
-    setSelectedPdfName(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
-
   const handleSendMessage = async (e?: React.FormEvent, overrideContent?: string) => {
     if (e) e.preventDefault()
     
@@ -541,50 +390,10 @@ export function AiChatButton({ project }: AiChatButtonProps) {
       return
     }
 
-    // Validate bare /plans, /draw, /analyse
-    const lowerTrimmed = content.toLowerCase().trim()
-    if (lowerTrimmed === '/plans') {
-      setMessages(prev => [...prev,
-        { id: Date.now().toString(), role: 'user' as const, content, timestamp: new Date() },
-        { id: (Date.now() + 1).toString(), role: 'assistant' as const, content: '🔍 Please describe what kind of floor plan you\'re looking for after the `/plans` command.\n\n**Examples:**\n- `/plans 3 bedroom house`\n- `/plans modern apartment`\n- `/plans commercial office`', timestamp: new Date() }
-      ])
-      setInputValue('')
-      return
-    }
-    if (lowerTrimmed === '/draw') {
-      setMessages(prev => [...prev,
-        { id: Date.now().toString(), role: 'user' as const, content, timestamp: new Date() },
-        { id: (Date.now() + 1).toString(), role: 'assistant' as const, content: '🎨 Please describe what you\'d like me to draw after the `/draw` command.\n\n**Examples:**\n- `/draw 4 bedroom modern house floor plan`\n- `/draw site plan with parking and landscaping`\n- `/draw front elevation of a 2-storey building`', timestamp: new Date() }
-      ])
-      setInputValue('')
-      return
-    }
-    if (lowerTrimmed === '/analyse' || lowerTrimmed === '/analyze') {
-      if (!selectedImageBase64 && !selectedPdfBase64) {
-        setMessages(prev => [...prev,
-          { id: Date.now().toString(), role: 'user' as const, content, timestamp: new Date() },
-          { id: (Date.now() + 1).toString(), role: 'assistant' as const, content: '📋 To analyse a floor plan or blueprint, please **attach an image or PDF first** using the 📎 button, then type `/analyse`.\n\n**What I can analyse:**\n- Floor plans → Room measurements & BOQ\n- Blueprints → Material quantities\n- Site photos → Construction progress\n- BOQ documents (PDF) → Verification & costing', timestamp: new Date() }
-        ])
-        setInputValue('')
-        return
-      }
-    }
-    if (lowerTrimmed === '/scan') {
-      if (!selectedImageBase64) {
-        setMessages(prev => [...prev,
-          { id: Date.now().toString(), role: 'user' as const, content, timestamp: new Date() },
-          { id: (Date.now() + 1).toString(), role: 'assistant' as const, content: '📐 To scan a hand-drawn plan, please **attach an image first** using the 📎 button, then type `/scan`.\n\n**How it works:**\n1. Upload a photo of your hand-drawn floor plan\n2. Type `/scan` (optionally add notes like `/scan 4 bedroom house`)\n3. AI analyses your sketch and generates a professional drawing', timestamp: new Date() }
-        ])
-        setInputValue('')
-        return
-      }
-    }
-
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
       content,
-      userImageUrl: selectedImageBase64 || undefined,
       timestamp: new Date()
     }
 
@@ -594,19 +403,17 @@ export function AiChatButton({ project }: AiChatButtonProps) {
     }))
 
     setMessages(prev => [...prev, newMessage])
-    const currentImage = selectedImageBase64
-    const currentPdf = selectedPdfBase64
-    clearSelectedImage()
 
     if (!overrideContent) setInputValue('')
+
     setIsTyping(true)
     setToolStatus(null)
 
     const lowerContent = content.toLowerCase()
-    const isDrawing = lowerContent.includes('/draw')
-    const isPlansSearch = lowerContent.includes('/plans')
-    const isAnalyse = lowerContent.includes('/analyse') || lowerContent.includes('/analyze')
-    const isScan = lowerContent.includes('/scan')
+    const isDrawing = lowerContent.startsWith('/draw')
+    const isPlansSearch = lowerContent.startsWith('/plans')
+    const isAnalyse = lowerContent.startsWith('/analyse') || lowerContent.startsWith('/analyze')
+    const isScan = lowerContent.startsWith('/scan')
     const isCommand = isDrawing || isPlansSearch || isAnalyse || isScan
     if (isDrawing) setIsGeneratingImage(true)
     if (isPlansSearch) setIsSearchingPlans(true)
@@ -617,19 +424,132 @@ export function AiChatButton({ project }: AiChatButtonProps) {
     }
 
     try {
+      // For /analyse, auto-fetch project drawing files and pass the first image/PDF URL
+      let autoImage: string | undefined
+      let autoPdf: string | undefined
+      
+      let targetProjectId = resolvedProjectId
+      let targetProjectTitle = project?.title || projects.find(p => p.id === selectedProjectId)?.title || 'current project'
+
+      if (isCommand) {
+        // Shared Project Lookup Logic for all commands
+        const parts = content.split(' ')
+        if (parts.length > 1) {
+          const searchName = parts.slice(1).join(' ').toLowerCase().trim()
+          const matchedProject = projects.find(p => p.title.toLowerCase().includes(searchName))
+          if (matchedProject) {
+            targetProjectId = matchedProject.id
+            targetProjectTitle = matchedProject.title
+          } else if (!resolvedProjectId) {
+            setMessages(prev => [...prev, {
+              id: (Date.now() + 1).toString(),
+              role: 'assistant' as const,
+              content: `🔍 Could not find a project matching "**${searchName}**". Please check the name or select a project from the list.`,
+              timestamp: new Date()
+            }])
+            setIsTyping(false)
+            setIsAnalysing(false)
+            setIsScanningPlan(false)
+            setIsSearchingPlans(false)
+            setIsGeneratingImage(false)
+            setAnalyseStep('idle')
+            return
+          }
+        }
+
+        if (!targetProjectId) {
+          const cmdName = parts[0].toLowerCase()
+          setMessages(prev => [...prev, {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant' as const,
+            content: `📋 Please specify a project name (e.g., \`${cmdName} Project Name\`) or select a project first so I can use its survey data for this command.`,
+            timestamp: new Date()
+          }])
+          setIsTyping(false)
+          setIsAnalysing(false)
+          setIsScanningPlan(false)
+          setIsSearchingPlans(false)
+          setIsGeneratingImage(false)
+          setAnalyseStep('idle')
+          return
+        }
+      }
+
+      if (isAnalyse) {
+        setAnalyseStep('uploading')
+        try {
+          const drawingsRes = await builderApi.getProjectDrawingRequests(targetProjectId)
+          const allRequests = Array.isArray(drawingsRes.data) ? drawingsRes.data : (drawingsRes.data as any).results || []
+          // Collect all files from all drawing requests
+          const allFiles = allRequests.flatMap((r: any) => r.files || [])
+          if (allFiles.length === 0) {
+            setMessages(prev => [...prev, {
+              id: (Date.now() + 1).toString(),
+              role: 'assistant' as const,
+              content: `📋 No drawing files found for project **${targetProjectTitle}**. Please upload drawings first via the **Design Drafting** page, then come back and type \`/analyse\`.`,
+              timestamp: new Date()
+            }])
+            setIsTyping(false)
+            setIsAnalysing(false)
+            setAnalyseStep('idle')
+            return
+          }
+          // Pick best file: prefer images, then PDFs
+          const imageFile = allFiles.find((f: any) => ['png', 'jpg', 'jpeg', 'webp'].includes(f.file_type?.toLowerCase()))
+          const pdfFile = allFiles.find((f: any) => f.file_type?.toLowerCase() === 'pdf')
+          const chosenFile = imageFile || pdfFile || allFiles[0]
+
+          // Fetch the file and convert to base64 for the AI API
+          const fileUrl = chosenFile.file.startsWith('http') ? chosenFile.file : `${apiBase}${chosenFile.file}`
+          const fileRes = await fetch(fileUrl)
+          const blob = await fileRes.blob()
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.readAsDataURL(blob)
+          })
+
+          if (chosenFile.file_type?.toLowerCase() === 'pdf') {
+            autoPdf = base64.split(',')[1]
+          } else {
+            autoImage = base64
+          }
+
+          // Show which file is being analysed
+          setMessages(prev => [...prev, {
+            id: (Date.now() + 0.5).toString(),
+            role: 'assistant' as const,
+            content: `📄 Found **${allFiles.length}** drawing file(s) for **${targetProjectTitle}**. Analysing: **${chosenFile.original_name}** (${chosenFile.file_type?.toUpperCase()})...`,
+            timestamp: new Date()
+          }])
+        } catch (err) {
+          console.error('Failed to fetch project drawings', err)
+          setMessages(prev => [...prev, {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant' as const,
+            content: `⚠️ Failed to fetch drawing files for **${targetProjectTitle}**. Please try again.`,
+            timestamp: new Date()
+          }])
+          setIsTyping(false)
+          setIsAnalysing(false)
+          setAnalyseStep('idle')
+          return
+        }
+      }
+
       if (isCommand) {
         // Multi-step progress for /analyse
         if (isAnalyse) {
-          setTimeout(() => setAnalyseStep('analysing'), 800)
-          setTimeout(() => setAnalyseStep('extracting'), 3000)
+          setAnalyseStep('analysing')
+          setTimeout(() => setAnalyseStep('extracting'), 2000)
         }
         // Commands use the synchronous endpoint (they return structured data)
         const response = await aiApi.sendMessage(
           chatHistory,
           sessionId,
-          currentImage || undefined,
-          currentPdf || undefined,
-          resolvedProjectId,
+          autoImage || undefined,
+          autoPdf || undefined,
+          targetProjectId,
         )
         if (isAnalyse) setAnalyseStep('done')
 
@@ -655,9 +575,9 @@ export function AiChatButton({ project }: AiChatButtonProps) {
         const streamResponse = await aiApi.sendMessageStream(
           chatHistory,
           sessionId,
-          currentImage || undefined,
-          currentPdf || undefined,
-          resolvedProjectId,
+          undefined,
+          undefined,
+          targetProjectId,
         )
 
         // Check if the backend fell back to JSON (e.g. for commands)
@@ -989,20 +909,8 @@ export function AiChatButton({ project }: AiChatButtonProps) {
 
         {/* Messages */}
         <div 
-          className={`flex-1 min-h-0 overflow-hidden relative ${isDragOver ? 'ring-2 ring-indigo-400 ring-inset' : ''}`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          className="flex-1 min-h-0 overflow-hidden relative"
         >
-        {/* Drag overlay */}
-        {isDragOver && (
-          <div className="absolute inset-0 z-10 bg-indigo-50/80 backdrop-blur-sm flex items-center justify-center pointer-events-none">
-            <div className="flex flex-col items-center gap-2 text-indigo-600">
-              <Icon name="attach_file" className="h-8 w-8 animate-bounce" />
-              <span className="text-sm font-medium">Drop image or PDF here</span>
-            </div>
-          </div>
-        )}
         <ScrollArea className="h-full bg-gradient-to-b from-slate-50 to-white">
           <div className="flex flex-col gap-5 p-5 pb-3">
             {isLoadingHistory && (
@@ -1035,18 +943,6 @@ export function AiChatButton({ project }: AiChatButtonProps) {
                       ? 'bg-indigo-600 text-white rounded-br-md shadow-md' 
                       : 'bg-white border border-gray-100 text-gray-800 rounded-bl-md shadow-sm'
                   }`}>
-                    {/* User-uploaded image */}
-                    {message.userImageUrl && (
-                      <div className="mb-3 rounded-lg overflow-hidden border border-white/20 shadow-inner">
-                        <img 
-                          src={message.userImageUrl} 
-                          alt="User uploaded" 
-                          className="w-full h-auto max-h-48 object-cover cursor-zoom-in"
-                          onClick={() => setPreviewImage(message.userImageUrl!)}
-                        />
-                      </div>
-                    )}
-
                     {/* Markdown rendered content */}
                     <div className={`prose prose-sm max-w-none ${
                       message.role === 'user'
@@ -1101,9 +997,9 @@ export function AiChatButton({ project }: AiChatButtonProps) {
                           {message.feedbackGiven ? (
                             <span className="text-[10px] text-green-600 font-medium flex items-center gap-1">
                               {message.feedbackGiven === 'up' ? (
-                                <><Icon name="thumbs_up" className="h-3 w-3" /> Thanks for the feedback!</>
+                                <> <Icon name="thumb_up" className="h-3 w-3" /> Thanks for the feedback!</>
                               ) : (
-                                <><Icon name="thumbs_down" className="h-3 w-3" /> We'll improve — thanks!</>
+                                <> <Icon name="thumb_down" className="h-3 w-3" /> We'll improve — thanks!</>
                               )}
                             </span>
                           ) : (
@@ -1114,14 +1010,14 @@ export function AiChatButton({ project }: AiChatButtonProps) {
                                 className="p-1 rounded-md hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors"
                                 title="Good result"
                               >
-                                <Icon name="thumbs_up" className="h-3.5 w-3.5" />
+                                <Icon name="thumb_up" className="h-3.5 w-3.5" />
                               </button>
                               <button
                                 onClick={() => handleFeedback(message.id, 'down')}
                                 className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
                                 title="Poor result"
                               >
-                                <Icon name="thumbs_down" className="h-3.5 w-3.5" />
+                                <Icon name="thumb_down" className="h-3.5 w-3.5" />
                               </button>
                               <div className="flex-1" />
                               <button
@@ -1403,61 +1299,22 @@ export function AiChatButton({ project }: AiChatButtonProps) {
 
         {/* Input Area */}
         <div className="p-4 bg-white border-t border-gray-100 shrink-0">
-          {(imagePreviewUrl || selectedPdfName) && (
-            <div className="mb-3 relative inline-block">
-              {imagePreviewUrl ? (
-                <img 
-                  src={imagePreviewUrl} 
-                  alt="Preview" 
-                  className="h-16 w-16 object-cover rounded-lg border border-gray-200"
-                />
-              ) : selectedPdfName ? (
-                <div className="h-16 px-3 flex items-center gap-2 rounded-lg border border-gray-200 bg-red-50">
-                  <Icon name="description" className="h-5 w-5 text-red-500" />
-                  <span className="text-xs text-gray-700 max-w-[120px] truncate">{selectedPdfName}</span>
-                </div>
-              ) : null}
-              <button 
-                onClick={clearSelectedImage}
-                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:bg-red-600 transition-colors"
-                type="button"
-              >
-                <Icon name="close" className="h-3 w-3" />
-              </button>
-            </div>
-          )}
           <form 
             onSubmit={handleSendMessage}
             className="flex items-center gap-2 relative"
           >
-            <input 
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageChange}
-              accept="image/*,.pdf,application/pdf"
-              className="hidden"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => fileInputRef.current?.click()}
-              className="h-10 w-10 shrink-0 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl flex items-center justify-center"
-            >
-              <Icon name="attach_file" className="h-5 w-5" />
-            </Button>
             <div className="relative flex-1">
-              <Input 
+              <Input
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder={selectedImage ? (selectedPdfName ? `${selectedPdfName} attached — type /analyse or ask...` : "Type /scan to redraw or /analyse for BOQ...") : "/draw, /scan, /plans, /analyse, or ask anything..."}
+                placeholder="/draw [Project], /scan [Project], /plans [Project], /analyse [Project]"
                 maxLength={4000}
                 className="pr-12 rounded-xl border-gray-200 bg-gray-50 focus-visible:ring-indigo-500/30 focus-visible:border-indigo-500 h-12 text-sm"
               />
               <Button 
                 type="submit" 
                 size="icon" 
-                disabled={(!inputValue.trim() && !selectedImage) || isTyping}
+                disabled={!inputValue.trim() || isTyping}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm flex items-center justify-center"
               >
                 <Icon name="send" className="h-4 w-4" />

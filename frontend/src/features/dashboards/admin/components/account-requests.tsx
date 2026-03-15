@@ -19,9 +19,9 @@ interface AccountRequest {
 }
 
 const STATUS_CONFIG = {
-    PENDING: { label: 'Pending', color: 'bg-amber-50 text-amber-700 border-amber-200', icon: Clock },
-    APPROVED: { label: 'Approved', color: 'bg-green-50 text-green-700 border-green-200', icon: CheckCircle2 },
-    REJECTED: { label: 'Rejected', color: 'bg-red-50 text-red-700 border-red-200', icon: XCircle },
+    PENDING: { label: 'Pending', color: 'bg-amber-50 text-amber-700 border-amber-200', icon: 'schedule' },
+    APPROVED: { label: 'Approved', color: 'bg-green-50 text-green-700 border-green-200', icon: 'check_circle' },
+    REJECTED: { label: 'Rejected', color: 'bg-red-50 text-red-700 border-red-200', icon: 'cancel' },
 }
 
 const ROLE_COLORS: Record<string, string> = {

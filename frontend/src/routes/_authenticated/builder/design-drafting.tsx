@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { builderApi } from '@/services/api'
 import type { Project, DrawingRequest, DrawingFile } from '@/types/api'
 import { cn } from '@/lib/utils'
@@ -37,6 +37,37 @@ const ARTISAN_ROLES: { value: string; label: string; icon: string }[] = [
 
 const PROFESSIONAL_ROLES = ARTISAN_ROLES;
 
+// Skeleton cards for loading state
+function RequestsSkeleton() {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Card key={i} className="overflow-hidden">
+          <CardHeader className="pb-3">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-lg bg-slate-200 animate-pulse" />
+              <div className="flex-1 space-y-2">
+                <div className="h-5 w-48 bg-slate-200 rounded animate-pulse" />
+                <div className="h-3 w-24 bg-slate-100 rounded animate-pulse" />
+                <div className="h-3 w-32 bg-slate-100 rounded animate-pulse" />
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function DesignLoadingBar() {
+  return (
+    <div className="h-0.5 w-full bg-slate-100 overflow-hidden rounded-full">
+      <div className="h-full w-1/3 bg-indigo-500 rounded-full" style={{ animation: 'designShimmer 1.2s ease-in-out infinite' }} />
+      <style>{`@keyframes designShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }`}</style>
+    </div>
+  )
+}
+
 function RouteComponent() {
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<number | null>(null)
@@ -47,7 +78,20 @@ function RouteComponent() {
   const [uploadingForRequest, setUploadingForRequest] = useState<number | null>(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [selectedDrawingType, setSelectedDrawingType] = useState<DrawingRequest['drawing_type']>('floor_plan')
+  const [refetching, setRefetching] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const directUploadRef = useRef<HTMLInputElement>(null)
+  const [showDirectUpload, setShowDirectUpload] = useState(false)
+  const [directUploadForm, setDirectUploadForm] = useState({
+    drawingType: 'floor_plan' as DrawingRequest['drawing_type'],
+    title: '',
+  })
+  const [directFiles, setDirectFiles] = useState<File[]>([])
+  const [uploadingDirect, setUploadingDirect] = useState(false)
+
+  // Caches
+  const requestsCacheRef = useRef<Map<number, DrawingRequest[]>>(new Map())
+  const projectsCachedRef = useRef(false)
 
   // Explore Professionals State
   const [showExploreModal, setShowExploreModal] = useState(false)
@@ -65,17 +109,19 @@ function RouteComponent() {
   })
 
   // Load projects
-  const fetchProjects = () => {
+  const fetchProjects = useCallback(() => {
     builderApi.getProjects()
       .then(res => {
         const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
         setProjects(data)
+        projectsCachedRef.current = true
         if (data.length > 0 && !selectedProject) setSelectedProject(data[0].id)
       })
       .catch(() => toast.error('Failed to load projects'))
-  }
+  }, [selectedProject])
 
   useEffect(() => {
+    if (projectsCachedRef.current && projects.length > 0) return
     fetchProjects()
   }, [])
 
@@ -157,20 +203,29 @@ function RouteComponent() {
     ))
   }
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     if (!selectedProject) return
-    setLoading(true)
+    // Show cached data immediately
+    const cached = requestsCacheRef.current.get(selectedProject)
+    if (cached) {
+      setRequests(cached)
+      setRefetching(true)
+    } else {
+      setLoading(true)
+    }
     try {
       const res = await builderApi.getProjectDrawingRequests(selectedProject)
       const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
       setRequests(data)
+      requestsCacheRef.current.set(selectedProject, data)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load requests')
     } finally {
       setLoading(false)
+      setRefetching(false)
     }
-  }
+  }, [selectedProject])
 
   useEffect(() => {
     fetchRequests()
@@ -247,13 +302,64 @@ function RouteComponent() {
   }
 
   const handleDeleteRequest = async (requestId: number) => {
+    // Optimistic delete
+    const previousRequests = requests
+    const updated = requests.filter(r => r.id !== requestId)
+    setRequests(updated)
+    if (selectedProject) requestsCacheRef.current.set(selectedProject, updated)
     try {
       await builderApi.deleteDrawingRequest(requestId)
       toast.success('Request deleted')
+    } catch (err) {
+      console.error(err)
+      setRequests(previousRequests)
+      if (selectedProject) requestsCacheRef.current.set(selectedProject, previousRequests)
+      toast.error('Failed to delete request')
+    }
+  }
+
+  const handleDirectUpload = async () => {
+    if (!selectedProject || !directUploadForm.title || directFiles.length === 0) {
+      toast.error('Please fill in the title and select files')
+      return
+    }
+
+    setUploadingDirect(true)
+    try {
+      // Create a drawing request for the uploaded files
+      const res = await builderApi.createDrawingRequest({
+        project: selectedProject,
+        drawing_type: directUploadForm.drawingType,
+        title: directUploadForm.title,
+      })
+      const requestId = res.data.id
+
+      // Upload all selected files
+      const maxSize = 50 * 1024 * 1024
+      for (const file of directFiles) {
+        if (file.size > maxSize) {
+          toast.error(`${file.name}: File too large (max 50MB)`)
+          continue
+        }
+        const formData = new FormData()
+        formData.append('request', requestId.toString())
+        formData.append('file', file)
+        formData.append('original_name', file.name)
+        formData.append('file_type', file.name.split('.').pop()?.toLowerCase() || 'file')
+        formData.append('file_size', (file.size / (1024 * 1024)).toFixed(1) + ' MB')
+        await builderApi.uploadDrawingFile(formData)
+      }
+
+      toast.success(`${directFiles.length} file(s) uploaded successfully`)
+      setDirectUploadForm({ drawingType: 'floor_plan', title: '' })
+      setDirectFiles([])
+      setShowDirectUpload(false)
       fetchRequests()
     } catch (err) {
       console.error(err)
-      toast.error('Failed to delete request')
+      toast.error('Failed to upload drawings')
+    } finally {
+      setUploadingDirect(false)
     }
   }
 
@@ -316,17 +422,29 @@ function RouteComponent() {
               <div>
                 <h1 className="text-2xl font-bold font-display">Design Drafting</h1>
                 <p className="text-sm text-muted-foreground">
-                  Request and manage architectural drawings from certified architects
+                  Upload your own drawings or request them from certified architects
                 </p>
               </div>
             </div>
-            <Button 
-              onClick={() => setShowRequestForm(true)}
-              className="bg-indigo-600 hover:bg-indigo-700"
-            >
-              <Icon name="add" size={16} className="mr-2" />
-              Request Drawing
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setShowDirectUpload(true)}
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+              >
+                <Icon name="cloud_upload" size={14} className="mr-1.5" />
+                Upload Drawings
+              </Button>
+              <Button
+                onClick={() => setShowRequestForm(true)}
+                size="sm"
+                className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs font-semibold"
+              >
+                <Icon name="add" size={14} className="mr-1.5" />
+                Request Drawing
+              </Button>
+            </div>
           </div>
 
           {/* Stats Cards */}
@@ -479,20 +597,157 @@ function RouteComponent() {
                   />
                 </div>
                 <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setShowRequestForm(false)}>
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowRequestForm(false)}>
                     Cancel
                   </Button>
-                  <Button 
-                    onClick={handleSubmitRequest} 
-                    className="bg-indigo-600 hover:bg-indigo-700"
+                  <Button
+                    onClick={handleSubmitRequest}
+                    size="sm"
+                    className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs"
                     disabled={saving}
                   >
                     {saving ? (
-                      <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                      <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
                     ) : (
-                      <Icon name="send" size={16} className="mr-2" />
+                      <Icon name="send" size={14} className="mr-1.5" />
                     )}
                     {saving ? 'Submitting...' : 'Submit Request'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Direct Upload Form */}
+          {showDirectUpload && (
+            <Card className="border-emerald-200">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Icon name="cloud_upload" size={20} className="text-emerald-600" />
+                  Upload Your Drawings
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Already have drawing files? Upload them directly without requesting from an architect.</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>Project</Label>
+                    <Select
+                      value={selectedProject?.toString() || ''}
+                      onValueChange={(v) => setSelectedProject(Number(v))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map(p => (
+                          <SelectItem key={p.id} value={p.id.toString()}>{p.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Drawing Type</Label>
+                    <Select
+                      value={directUploadForm.drawingType}
+                      onValueChange={(v) => setDirectUploadForm(prev => ({ ...prev, drawingType: v as DrawingRequest['drawing_type'] }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="floor_plan">Floor Plan</SelectItem>
+                        <SelectItem value="elevation">Elevation</SelectItem>
+                        <SelectItem value="section">Section View</SelectItem>
+                        <SelectItem value="3d_render">3D Render</SelectItem>
+                        <SelectItem value="blueprint">Technical Blueprint</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Title</Label>
+                    <Input
+                      value={directUploadForm.title}
+                      onChange={(e) => setDirectUploadForm(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="e.g., Ground Floor Plan - Final"
+                    />
+                  </div>
+                </div>
+
+                {/* Drop zone */}
+                <div
+                  className={cn(
+                    "border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer",
+                    directFiles.length > 0 ? "border-emerald-300 bg-emerald-50/50" : "border-slate-300 hover:border-indigo-300 hover:bg-indigo-50/30"
+                  )}
+                  onClick={() => directUploadRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const files = Array.from(e.dataTransfer.files)
+                    setDirectFiles(prev => [...prev, ...files])
+                  }}
+                >
+                  <Icon name="cloud_upload" size={36} className="text-slate-400 mx-auto mb-2" />
+                  <p className="text-sm text-slate-600 mb-1">Click to select files or drag and drop</p>
+                  <p className="text-xs text-slate-400">PDF, PNG, JPG, DWG, DXF and more (Max 50MB each)</p>
+                </div>
+                <input
+                  type="file"
+                  ref={directUploadRef}
+                  className="hidden"
+                  multiple
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      setDirectFiles(prev => [...prev, ...Array.from(e.target.files!)])
+                      e.target.value = ''
+                    }
+                  }}
+                />
+
+                {/* Selected files list */}
+                {directFiles.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{directFiles.length} file(s) selected</p>
+                    <div className="space-y-1.5">
+                      {directFiles.map((file, i) => (
+                        <div key={i} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Icon name={getFileIcon(file.name.split('.').pop() || '')} size={16} className="text-slate-500" />
+                            <span className="text-sm text-slate-700">{file.name}</span>
+                            <span className="text-xs text-slate-400">{(file.size / (1024 * 1024)).toFixed(1)} MB</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => setDirectFiles(prev => prev.filter((_, idx) => idx !== i))}
+                          >
+                            <Icon name="close" size={14} />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => { setShowDirectUpload(false); setDirectFiles([]) }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleDirectUpload}
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs"
+                    disabled={uploadingDirect || !directUploadForm.title || directFiles.length === 0}
+                  >
+                    {uploadingDirect ? (
+                      <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
+                    ) : (
+                      <Icon name="cloud_upload" size={14} className="mr-1.5" />
+                    )}
+                    {uploadingDirect ? 'Uploading...' : `Upload ${directFiles.length} File(s)`}
                   </Button>
                 </div>
               </CardContent>
@@ -514,20 +769,30 @@ function RouteComponent() {
               <Icon name="folder" size={20} />
               Drawing Requests & Files
             </h2>
-            
-            {requests.length === 0 ? (
-              <Card className="p-8 text-center">
-                <div className="h-16 w-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Icon name="architecture" size={32} className="text-slate-400" />
+
+            {refetching && <DesignLoadingBar />}
+
+            {loading ? (
+              <RequestsSkeleton />
+            ) : requests.length === 0 ? (
+              <Card className="p-6 text-center">
+                <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Icon name="architecture" size={20} className="text-slate-400" />
                 </div>
-                <h3 className="text-lg font-medium text-slate-900 mb-2">No Drawing Requests Yet</h3>
-                <p className="text-sm text-slate-500 max-w-md mx-auto mb-4">
-                  Start by requesting a floor plan, elevation, or 3D render from our certified architects.
+                <h3 className="text-sm font-medium text-slate-900 mb-1">No Drawing Requests Yet</h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto mb-3">
+                  Request drawings from a certified architect, or upload your own files directly.
                 </p>
-                <Button onClick={() => setShowRequestForm(true)} className="bg-indigo-600 hover:bg-indigo-700">
-                  <Icon name="add" size={16} className="mr-2" />
-                  Create First Request
-                </Button>
+                <div className="flex gap-2 justify-center">
+                  <Button onClick={() => setShowDirectUpload(true)} size="sm" variant="outline" className="h-7 px-3 text-[11px] border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                    <Icon name="cloud_upload" size={13} className="mr-1" />
+                    Upload Drawings
+                  </Button>
+                  <Button onClick={() => setShowRequestForm(true)} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-7 px-3 text-[11px]">
+                    <Icon name="add" size={13} className="mr-1" />
+                    Request Drawing
+                  </Button>
+                </div>
               </Card>
             ) : (
               requests.map(request => (
@@ -556,24 +821,25 @@ function RouteComponent() {
                         </div>
                       </div>
                       <div className="flex gap-1">
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="sm"
+                          className="h-7 px-2 text-[11px]"
                           onClick={() => {
                             setUploadingForRequest(request.id)
                             setShowUploadModal(true)
                           }}
                         >
-                          <Icon name="cloud_upload" size={16} className="mr-1" />
-                          Upload Files
+                          <Icon name="cloud_upload" size={14} className="mr-1" />
+                          Upload
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                           onClick={() => handleDeleteRequest(request.id)}
                         >
-                          <Icon name="delete" size={16} />
+                          <Icon name="delete" size={14} />
                         </Button>
                       </div>
                     </div>
@@ -602,20 +868,21 @@ function RouteComponent() {
                                 </div>
                               </div>
                               <div className="flex gap-1">
-                                <Button 
-                                  variant="ghost" 
+                                <Button
+                                  variant="ghost"
                                   size="sm"
+                                  className="h-7 w-7 p-0"
                                   onClick={() => window.open(file.url, '_blank')}
                                 >
-                                  <Icon name="visibility" size={16} />
+                                  <Icon name="visibility" size={14} />
                                 </Button>
-                                <Button 
-                                  variant="ghost" 
+                                <Button
+                                  variant="ghost"
                                   size="sm"
+                                  className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                                   onClick={() => handleDeleteFile(request.id, file.id)}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                 >
-                                  <Icon name="delete" size={16} />
+                                  <Icon name="delete" size={14} />
                                 </Button>
                               </div>
                             </div>
@@ -625,8 +892,8 @@ function RouteComponent() {
                     </CardContent>
                   )}
                 </Card>
-              ))
-            )}
+            ))
+          )}
           </div>
 
           {/* File Types Info */}
@@ -692,36 +959,39 @@ function RouteComponent() {
                   <p className="text-xs text-slate-500">
                     All file formats supported (Max 50MB each)
                   </p>
-                  <Button 
-                    variant="outline" 
-                    className="mt-3"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 h-8 text-xs"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <Icon name="folder_open" size={16} className="mr-2" />
+                    <Icon name="folder_open" size={14} className="mr-1.5" />
                     Select Files
                   </Button>
                 </div>
               </div>
 
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => {
                     setShowUploadModal(false)
                     setUploadingForRequest(null)
                   }}
-                  className="flex-1"
+                  className="flex-1 h-8 text-xs"
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
+                  size="sm"
                   onClick={() => {
                     setShowUploadModal(false)
                     fileInputRef.current?.click()
                   }}
-                  className="flex-1"
+                  className="flex-1 h-8 text-xs"
                 >
-                  <Icon name="cloud_upload" size={16} className="mr-2" />
+                  <Icon name="cloud_upload" size={14} className="mr-1.5" />
                   Upload
                 </Button>
               </div>
@@ -875,22 +1145,22 @@ function RouteComponent() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex flex-col gap-2">
-                            <Button 
+                          <div className="flex flex-col gap-1.5">
+                            <Button
                               onClick={() => handleAddToTeam(professional)}
-                              className="bg-indigo-600 hover:bg-indigo-700 h-8 px-3 text-xs font-bold gap-1.5"
+                              className="bg-indigo-600 hover:bg-indigo-700 h-7 px-2.5 text-[11px] font-bold gap-1"
                               size="sm"
                             >
-                              <Icon name="person_add" size={16} className="-ml-0.5" />
+                              <Icon name="person_add" size={13} className="-ml-0.5" />
                               Add to Team
                             </Button>
-                            <Button 
+                            <Button
                               onClick={() => handleContact(professional)}
                               variant="outline"
                               size="sm"
-                              className="h-8 px-3 text-xs font-bold gap-1.5 border-slate-200"
+                              className="h-7 px-2.5 text-[11px] font-bold gap-1 border-slate-200"
                             >
-                              <Icon name="contact_phone" size={16} className="-ml-0.5" />
+                              <Icon name="contact_phone" size={13} className="-ml-0.5" />
                               Contact
                             </Button>
                           </div>
@@ -940,14 +1210,16 @@ function RouteComponent() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setShowContactModal(false)}
-                  className="flex-1 h-8 text-xs font-bold border-slate-200"
+                  className="flex-1 h-7 text-[11px] font-bold border-slate-200"
                 >
                   Close
                 </Button>
-                <Button 
+                <Button
+                  size="sm"
                   onClick={() => {
                     if (selectedProfessional.user_details?.phone_number) {
                       navigator.clipboard.writeText(selectedProfessional.user_details.phone_number);
@@ -956,9 +1228,9 @@ function RouteComponent() {
                       toast.error('No phone number available');
                     }
                   }}
-                  className="flex-1 h-8 text-xs font-bold gap-1.5"
+                  className="flex-1 h-7 text-[11px] font-bold gap-1"
                 >
-                  <Icon name="content_copy" size={16} className="-ml-1" />
+                  <Icon name="content_copy" size={13} className="-ml-0.5" />
                   Copy Phone
                 </Button>
               </div>

@@ -103,8 +103,44 @@ function MaterialRequestsPage() {
           </div>
         </Header>
         <Main>
-          <div className="flex items-center justify-center py-12">
-            <Icon name="progress_activity" className="h-6 w-6 animate-spin text-slate-400" />
+          <div className="w-full max-w-5xl mx-auto space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-slate-200 animate-pulse" />
+              <div className="space-y-2">
+                <div className="h-5 w-40 bg-slate-200 rounded animate-pulse" />
+                <div className="h-3 w-56 bg-slate-100 rounded animate-pulse" />
+              </div>
+            </div>
+            <Card>
+              <CardContent className="p-0">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">BOQ Item</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">Category</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Quantity</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">Unit</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Rate</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Total</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className="border-b border-slate-50">
+                        <td className="px-4 py-3"><div className="h-4 w-28 bg-slate-200 rounded animate-pulse" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-32 bg-slate-100 rounded animate-pulse" /></td>
+                        <td className="px-4 py-3 text-right"><div className="h-4 w-12 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-8 bg-slate-100 rounded animate-pulse" /></td>
+                        <td className="px-4 py-3 text-right"><div className="h-4 w-14 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+                        <td className="px-4 py-3 text-right"><div className="h-4 w-16 bg-slate-200 rounded animate-pulse ml-auto" /></td>
+                        <td className="px-4 py-3 text-center"><div className="h-7 w-16 bg-slate-100 rounded animate-pulse mx-auto" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
           </div>
         </Main>
       </>

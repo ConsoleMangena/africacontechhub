@@ -1,5 +1,5 @@
 import { Icon } from '@/components/ui/material-icon'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { builderApi } from '@/services/api'
 import type { BOQItem, Project, MaterialRequest } from '@/types/api'
@@ -23,7 +23,46 @@ export const Route = createFileRoute(
   component: ProcurementPage,
 })
 
-// Redefinition removed, using type from @/types/api
+// Skeleton table for loading state
+function ProcurementSkeleton() {
+  return (
+    <table className="w-full text-left">
+      <thead>
+        <tr className="border-b border-slate-100 bg-slate-50">
+          <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">BOQ Item</th>
+          <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">Category</th>
+          <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Quantity</th>
+          <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">Unit</th>
+          <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Rate</th>
+          <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Total</th>
+          <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-center">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <tr key={i} className="border-b border-slate-50">
+            <td className="px-4 py-3"><div className="h-4 w-28 bg-slate-200 rounded animate-pulse" /></td>
+            <td className="px-4 py-3"><div className="h-4 w-32 bg-slate-100 rounded animate-pulse" /></td>
+            <td className="px-4 py-3 text-right"><div className="h-4 w-12 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+            <td className="px-4 py-3"><div className="h-4 w-8 bg-slate-100 rounded animate-pulse" /></td>
+            <td className="px-4 py-3 text-right"><div className="h-4 w-14 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+            <td className="px-4 py-3 text-right"><div className="h-4 w-16 bg-slate-200 rounded animate-pulse ml-auto" /></td>
+            <td className="px-4 py-3 text-center"><div className="h-7 w-20 bg-slate-100 rounded animate-pulse mx-auto" /></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function LoadingBar() {
+  return (
+    <div className="h-0.5 w-full bg-slate-100 overflow-hidden">
+      <div className="h-full w-1/3 bg-blue-500 rounded-full" style={{ animation: 'procShimmer 1.2s ease-in-out infinite' }} />
+      <style>{`@keyframes procShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }`}</style>
+    </div>
+  )
+}
 
 function ProcurementPage() {
   const { projectId } = Route.useSearch() as { projectId?: number }
@@ -34,6 +73,7 @@ function ProcurementPage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [requests, setRequests] = useState<MaterialRequest[]>([])
+  const [refetching, setRefetching] = useState(false)
   const [form, setForm] = useState({
     boq_item: '',
     material_name: '',
@@ -46,16 +86,22 @@ function ProcurementPage() {
     group_buy_deduction: '0',
   })
 
+  // In-memory caches
+  const boqCacheRef = useRef<Map<number, BOQItem[]>>(new Map())
+  const requestsCacheRef = useRef<Map<number, MaterialRequest[]>>(new Map())
+  const projectsCachedRef = useRef(false)
+
   // Fetch projects on mount
   useEffect(() => {
+    if (projectsCachedRef.current && projects.length > 0) return
     let cancelled = false
     builderApi.getProjects()
       .then(res => {
         if (cancelled) return
         const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
         setProjects(data)
-        // If no projectId from URL, default to first project
-        if (!projectId && data.length > 0) {
+        projectsCachedRef.current = true
+        if (!projectId && data.length > 0 && !selectedProject) {
           setSelectedProject(data[0].id)
         }
       })
@@ -63,7 +109,7 @@ function ProcurementPage() {
     return () => { cancelled = true }
   }, [projectId])
 
-  // Fetch BOQ items when project changes
+  // Fetch BOQ items when project changes — stale-while-revalidate
   useEffect(() => {
     if (!selectedProject) {
       setLoading(false)
@@ -77,14 +123,21 @@ function ProcurementPage() {
       return
     }
 
-    setLoading(true)
+    // Show cached data immediately if available
+    const cached = boqCacheRef.current.get(selectedProject)
+    if (cached) {
+      setBoqItems(cached)
+      setRefetching(true)
+    } else {
+      setLoading(true)
+    }
+
     builderApi.getProjectBOQItems(selectedProject)
       .then(res => {
         const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
-        // Filter for material-related items - simplified keywords
-        const materialItems = data.filter((item: BOQItem) => 
-          item.category.includes('Concrete') || 
-          item.category.includes('Bricks') || 
+        const materialItems = data.filter((item: BOQItem) =>
+          item.category.includes('Concrete') ||
+          item.category.includes('Bricks') ||
           item.category.includes('Foundation') ||
           item.category.includes('Roofing') ||
           item.category.includes('Woodwork') ||
@@ -96,9 +149,10 @@ function ProcurementPage() {
           item.category.includes('Yard')
         )
         setBoqItems(materialItems)
+        boqCacheRef.current.set(selectedProject, materialItems)
       })
       .catch(() => toast.error('Failed to load BOQ items'))
-      .finally(() => setLoading(false))
+      .finally(() => { setLoading(false); setRefetching(false) })
   }, [selectedProject, projects])
 
   const handleSubmit = async () => {
@@ -140,16 +194,20 @@ function ProcurementPage() {
     }
   }
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     if (!selectedProject) return
+    // Show cached requests immediately
+    const cached = requestsCacheRef.current.get(selectedProject)
+    if (cached) setRequests(cached)
     try {
       const res = await builderApi.getProjectMaterialRequests(selectedProject)
       const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
       setRequests(data)
+      requestsCacheRef.current.set(selectedProject, data)
     } catch (err) {
       console.error('Failed to fetch requests', err)
     }
-  }
+  }, [selectedProject])
 
   useEffect(() => {
     fetchRequests()
@@ -262,34 +320,35 @@ function ProcurementPage() {
           {/* BOQ Items List */}
           <Card>
             <CardContent className="p-0">
+              {refetching && <LoadingBar />}
               {!selectedProject ? (
                 <div className="text-center py-12">
                   <Icon name="assignment" size={36} className="text-slate-300 mx-auto mb-2" />
                   <p className="text-sm text-slate-400">Select a project to view materials.</p>
                 </div>
               ) : loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Icon name="progress_activity" className="h-6 w-6 animate-spin text-slate-400" />
-                </div>
+                <ProcurementSkeleton />
               ) : !projects.find(p => p.id === selectedProject)?.is_budget_signed ? (
-                <div className="text-center py-12">
-                   <div className="h-20 w-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                    <Icon name="lock" size={40} className="text-slate-300" />
+                <div className="text-center py-10">
+                   <div className="h-12 w-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 border border-slate-100">
+                    <Icon name="lock" size={24} className="text-slate-300" />
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-900 mb-1">Procurement Locked</h3>
-                  <p className="text-sm text-slate-500 max-w-xs mx-auto">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1">Procurement Locked</h3>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto">
                     Material procurement is only available for authorized budgets.
                   </p>
                 </div>
               ) : boqItems.length === 0 ? (
-                <div className="text-center py-12">
-                  <Icon name="inventory_2" size={48} className="text-slate-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-slate-900 mb-2">No Material Items</h3>
-                  <p className="text-sm text-slate-500 max-w-sm mx-auto mb-4">
+                <div className="text-center py-10">
+                  <div className="h-12 w-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 border border-slate-100">
+                    <Icon name="inventory_2" size={24} className="text-slate-300" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-800 mb-1">No Material Items</h3>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto mb-4">
                     This project has no material budget items. Add items to the construction budget first.
                   </p>
                   <Link to="/builder/measurements">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" className="h-8 text-xs">
                       Go to Budget
                     </Button>
                   </Link>

@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { builderApi } from '@/services/api'
 import type { Project, ProjectTeam, ProfessionalProfile } from '@/types/api'
 
@@ -36,10 +36,44 @@ const ARTISAN_ROLES: { value: ProjectTeam['role']; label: string; icon: string }
 
 const PROFESSIONAL_ROLES = ARTISAN_ROLES;
 
+// Skeleton cards for loading artisans
+function ArtisansSkeleton() {
+  return (
+    <div className="grid gap-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Card key={i} className="overflow-hidden border-slate-100">
+          <CardContent className="p-2">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-slate-200 animate-pulse" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3.5 w-32 bg-slate-200 rounded animate-pulse" />
+                <div className="h-2.5 w-20 bg-slate-100 rounded animate-pulse" />
+              </div>
+              <div className="h-7 w-[90px] bg-slate-100 rounded animate-pulse" />
+              <div className="h-7 w-7 bg-slate-100 rounded animate-pulse" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function BuildLoadingBar() {
+  return (
+    <div className="h-0.5 w-full bg-slate-100 overflow-hidden rounded-full mb-2">
+      <div className="h-full w-1/3 bg-green-500 rounded-full" style={{ animation: 'buildShimmer 1.2s ease-in-out infinite' }} />
+      <style>{`@keyframes buildShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }`}</style>
+    </div>
+  )
+}
+
 function RouteComponent() {
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<number | null>(null)
   const [artisans, setArtisans] = useState<ProjectTeam[]>([])
+  const [loadingTeam, setLoadingTeam] = useState(false)
+  const [refetching, setRefetching] = useState(false)
   const [showExploreModal, setShowExploreModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedRole, setSelectedRole] = useState<string | 'all'>('all')
@@ -49,28 +83,45 @@ function RouteComponent() {
   const [professionals, setProfessionals] = useState<ProfessionalProfile[]>([])
   const [loadingPros, setLoadingPros] = useState(false)
 
+  // Caches
+  const teamCacheRef = useRef<Map<number, ProjectTeam[]>>(new Map())
+  const projectsCachedRef = useRef(false)
+
   // Load projects
   useEffect(() => {
+    if (projectsCachedRef.current && projects.length > 0) return
     builderApi.getProjects()
       .then(res => {
         const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
         setProjects(data)
+        projectsCachedRef.current = true
         if (data.length > 0 && !selectedProject) setSelectedProject(data[0].id)
       })
       .catch(() => toast.error('Failed to load projects'))
   }, [])
 
-  const fetchTeam = async () => {
+  const fetchTeam = useCallback(async () => {
     if (!selectedProject) return
+    const cached = teamCacheRef.current.get(selectedProject)
+    if (cached) {
+      setArtisans(cached)
+      setRefetching(true)
+    } else {
+      setLoadingTeam(true)
+    }
     try {
       const res = await builderApi.getProjectTeam(selectedProject)
       const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
       setArtisans(data)
+      teamCacheRef.current.set(selectedProject, data)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load project team')
+    } finally {
+      setLoadingTeam(false)
+      setRefetching(false)
     }
-  }
+  }, [selectedProject])
 
   const fetchProfessionals = async () => {
     setLoadingPros(true)
@@ -95,11 +146,17 @@ function RouteComponent() {
   }, [selectedProject])
 
   const handleDelete = async (id: number) => {
+    // Optimistic delete
+    const previousArtisans = artisans
+    const updated = artisans.filter(a => a.id !== id)
+    setArtisans(updated)
+    if (selectedProject) teamCacheRef.current.set(selectedProject, updated)
     try {
       await builderApi.removeFromTeam(id)
-      setArtisans(prev => prev.filter(a => a.id !== id))
       toast.success('Artisan removed')
     } catch (err) {
+      setArtisans(previousArtisans)
+      if (selectedProject) teamCacheRef.current.set(selectedProject, previousArtisans)
       toast.error('Failed to remove artisan')
     }
   }
@@ -296,14 +353,18 @@ function RouteComponent() {
             
             {isArtisansExpanded && (
               <>
-            
-            {artisans.length === 0 ? (
-              <Card className="p-8 text-center">
-                <div className="h-16 w-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Icon name="person_add" size={32} className="text-slate-400" />
+
+            {refetching && <BuildLoadingBar />}
+
+            {loadingTeam ? (
+              <ArtisansSkeleton />
+            ) : artisans.length === 0 ? (
+              <Card className="p-6 text-center">
+                <div className="h-12 w-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Icon name="person_add" size={24} className="text-slate-400" />
                 </div>
-                <h3 className="text-lg font-medium text-slate-900 mb-2">No Artisans Assigned Yet</h3>
-                <p className="text-sm text-slate-500 max-w-md mx-auto mb-4">
+                <h3 className="text-sm font-bold text-slate-800 mb-1">No Artisans Assigned Yet</h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto mb-3">
                   Start building your team by assigning architects, contractors, and other professionals.
                 </p>
                 <Button onClick={() => setShowExploreModal(true)} className="bg-green-600 hover:bg-green-700 h-8 px-4 text-xs font-bold gap-1.5">
@@ -460,9 +521,21 @@ function RouteComponent() {
                   {/* Professionals List */}
                   <div className="grid gap-4">
                     {loadingPros ? (
-                      <div className="flex flex-col items-center justify-center py-8 space-y-3">
-                        <div className="h-10 w-10 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
-                        <p className="text-slate-500 text-sm">Searching professionals...</p>
+                      <div className="grid gap-4">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <Card key={i} className="overflow-hidden">
+                            <CardContent className="p-4">
+                              <div className="flex items-start gap-3">
+                                <div className="h-12 w-12 rounded-lg bg-slate-200 animate-pulse shrink-0" />
+                                <div className="flex-1 space-y-2">
+                                  <div className="h-4 w-40 bg-slate-200 rounded animate-pulse" />
+                                  <div className="h-3 w-56 bg-slate-100 rounded animate-pulse" />
+                                  <div className="h-3 w-32 bg-slate-100 rounded animate-pulse" />
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
                       </div>
                     ) : professionals.length === 0 ? (
                       <div className="text-center py-8 text-slate-500">

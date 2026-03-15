@@ -1,5 +1,5 @@
 import { Icon } from '@/components/ui/material-icon'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { builderApi } from '@/services/api'
 import type { MaterialAudit } from '@/types/api'
@@ -7,30 +7,85 @@ import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
+import { toast } from 'sonner'
 export const Route = createFileRoute(
   '/_authenticated/builder/project/$projectId/materials',
 )({
   component: MaterialsPage,
 })
 
+// Skeleton table for loading
+function MaterialsSkeleton() {
+    return (
+        <table className="w-full text-left">
+            <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50">
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Material</th>
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Delivered</th>
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Installed</th>
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Theoretical</th>
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Actual</th>
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Audit</th>
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i} className="border-b border-slate-50">
+                        <td className="px-4 py-3"><div className="h-4 w-24 bg-slate-200 rounded animate-pulse" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-12 bg-slate-100 rounded animate-pulse" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-12 bg-slate-100 rounded animate-pulse" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-16 bg-slate-100 rounded animate-pulse" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-16 bg-slate-200 rounded animate-pulse" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-14 bg-slate-100 rounded animate-pulse" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-6 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    )
+}
+
+function MatLoadingBar() {
+    return (
+        <div className="h-0.5 w-full bg-slate-100 overflow-hidden">
+            <div className="h-full w-1/3 bg-amber-500 rounded-full" style={{ animation: 'matShimmer 1.2s ease-in-out infinite' }} />
+            <style>{`@keyframes matShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }`}</style>
+        </div>
+    )
+}
+
 function MaterialsPage() {
     const { projectId } = Route.useParams()
     const pid = Number(projectId)
     const [audits, setAudits] = useState<MaterialAudit[]>([])
     const [loading, setLoading] = useState(true)
+    const [refetching, setRefetching] = useState(false)
     const [showForm, setShowForm] = useState(false)
     const [saving, setSaving] = useState(false)
+
+    // Cache
+    const auditsCacheRef = useRef<Map<number, MaterialAudit[]>>(new Map())
     const [form, setForm] = useState({
         material_name: '', delivered_qty: '', installed_qty: '',
         theoretical_usage: '', actual_usage: '', unit: 'bags',
     })
 
     const fetchData = async () => {
+        const cached = auditsCacheRef.current.get(pid)
+        if (cached) {
+            setAudits(cached)
+            setRefetching(true)
+        } else {
+            setLoading(true)
+        }
         try {
             const res = await builderApi.getProjectMaterialAudits(pid)
-            setAudits(Array.isArray(res.data) ? res.data : (res.data as any).results || [])
+            const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
+            setAudits(data)
+            auditsCacheRef.current.set(pid, data)
         } catch { /* empty */ }
-        finally { setLoading(false) }
+        finally { setLoading(false); setRefetching(false) }
     }
 
     useEffect(() => { fetchData() }, [pid])
@@ -57,10 +112,20 @@ function MaterialsPage() {
     }
 
     const handleDelete = async (id: number) => {
+        // Optimistic delete
+        const previousAudits = audits
+        const updated = audits.filter(a => a.id !== id)
+        setAudits(updated)
+        auditsCacheRef.current.set(pid, updated)
         try {
             await builderApi.deleteMaterialAudit(id)
-            await fetchData()
-        } catch (err) { console.error(err) }
+            toast.success('Audit deleted')
+        } catch (err) {
+            console.error(err)
+            setAudits(previousAudits)
+            auditsCacheRef.current.set(pid, previousAudits)
+            toast.error('Failed to delete audit')
+        }
     }
 
     const passedCount = audits.filter(a => a.audit_passed).length
@@ -164,15 +229,16 @@ function MaterialsPage() {
 
                     {/* Table */}
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        {refetching && <MatLoadingBar />}
                         {loading ? (
-                            <div className="flex items-center justify-center py-12">
-                                <Icon name="progress_activity" size={24} className="animate-spin text-slate-400" />
-                            </div>
+                            <MaterialsSkeleton />
                         ) : audits.length === 0 ? (
-                            <div className="text-center py-12">
-                                <Icon name="search" size={36} className="text-slate-300 mx-auto mb-2" />
-                                <p className="text-sm text-slate-400">No material audits recorded yet.</p>
-                                <p className="text-xs text-slate-400 mt-1">Click "Log Delivery" to add your first record.</p>
+                            <div className="text-center py-10">
+                                <div className="h-12 w-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 border border-slate-100">
+                                    <Icon name="search" size={24} className="text-slate-300" />
+                                </div>
+                                <h3 className="text-sm font-bold text-slate-800 mb-1">No Material Audits</h3>
+                                <p className="text-xs text-slate-500">Click "Log Delivery" to add your first record.</p>
                             </div>
                         ) : (
                             <table className="w-full text-left">

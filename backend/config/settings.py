@@ -106,7 +106,20 @@ CLAUDE_MODEL = os.getenv('CLAUDE_MODEL', 'claude-sonnet-4-20250514')
 
 # Gemini Nano Banana — Image generation only
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', os.getenv('QWEN_API_KEY', ''))
-GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image')
+GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL', 'nano-banana-2')
+
+# ── Model Context Protocol (MCP) Configuration ───────────────────────
+# List of URLs for remote MCP servers (SSE transport)
+# Adding "open" servers for Site Intelligence (Search, Maps, Weather)
+MCP_SERVERS = os.getenv('MCP_SERVERS', '').split(',')
+# Defaults for enhanced site research if none provided in env
+if not any(MCP_SERVERS):
+    MCP_SERVERS = [
+        "https://brave-search.mcp.run/sse",
+        "https://google-maps.mcp.run/sse",
+        "https://weather.mcp.run/sse",
+    ]
+MCP_SERVERS = [s.strip() for s in MCP_SERVERS if s.strip()]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

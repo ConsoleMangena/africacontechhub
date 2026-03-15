@@ -1,9 +1,10 @@
 import { Icon } from '@/components/ui/material-icon'
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { builderApi } from '@/services/api';
 import type { Project, BOQItem } from '@/types/api';
 import { toast } from 'sonner';
 import { Link, useNavigate } from '@tanstack/react-router'
+import { AiChatButton } from '@/components/ai-chat-button'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 
@@ -61,11 +62,70 @@ function evaluateFormula(formula: string, vars: FormulaVars): number | null {
     }
 }
 
+// Skeleton row for loading state
+function SkeletonRow() {
+    return (
+        <tr className="border-b border-slate-50 bg-white">
+            <td className="px-4 py-2.5"><div className="h-4 w-28 bg-slate-200 rounded animate-pulse" /></td>
+            <td className="px-4 py-2.5"><div className="h-4 w-40 bg-slate-100 rounded animate-pulse" /></td>
+            <td className="px-4 py-2.5 text-right"><div className="h-4 w-10 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+            <td className="px-4 py-2.5 text-right"><div className="h-4 w-12 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+            <td className="px-4 py-2.5 text-right"><div className="h-4 w-14 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+            <td className="px-4 py-2.5 text-right"><div className="h-4 w-16 bg-slate-200 rounded animate-pulse ml-auto" /></td>
+            <td className="px-4 py-2.5"><div className="h-4 w-12 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+        </tr>
+    );
+}
+
+function SkeletonTable() {
+    return (
+        <div>
+            {/* Skeleton category header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                    <div className="h-3.5 w-3.5 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-3.5 w-36 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-4 w-5 bg-slate-200 rounded-full animate-pulse" />
+                </div>
+                <div className="h-3.5 w-20 bg-slate-200 rounded animate-pulse" />
+            </div>
+            <table className="w-full text-left">
+                <thead>
+                    <tr className="border-b border-slate-50 bg-white">
+                        <th className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Item</th>
+                        <th className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Description</th>
+                        <th className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-right">Unit</th>
+                        <th className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-right">Qty</th>
+                        <th className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-right">Rate</th>
+                        <th className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-right">Total</th>
+                        <th className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider w-20"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+// Thin animated loading bar
+function LoadingBar() {
+    return (
+        <div className="h-0.5 w-full bg-slate-100 overflow-hidden">
+            <div className="h-full w-1/3 bg-emerald-500 rounded-full animate-[shimmer_1.2s_ease-in-out_infinite]"
+                style={{ animation: 'shimmer 1.2s ease-in-out infinite' }} />
+            <style>{`@keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } } @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+        </div>
+    );
+}
+
 export default function BOQMeasurements() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [selectedProject, setSelectedProject] = useState<number | null>(null);
     const [items, setItems] = useState<BOQItem[]>([]);
     const [loading, setLoading] = useState(false);
+    const [refetching, setRefetching] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
@@ -77,15 +137,21 @@ export default function BOQMeasurements() {
     const user = useAuthStore(state => state.auth.user);
     const navigate = useNavigate();
 
+    // In-memory cache for BOQ items per project
+    const itemsCacheRef = useRef<Map<number, BOQItem[]>>(new Map());
+    const projectsCachedRef = useRef(false);
+
     // Fetch projects on mount — with cleanup to prevent stale updates from StrictMode double-mount
     useEffect(() => {
+        if (projectsCachedRef.current && projects.length > 0) return;
         let cancelled = false;
         builderApi.getProjects()
             .then(res => {
                 if (cancelled) return;
                 const data = Array.isArray(res.data) ? res.data : (res.data as any).results || [];
                 setProjects(data);
-                if (data.length > 0) setSelectedProject(data[0].id);
+                projectsCachedRef.current = true;
+                if (data.length > 0 && !selectedProject) setSelectedProject(data[0].id);
             })
             .catch(() => {
                 if (!cancelled) toast.error('Failed to load projects');
@@ -95,39 +161,54 @@ export default function BOQMeasurements() {
 
     const loadItems = useCallback(() => {
         if (!selectedProject) return;
-        setLoading(true);
+        const hasCached = itemsCacheRef.current.has(selectedProject);
+        if (hasCached) {
+            setRefetching(true);
+        } else {
+            setLoading(true);
+        }
         builderApi.getProjectBOQItems(selectedProject)
             .then(res => {
                 const data = Array.isArray(res.data) ? res.data : (res.data as any).results || [];
                 setItems(data);
+                itemsCacheRef.current.set(selectedProject, data);
             })
             .catch(() => toast.error('Failed to load BOQ items'))
-            .finally(() => setLoading(false));
+            .finally(() => { setLoading(false); setRefetching(false); });
     }, [selectedProject]);
 
-    // Fetch BOQ items when project changes — with cleanup
+    // Fetch BOQ items when project changes — stale-while-revalidate
     useEffect(() => {
         let cancelled = false;
         if (!selectedProject) return;
-        
+
         // Sync budget signing status from project object
         const project = projects.find(p => p.id === selectedProject);
         if (project) {
             setIsBudgetSigned(project.is_budget_signed);
         }
 
-        setLoading(true);
+        // Show cached data immediately if available
+        const cached = itemsCacheRef.current.get(selectedProject);
+        if (cached) {
+            setItems(cached);
+            setRefetching(true);
+        } else {
+            setLoading(true);
+        }
+
         builderApi.getProjectBOQItems(selectedProject)
             .then(res => {
                 if (cancelled) return;
                 const data = Array.isArray(res.data) ? res.data : (res.data as any).results || [];
                 setItems(data);
+                itemsCacheRef.current.set(selectedProject, data);
             })
             .catch(() => {
                 if (!cancelled) toast.error('Failed to load BOQ items');
             })
             .finally(() => {
-                if (!cancelled) setLoading(false);
+                if (!cancelled) { setLoading(false); setRefetching(false); }
             });
         return () => { cancelled = true; };
     }, [selectedProject]);
@@ -149,7 +230,7 @@ export default function BOQMeasurements() {
                 });
                 toast.success('Item added');
             }
-            // Refresh
+            // Refresh and update cache
             loadItems();
             resetForm();
         } catch (err) {
@@ -177,17 +258,24 @@ export default function BOQMeasurements() {
     };
 
     const handleDelete = async (id: number) => {
+        // Optimistic delete — remove immediately, restore on failure
+        const previousItems = items;
+        const updatedItems = items.filter(i => i.id !== id);
+        setItems(updatedItems);
+        if (selectedProject) itemsCacheRef.current.set(selectedProject, updatedItems);
+        setConfirmDeleteId(null);
         setDeleting(id);
         try {
             await builderApi.deleteBOQItem(id);
-            setItems(prev => prev.filter(i => i.id !== id));
             toast.success('Item deleted');
         } catch (err) {
             console.error(err);
+            // Restore on failure
+            setItems(previousItems);
+            if (selectedProject) itemsCacheRef.current.set(selectedProject, previousItems);
             toast.error('Failed to delete item');
         } finally {
             setDeleting(null);
-            setConfirmDeleteId(null);
         }
     };
 
@@ -506,234 +594,243 @@ export default function BOQMeasurements() {
                             <Icon name="close" size={16} className="text-slate-400" />
                         </button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Trade Bill (Category)</label>
-                            <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
-                                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Item Name</label>
-                            <input value={form.item_name} onChange={e => setForm({...form, item_name: e.target.value})} placeholder="e.g. Strip Footing" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Unit</label>
-                            <select value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
-                                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Description</label>
-                        <input value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="Detailed description of the work item" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div>
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Rate ($)</label>
-                            <input value={form.rate} onChange={e => setForm({...form, rate: e.target.value})} placeholder="0.00" type="number" step="0.01" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Labour Rate ($)</label>
-                            <input value={form.labour_rate} onChange={e => setForm({...form, labour_rate: e.target.value})} placeholder="Optional" type="number" step="0.01" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Unit</label>
-                            <select value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
-                                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Formula</label>
-                            <input 
-                                value={form.measurement_formula} 
-                                onChange={e => {
-                                    const newFormula = e.target.value;
-                                    setForm(prev => {
-                                        const vars: FormulaVars = {
-                                            L: parseFloat(prev.var_L || '0') || 0,
-                                            W: parseFloat(prev.var_W || '0') || 0,
-                                            H: parseFloat(prev.var_H || '0') || 0,
-                                            D: parseFloat(prev.var_D || '0') || 0,
-                                        };
-                                        const calculated = evaluateFormula(newFormula, vars);
-                                        return {
-                                            ...prev,
-                                            measurement_formula: newFormula,
-                                            quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
-                                        };
-                                    });
-                                }} 
-                                placeholder="e.g. L*W*H" 
-                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" 
-                            />
-                        </div>
-                    </div>
-
-                    {/* Formula Variables - Show when formula has variables */}
-                    {form.measurement_formula && /[LWHDI]/i.test(form.measurement_formula) && (
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-                            <div className="flex items-center gap-2">
-                                <Icon name="calculate" size={16} className="text-slate-500" />
-                                <span className="text-xs font-semibold text-slate-600">Formula Calculator</span>
-                                <span className="text-xs text-slate-400 font-mono bg-white px-2 py-0.5 rounded border">{form.measurement_formula}</span>
-                            </div>
-                            <div className="grid grid-cols-4 gap-3">
-                                <div>
-                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Length (L)</label>
-                                    <input 
-                                        value={form.var_L} 
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            setForm(prev => {
-                                                const vars: FormulaVars = {
-                                                    L: parseFloat(val || '0') || 0,
-                                                    W: parseFloat(prev.var_W || '0') || 0,
-                                                    H: parseFloat(prev.var_H || '0') || 0,
-                                                    D: parseFloat(prev.var_D || '0') || 0,
-                                                };
-                                                const calculated = evaluateFormula(prev.measurement_formula, vars);
-                                                return {
-                                                    ...prev,
-                                                    var_L: val,
-                                                    quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
-                                                };
-                                            });
-                                        }} 
-                                        placeholder="0.00" 
-                                        type="number" 
-                                        step="0.01" 
-                                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" 
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Width (W)</label>
-                                    <input 
-                                        value={form.var_W} 
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            setForm(prev => {
-                                                const vars: FormulaVars = {
-                                                    L: parseFloat(prev.var_L || '0') || 0,
-                                                    W: parseFloat(val || '0') || 0,
-                                                    H: parseFloat(prev.var_H || '0') || 0,
-                                                    D: parseFloat(prev.var_D || '0') || 0,
-                                                };
-                                                const calculated = evaluateFormula(prev.measurement_formula, vars);
-                                                return {
-                                                    ...prev,
-                                                    var_W: val,
-                                                    quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
-                                                };
-                                            });
-                                        }} 
-                                        placeholder="0.00" 
-                                        type="number" 
-                                        step="0.01" 
-                                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" 
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Height (H)</label>
-                                    <input 
-                                        value={form.var_H} 
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            setForm(prev => {
-                                                const vars: FormulaVars = {
-                                                    L: parseFloat(prev.var_L || '0') || 0,
-                                                    W: parseFloat(prev.var_W || '0') || 0,
-                                                    H: parseFloat(val || '0') || 0,
-                                                    D: parseFloat(prev.var_D || '0') || 0,
-                                                };
-                                                const calculated = evaluateFormula(prev.measurement_formula, vars);
-                                                return {
-                                                    ...prev,
-                                                    var_H: val,
-                                                    quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
-                                                };
-                                            });
-                                        }} 
-                                        placeholder="0.00" 
-                                        type="number" 
-                                        step="0.01" 
-                                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" 
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Depth/Dia (D)</label>
-                                    <input 
-                                        value={form.var_D} 
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            setForm(prev => {
-                                                const vars: FormulaVars = {
-                                                    L: parseFloat(prev.var_L || '0') || 0,
-                                                    W: parseFloat(prev.var_W || '0') || 0,
-                                                    H: parseFloat(prev.var_H || '0') || 0,
-                                                    D: parseFloat(val || '0') || 0,
-                                                };
-                                                const calculated = evaluateFormula(prev.measurement_formula, vars);
-                                                return {
-                                                    ...prev,
-                                                    var_D: val,
-                                                    quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
-                                                };
-                                            });
-                                        }} 
-                                        placeholder="0.00" 
-                                        type="number" 
-                                        step="0.01" 
-                                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" 
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-500">
-                                <span>Use L, W, H, D in formula. Operators: + - * / ( )</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Manual Quantity Override */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                Calculated Quantity
-                                {form.measurement_formula && <span className="text-[10px] text-emerald-600 font-normal">(auto from formula)</span>}
-                            </label>
-                            <input 
-                                value={form.quantity} 
-                                onChange={e => setForm({...form, quantity: e.target.value})} 
-                                placeholder="0" 
-                                type="number" 
-                                step="0.01" 
-                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 bg-slate-50" 
-                            />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Formula Reference</label>
-                            <input 
-                                value={form.measurement_formula} 
-                                readOnly
-                                placeholder="No formula set" 
-                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 bg-slate-100 text-slate-500" 
-                            />
-                        </div>
-                    </div>
-                    {/* Live total preview */}
-                    {form.quantity && form.rate && (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 text-sm flex items-center justify-between">
+                    {/* Section 1 — Item Details */}
+                    <div className="space-y-3">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Item Details</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div>
-                                <span className="text-emerald-700 font-medium">Line Total: </span>
-                                <span className="text-emerald-800 font-bold">
-                                    ${(parseFloat(form.quantity || '0') * parseFloat(form.rate || '0')).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                </span>
+                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Trade Bill (Category)</label>
+                                <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
                             </div>
-                            {form.category.includes('Provisional') && (
-                                <span className="text-[10px] uppercase font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">Cost Estimate</span>
-                            )}
+                            <div>
+                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Item Name</label>
+                                <input value={form.item_name} onChange={e => setForm({...form, item_name: e.target.value})} placeholder="e.g. Strip Footing" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Unit</label>
+                                <select value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+                                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                                </select>
+                            </div>
                         </div>
-                    )}
+                        <div>
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Description</label>
+                            <input value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="Detailed description of the work item" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                        </div>
+                    </div>
+
+                    <hr className="border-slate-100" />
+
+                    {/* Section 2 — Quantity & Measurement */}
+                    <div className="space-y-3">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quantity & Measurement</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                    Quantity
+                                    {form.measurement_formula && <span className="text-[10px] text-emerald-600 font-normal">(auto from formula)</span>}
+                                </label>
+                                <input
+                                    value={form.quantity}
+                                    onChange={e => setForm({...form, quantity: e.target.value})}
+                                    placeholder="0"
+                                    type="number"
+                                    step="0.01"
+                                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Formula (optional)</label>
+                                <input
+                                    value={form.measurement_formula}
+                                    onChange={e => {
+                                        const newFormula = e.target.value;
+                                        setForm(prev => {
+                                            const vars: FormulaVars = {
+                                                L: parseFloat(prev.var_L || '0') || 0,
+                                                W: parseFloat(prev.var_W || '0') || 0,
+                                                H: parseFloat(prev.var_H || '0') || 0,
+                                                D: parseFloat(prev.var_D || '0') || 0,
+                                            };
+                                            const calculated = evaluateFormula(newFormula, vars);
+                                            return {
+                                                ...prev,
+                                                measurement_formula: newFormula,
+                                                quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
+                                            };
+                                        });
+                                    }}
+                                    placeholder="e.g. L*W*H"
+                                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                />
+                            </div>
+                            <div className="flex items-end pb-1">
+                                {form.measurement_formula && form.quantity && (
+                                    <span className="text-xs text-slate-500">= <span className="font-semibold text-slate-700">{parseFloat(form.quantity || '0').toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> {form.unit}</span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Formula Variables - Show when formula has variables */}
+                        {form.measurement_formula && /[LWHDI]/i.test(form.measurement_formula) && (
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <Icon name="calculate" size={16} className="text-slate-500" />
+                                    <span className="text-xs font-semibold text-slate-600">Formula Calculator</span>
+                                    <span className="text-xs text-slate-400 font-mono bg-white px-2 py-0.5 rounded border">{form.measurement_formula}</span>
+                                </div>
+                                <div className="grid grid-cols-4 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Length (L)</label>
+                                        <input
+                                            value={form.var_L}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                setForm(prev => {
+                                                    const vars: FormulaVars = {
+                                                        L: parseFloat(val || '0') || 0,
+                                                        W: parseFloat(prev.var_W || '0') || 0,
+                                                        H: parseFloat(prev.var_H || '0') || 0,
+                                                        D: parseFloat(prev.var_D || '0') || 0,
+                                                    };
+                                                    const calculated = evaluateFormula(prev.measurement_formula, vars);
+                                                    return {
+                                                        ...prev,
+                                                        var_L: val,
+                                                        quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
+                                                    };
+                                                });
+                                            }}
+                                            placeholder="0.00"
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Width (W)</label>
+                                        <input
+                                            value={form.var_W}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                setForm(prev => {
+                                                    const vars: FormulaVars = {
+                                                        L: parseFloat(prev.var_L || '0') || 0,
+                                                        W: parseFloat(val || '0') || 0,
+                                                        H: parseFloat(prev.var_H || '0') || 0,
+                                                        D: parseFloat(prev.var_D || '0') || 0,
+                                                    };
+                                                    const calculated = evaluateFormula(prev.measurement_formula, vars);
+                                                    return {
+                                                        ...prev,
+                                                        var_W: val,
+                                                        quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
+                                                    };
+                                                });
+                                            }}
+                                            placeholder="0.00"
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Height (H)</label>
+                                        <input
+                                            value={form.var_H}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                setForm(prev => {
+                                                    const vars: FormulaVars = {
+                                                        L: parseFloat(prev.var_L || '0') || 0,
+                                                        W: parseFloat(prev.var_W || '0') || 0,
+                                                        H: parseFloat(val || '0') || 0,
+                                                        D: parseFloat(prev.var_D || '0') || 0,
+                                                    };
+                                                    const calculated = evaluateFormula(prev.measurement_formula, vars);
+                                                    return {
+                                                        ...prev,
+                                                        var_H: val,
+                                                        quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
+                                                    };
+                                                });
+                                            }}
+                                            placeholder="0.00"
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Depth/Dia (D)</label>
+                                        <input
+                                            value={form.var_D}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                setForm(prev => {
+                                                    const vars: FormulaVars = {
+                                                        L: parseFloat(prev.var_L || '0') || 0,
+                                                        W: parseFloat(prev.var_W || '0') || 0,
+                                                        H: parseFloat(prev.var_H || '0') || 0,
+                                                        D: parseFloat(val || '0') || 0,
+                                                    };
+                                                    const calculated = evaluateFormula(prev.measurement_formula, vars);
+                                                    return {
+                                                        ...prev,
+                                                        var_D: val,
+                                                        quantity: calculated !== null ? String(calculated.toFixed(2)) : prev.quantity
+                                                    };
+                                                });
+                                            }}
+                                            placeholder="0.00"
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                    <span>Use L, W, H, D in formula. Operators: + - * / ( )</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <hr className="border-slate-100" />
+
+                    {/* Section 3 — Pricing */}
+                    <div className="space-y-3">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pricing</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Material Rate ($)</label>
+                                <input value={form.rate} onChange={e => setForm({...form, rate: e.target.value})} placeholder="0.00" type="number" step="0.01" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Labour Rate ($, optional)</label>
+                                <input value={form.labour_rate} onChange={e => setForm({...form, labour_rate: e.target.value})} placeholder="0.00" type="number" step="0.01" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                            </div>
+                            <div className="flex items-end pb-1">
+                                {form.quantity && form.rate ? (
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 w-full flex items-center justify-between">
+                                        <div className="text-sm">
+                                            <span className="text-emerald-700 font-medium">Total: </span>
+                                            <span className="text-emerald-800 font-bold">
+                                                ${(parseFloat(form.quantity || '0') * parseFloat(form.rate || '0')).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                        {form.category.includes('Provisional') && (
+                                            <span className="text-[10px] uppercase font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">Estimate</span>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <span className="text-xs text-slate-400 pb-2">Enter quantity & rate to see total</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                     <div className="flex justify-end gap-2 pt-2">
                         <button onClick={resetForm} className="text-xs font-semibold text-slate-500 hover:text-slate-700 px-4 py-2">Cancel</button>
                         <button onClick={handleSubmit} disabled={saving || !form.item_name || !form.quantity || !form.rate} className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-5 py-2 rounded-lg transition-colors flex items-center gap-1.5">
@@ -746,29 +843,29 @@ export default function BOQMeasurements() {
 
             {/* BOQ Table — grouped by category */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                {/* Background refetch loading bar */}
+                {refetching && <LoadingBar />}
                 {!selectedProject ? (
                     <div className="text-center py-12">
                         <Icon name="assignment" size={36} className="text-slate-300 mx-auto mb-2" />
                         <p className="text-sm text-slate-400">Select a project to view its BOQ.</p>
                     </div>
                 ) : loading ? (
-                    <div className="flex items-center justify-center py-12">
-                        <Icon name="progress_activity" className="h-6 w-6 animate-spin text-slate-400" />
-                    </div>
+                    <SkeletonTable />
                 ) : items.length === 0 ? (
-                    <div className="text-center py-16 px-4">
-                        <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                            <Icon name="assignment" size={32} className="text-slate-300" />
+                    <div className="text-center py-10 px-4">
+                        <div className="h-12 w-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 border border-slate-100">
+                            <Icon name="assignment" size={24} className="text-slate-300" />
                         </div>
-                        <h3 className="text-lg font-bold text-slate-800 mb-2">No Budget Items</h3>
-                        <p className="text-sm text-slate-500 max-w-sm mx-auto mb-6">
+                        <h3 className="text-sm font-bold text-slate-800 mb-1">No Budget Items</h3>
+                        <p className="text-xs text-slate-500 max-w-xs mx-auto mb-4">
                             Start building your construction budget by adding items manually.
                         </p>
                         <button
                             onClick={() => setShowForm(true)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg flex items-center gap-2 transition-colors shadow-sm mx-auto"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold h-8 px-4 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm mx-auto"
                         >
-                            <Icon name="add" size={16} /> Add First Item
+                            <Icon name="add" size={14} /> Add First Item
                         </button>
                     </div>
                 ) : (
@@ -806,7 +903,7 @@ export default function BOQMeasurements() {
                                             </thead>
                                             <tbody>
                                                 {catItems.map(item => (
-                                                    <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group bg-white">
+                                                    <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-all duration-200 group bg-white animate-[fadeIn_0.2s_ease-in]">
                                                         <td className="px-4 py-2.5 text-sm font-medium text-slate-800">
                                                             {item.item_name}
                                                             {category.includes('Provisional') && (
@@ -906,6 +1003,10 @@ export default function BOQMeasurements() {
                     </div>
                 )}
             </div>
+            {selectedProject && (() => {
+                const project = projects.find(p => p.id === selectedProject);
+                return project ? <AiChatButton project={project} /> : null;
+            })()}
         </div>
     );
 }

@@ -14,10 +14,9 @@ import { useState, useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Route } from '@/routes/_authenticated/builder'
-import { ActionCenter, ESignaturesPending } from './action-center'
 import { LiveCameras } from './live-cameras'
 import { EscrowRelease } from './escrow-release'
-import { JitCapitalScheduler, GroupBuyAggregator, ActOfGodValidator, MaterialDetective } from './premium-widgets'
+import { ActOfGodValidator } from './premium-widgets'
 
 // Fix for default marker icons in Leaflet with Vite
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -179,7 +178,7 @@ export function DifyDashboard({ project }: DifyDashboardProps) {
 
 
             {/* Compact Stats Row */}
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
                 <Card className="border-border/60 bg-gradient-to-br from-teal-50/50 to-white">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-2 mb-2">
@@ -220,6 +219,36 @@ export function DifyDashboard({ project }: DifyDashboardProps) {
                         <span className="text-base font-semibold text-foreground line-clamp-2">
                             {project.location || 'Not specified'}
                         </span>
+                    </CardContent>
+                </Card>
+                <Card className="border-border/60 bg-gradient-to-br from-green-50/50 to-white">
+                    <CardContent className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="h-8 w-8 rounded-lg bg-green-100 flex items-center justify-center">
+                                <Icon name="credit_card" size={16} className="text-green-600" />
+                            </div>
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Escrow</p>
+                        </div>
+                        <span className="text-2xl font-bold font-display tracking-tight text-green-600">
+                            $45,000
+                        </span>
+                        <p className="text-[10px] text-muted-foreground mt-1">Funds held in escrow</p>
+                    </CardContent>
+                </Card>
+                <Card className={`border-border/60 ${project.si56_verified ? 'bg-gradient-to-br from-green-50/50 to-white' : 'bg-gradient-to-br from-slate-50 to-white'}`}>
+                    <CardContent className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${project.si56_verified ? 'bg-green-100' : 'bg-slate-100'}`}>
+                                <Icon name="check_circle" size={16} className={project.si56_verified ? 'text-green-600' : 'text-slate-500'} />
+                            </div>
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Compliance</p>
+                        </div>
+                        <span className="text-base font-semibold text-foreground">
+                            {project.si56_verified ? 'SI 56 Verified' : 'Pending Verification'}
+                        </span>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                            {project.si56_verified ? 'Complies with SI 56 of 2025.' : 'Verification is in progress.'}
+                        </p>
                     </CardContent>
                 </Card>
             </div>
@@ -323,25 +352,14 @@ export function DifyDashboard({ project }: DifyDashboardProps) {
                             <p className="text-[11px] uppercase text-muted-foreground font-semibold">Budget Flexibility</p>
                             <p className="text-foreground">{displayValue(project.budget_flex)}</p>
                         </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-                <Card className="border-border/60 bg-card">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-semibold font-display">Site Notes</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0 text-sm text-muted-foreground min-h-[72px] whitespace-pre-line">
-                        {displayValue(project.site_notes)}
-                    </CardContent>
-                </Card>
-                <Card className="border-border/60 bg-card">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-semibold font-display">Constraints</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0 text-sm text-muted-foreground min-h-[72px] whitespace-pre-line">
-                        {displayValue(project.constraints)}
+                        <div className="col-span-2 border-t border-border/40 pt-3 mt-1">
+                            <p className="text-[11px] uppercase text-muted-foreground font-semibold">Site Notes</p>
+                            <p className="text-foreground whitespace-pre-line">{displayValue(project.site_notes)}</p>
+                        </div>
+                        <div className="col-span-2">
+                            <p className="text-[11px] uppercase text-muted-foreground font-semibold">Constraints</p>
+                            <p className="text-foreground whitespace-pre-line">{displayValue(project.constraints)}</p>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
@@ -435,114 +453,40 @@ export function DifyDashboard({ project }: DifyDashboardProps) {
                 </CardContent>
             </Card>
 
-            {/* Map + Sidebar — balanced 3/2 split */}
-            <div className="grid gap-5 lg:grid-cols-5 items-stretch">
-                {/* Location Map */}
-                <Card className="lg:col-span-3 border-border/60 bg-card flex flex-col">
-                    <CardHeader className="pb-2 flex-none">
-                        <CardTitle className="text-sm font-semibold font-display flex items-center gap-2">
-                            <Icon name="location_on" size={16} className="text-primary" />
-                            Project Location
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pb-4 flex-1 flex flex-col">
-                        {project.latitude && project.longitude ? (
-                            <div className="rounded-lg overflow-hidden border border-border/60 flex-1 relative min-h-[250px]">
-                                <div className="absolute inset-0">
-                                    <ProjectMap lat={Number(project.latitude)} lng={Number(project.longitude)} />
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="text-center py-8 text-muted-foreground">
-                                <Icon name="location_on" size={32} className="mx-auto mb-2 opacity-40" />
-                                <p className="text-xs">No location coordinates set.</p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+            {/* Location Map */}
+            <Card className="border-border/60 bg-card">
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-semibold font-display flex items-center gap-2">
+                        <Icon name="location_on" size={16} className="text-primary" />
+                        Project Location
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="pb-4">
+                    {project.latitude && project.longitude ? (
+                        <div className="rounded-lg overflow-hidden border border-border/60 h-[350px] isolate">
+                            <ProjectMap lat={Number(project.latitude)} lng={Number(project.longitude)} />
+                        </div>
+                    ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                            <Icon name="location_on" size={32} className="mx-auto mb-2 opacity-40" />
+                            <p className="text-xs">No location coordinates set.</p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
-                {/* Sidebar Cards — compact stack */}
-                <div className="lg:col-span-2 space-y-4">
-
-                    {/* Escrow Status */}
-                    <Card className="border-border/60 bg-card">
-                        <CardContent className="p-4">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Icon name="credit_card" size={16} className="text-primary" />
-                                <span className="text-sm font-semibold font-display">Escrow Status</span>
-                            </div>
-                            <div className="flex items-center justify-between p-2.5 bg-muted/50 rounded-lg border border-border/60 mb-2.5">
-                                <span className="text-xs text-muted-foreground">Funds Held</span>
-                                <span className="text-sm font-bold text-green-600">$45,000.00</span>
-                            </div>
-                            <Button variant="outline" size="sm" className="w-full hover:bg-green-50 hover:border-green-300 hover:text-green-700 rounded-lg text-xs h-8">
-                                View Transactions
-                            </Button>
-                        </CardContent>
-                    </Card>
-
-                    {/* Compliance */}
-                    <Card className="border-border/60 bg-card">
-                        <CardContent className="p-4">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Icon name="check_circle" size={16} className="text-primary" />
-                                <span className="text-sm font-semibold font-display">Compliance</span>
-                            </div>
-                            <div className={`flex items-center gap-2.5 p-2.5 rounded-lg border ${project.si56_verified ? 'bg-green-50 border-green-200' : 'bg-muted/50 border-border/60'}`}>
-                                <div className={`h-7 w-7 rounded-md flex items-center justify-center shrink-0 ${project.si56_verified ? 'bg-green-100' : 'bg-muted'}`}>
-                                    {project.si56_verified ? (
-                                        <Icon name="check_circle" size={14} className="text-green-600" />
-                                    ) : (
-                                        <Icon name="schedule" size={14} className="text-muted-foreground" />
-                                    )}
-                                </div>
-                                <div>
-                                    <div className="text-xs font-medium text-foreground">
-                                        {project.si56_verified ? 'SI 56 Verified' : 'Verification Pending'}
-                                    </div>
-                                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                                        {project.si56_verified
-                                            ? 'Complies with SI 56 of 2025.'
-                                            : 'Verification is in progress.'}
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
-
-            {/* Project Tools — contextual by status */}
-            {(project.status === 'IN_PROGRESS' || project.status === 'PLANNING') && (
+            {/* Construction Tools */}
+            {project.status === 'IN_PROGRESS' && (
                 <div className="space-y-5">
-                    {/* Always show Action Center and E-Signatures for active/planning projects */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                        <ActionCenter unverifiedUpdates={dashboard?.unverified_updates || []} />
-                        <div className="space-y-5">
-                            <ESignaturesPending requests={dashboard?.esignature_requests} projectId={project.id} />
-                        </div>
+                    <div className="flex items-center gap-2 pt-2">
+                        <Icon name="construction" size={16} className="text-muted-foreground" />
+                        <h3 className="text-sm font-semibold font-display text-muted-foreground uppercase tracking-wider">Construction Tools</h3>
                     </div>
-
-                    {project.status === 'IN_PROGRESS' && (
-                        <>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                                <LiveCameras cameras={dashboard?.site_cameras} projectId={project.id} onDataChange={fetchDashboard} />
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                                <EscrowRelease milestones={dashboard?.escrow_milestones} projectId={project.id} onDataChange={fetchDashboard} />
-                                <ActOfGodValidator events={dashboard?.weather_events} projectId={project.id} onDataChange={fetchDashboard} />
-                                <MaterialDetective audits={dashboard?.material_audits} projectId={project.id} onManage={() => navigate({ to: `/builder/project/${project.id}/materials` })} />
-                            </div>
-                        </>
-                    )}
-
-                    {project.status === 'PLANNING' && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                            <JitCapitalScheduler schedule={dashboard?.capital_schedule} projectId={project.id} onDataChange={fetchDashboard} />
-                            <GroupBuyAggregator />
-                            <MaterialDetective audits={dashboard?.material_audits} projectId={project.id} onManage={() => navigate({ to: `/builder/project/${project.id}/materials` })} />
-                        </div>
-                    )}
+                    <LiveCameras cameras={dashboard?.site_cameras} projectId={project.id} onDataChange={fetchDashboard} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <EscrowRelease milestones={dashboard?.escrow_milestones} projectId={project.id} onDataChange={fetchDashboard} />
+                        <ActOfGodValidator events={dashboard?.weather_events} projectId={project.id} onDataChange={fetchDashboard} />
+                    </div>
                 </div>
             )}
         </div>

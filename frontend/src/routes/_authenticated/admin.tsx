@@ -4,17 +4,18 @@ import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { cn } from '@/lib/utils'
+import { Icon } from '@/components/ui/material-icon'
 
 export const Route = createFileRoute('/_authenticated/admin')({
   component: AdminLayout,
 })
 
 const adminNavigation = [
-  { name: 'Overview', href: '/admin', icon: LayoutDashboard },
-  { name: 'Users & Requests', href: '/admin/users', icon: Users },
-  { name: 'Knowledge Base', href: '/admin/knowledge-base', icon: BookOpen },
-  { name: 'Floor Plans', href: '/admin/floor-plans', icon: Image },
-  { name: 'AI Command Center', href: '/admin/ai-command-center', icon: BrainCircuit },
+  { name: 'Overview', href: '/admin', icon: 'dashboard' },
+  { name: 'Users & Requests', href: '/admin/users', icon: 'group' },
+  { name: 'Knowledge Base', href: '/admin/knowledge-base', icon: 'menu_book' },
+  { name: 'Floor Plans', href: '/admin/floor-plans', icon: 'image' },
+  { name: 'AI Command Center', href: '/admin/ai-command-center', icon: 'psychology' },
 ]
 
 function AdminLayout() {
@@ -53,7 +54,7 @@ function AdminLayout() {
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                <item.icon className={cn("h-4 w-4", isActive ? "text-indigo-600" : "text-muted-foreground")} />
+                <Icon name={item.icon} size={16} className={cn(isActive ? "text-indigo-600" : "text-muted-foreground")} />
                 {item.name}
               </Link>
             )

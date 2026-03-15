@@ -24,6 +24,7 @@ from .models import (
     BOQTemplate, SiteIntel,
 )
 from apps.builder_dashboard.models import Project
+from .mcp_manager import sync_get_mcp_tools, sync_execute_mcp_tool
 
 logger = logging.getLogger(__name__)
 
@@ -296,11 +297,20 @@ def _build_site_intel_prompt(project: Project) -> str:
         lines.append(f"Site notes: {project.site_notes}")
     if project.constraints:
         lines.append(f"Constraints: {project.constraints}")
+
+    # Latest Site Updates for context
+    updates = project.site_updates.all()[:3]
+    if updates.exists():
+        lines.append("\nRecent Site Updates:")
+        for u in updates:
+            geo = f" (Geo: {u.geo_location})" if u.geo_location else ""
+            lines.append(f"- {u.description}{geo}")
+
     lines.append(
-        "Generate concise site intelligence in JSON only: { 'summary': string, "
+        "\nGenerate concise site intelligence in JSON only: { 'summary': string, "
         "'insights': [{ 'aspect': string, 'finding': string, 'risk': string, 'recommendation': string }] }."
     )
-    lines.append("No markdown or tables. If data is limited, make reasonable assumptions and state them.")
+    lines.append("No markdown or tables. Use the location, coordinates, and site notes to research local zoning, regulations, and neighborhood facts.")
     return "\n".join(lines)
 
 
@@ -603,9 +613,10 @@ def _call_claude_with_tools(messages: list, system: str = "", max_tokens: int = 
     from langchain_anthropic import ChatAnthropic
     from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
+    mcp_tools = sync_get_mcp_tools()
+    all_tool_defs = _TOOL_DEFINITIONS + mcp_tools
     llm = _get_claude_llm(temperature=temperature, max_tokens=max_tokens)
-
-    llm_with_tools = llm.bind_tools(_TOOL_DEFINITIONS)
+    llm_with_tools = llm.bind_tools(all_tool_defs)
     lc_messages = _build_lc_messages(messages, system=system, images=images)
 
     # Tool loop — max 5 rounds to prevent infinite loops
@@ -621,6 +632,7 @@ def _call_claude_with_tools(messages: list, system: str = "", max_tokens: int = 
         for tool_call in response.tool_calls:
             fn_name = tool_call["name"]
             fn_args = tool_call["args"]
+            
             tool_fn = _TOOL_MAP.get(fn_name)
             if tool_fn:
                 try:
@@ -628,7 +640,8 @@ def _call_claude_with_tools(messages: list, system: str = "", max_tokens: int = 
                 except Exception as e:
                     result = {"error": str(e)}
             else:
-                result = {"error": f"Unknown tool: {fn_name}"}
+                # Try MCP execution as fallback
+                result = sync_execute_mcp_tool(fn_name, fn_args)
 
             lc_messages.append(ToolMessage(
                 content=json.dumps(result),
@@ -648,9 +661,10 @@ def _stream_claude_with_tools(messages: list, system: str = "", max_tokens: int 
     from langchain_anthropic import ChatAnthropic
     from langchain_core.messages import ToolMessage
 
+    mcp_tools = sync_get_mcp_tools()
+    all_tool_defs = _TOOL_DEFINITIONS + mcp_tools
     llm = _get_claude_llm(temperature=temperature, max_tokens=max_tokens)
-
-    llm_with_tools = llm.bind_tools(_TOOL_DEFINITIONS)
+    llm_with_tools = llm.bind_tools(all_tool_defs)
     lc_messages = _build_lc_messages(messages, system=system, images=images)
 
     # Tool loop — max 5 rounds
@@ -666,6 +680,7 @@ def _stream_claude_with_tools(messages: list, system: str = "", max_tokens: int 
         for tool_call in response.tool_calls:
             fn_name = tool_call["name"]
             fn_args = tool_call["args"]
+            
             tool_fn = _TOOL_MAP.get(fn_name)
             if tool_fn:
                 try:
@@ -673,7 +688,8 @@ def _stream_claude_with_tools(messages: list, system: str = "", max_tokens: int 
                 except Exception as e:
                     result = {"error": str(e)}
             else:
-                result = {"error": f"Unknown tool: {fn_name}"}
+                # Try MCP execution
+                result = sync_execute_mcp_tool(fn_name, fn_args)
 
             lc_messages.append(ToolMessage(
                 content=json.dumps(result),
@@ -694,6 +710,82 @@ def _stream_claude_with_tools(messages: list, system: str = "", max_tokens: int 
             yield f"data: {json.dumps({'type': 'token', 'content': chunk.content})}\n\n"
 
     yield "data: [DONE]\n\n"
+
+
+# ── Project Context Helper ──────────────────────────────────────────
+
+def _get_project_context(project) -> str:
+    """
+    Format all available project survey/brief data into a structured string
+    for the AI to understand the building's requirements and site conditions.
+    """
+    if not project:
+        return ""
+
+    lines = [
+        f"Project Title: {project.title}",
+        f"Location: {project.location}",
+        f"Engagement Tier: {project.get_engagement_tier_display()}",
+        f"SI-56 Verified: {'Yes' if project.si56_verified else 'No'}",
+        f"Budget Signed: {'Yes' if project.is_budget_signed else 'No'}",
+        f"Assigned Architect: {project.architect.username if project.architect else 'None'}",
+        f"Building Type: {project.building_type or 'Not specified'}",
+        f"Use Case: {project.use_case or 'Not specified'}",
+        f"Bedrooms: {project.bedrooms or 'Not specified'}",
+        f"Bathrooms: {project.bathrooms or 'Not specified'}",
+        f"Occupants: {project.occupants or 'Not specified'}",
+        f"Floors: {project.floors or 'Not specified'}",
+        f"Preferred Architectural Style: {project.preferred_style or 'Not specified'}",
+        f"Roof Type: {project.roof_type or 'Not specified'}",
+        f"Has Garage: {'Yes' if project.has_garage else 'No' if project.has_garage is False else 'Not specified'}",
+        f"Parking Spaces: {project.parking_spaces or 'Not specified'}",
+        f"Lot Size: {project.lot_size or 'Not specified'}",
+        f"Building Footprint: {project.footprint or 'Not specified'}",
+        f"Sustainability Requirements: {project.sustainability or 'None'}",
+        f"Accessibility Requirements: {project.accessibility or 'None'}",
+        f"Special Spaces Needed: {project.special_spaces or 'None'}",
+        f"Timeline: {project.timeline or 'Not specified'}",
+        f"Budget Flexibility: {project.budget_flex or 'Not specified'}",
+    ]
+
+    # Added Financial Context
+    milestones = project.escrow_milestones.all()
+    if milestones.exists():
+        lines.append("\nEscrow Milestones:")
+        for m in milestones:
+            lines.append(f"- {m.name}: ${m.amount} ({m.status})")
+
+    schedule = project.capital_schedules.all()
+    if schedule.exists():
+        lines.append("\nCapital Schedule:")
+        for s in schedule:
+            lines.append(f"- {s.description}: ${s.amount} (Due: {s.due_date}, Status: {s.status})")
+
+    return "\n".join(lines)
+
+
+def _get_project_vision_images(project: Project) -> list:
+    """
+    Fetch all drawings associated with a project and convert them to base64
+    for Claude vision analysis.
+    """
+    from .models import DrawingFile
+    images = []
+    # Fetch all files for this project's requests
+    files = DrawingFile.objects.filter(request__project=project).order_by('-created_at')
+    for df in files:
+        try:
+            if not df.file:
+                continue
+            with df.file.open('rb') as f:
+                b64 = base64.b64encode(f.read()).decode('utf-8')
+                # Assume PNG/JPG based on extension or just use image/png as fallback
+                ext = df.file.name.split('.')[-1].lower()
+                mime = f"image/{ext}" if ext in ['png', 'jpg', 'jpeg', 'webp'] else 'image/png'
+                images.append(f"data:{mime};base64,{b64}")
+        except Exception as e:
+            logger.error(f"Failed to read drawing file {df.id}: {e}")
+    return images
 
 
 # ── Chat Completion ──────────────────────────────────────────────────
@@ -719,6 +811,7 @@ class ChatCompletionView(APIView):
         project_id = request.data.get('project_id')
         project = None
         user = request.user
+        vision_images = []
 
         if not messages:
             return Response({'error': 'No messages provided.'}, status=400)
@@ -754,8 +847,6 @@ class ChatCompletionView(APIView):
 
         user_query = messages[-1]['content'] if messages else ""
 
-        # Collect images for vision (if user attached one)
-        vision_images = []
         if user_image_data:
             if not user_image_data.startswith('data:image/'):
                 user_image_data = f"data:image/png;base64,{user_image_data}"
@@ -773,18 +864,27 @@ class ChatCompletionView(APIView):
         analyse_results = None
         draw_error = None
 
+        # If it's a scan or analyse request and no images were uploaded, 
+        # try to fetch from project database
+        if not vision_images and project and (_is_scan_request(user_query) or _is_analyse_request(user_query)):
+            vision_images = _get_project_vision_images(project)
+
         # ── /analyse — BOQ / floor plan analysis via Claude vision ──
         if _is_analyse_request(user_query):
-            analyse_results = self._handle_analyse(user_query, vision_images)
+            analyse_results = self._handle_analyse(user_query, vision_images, project)
 
         # ── /plans — search existing floor plans ──
         elif _is_floor_plan_search(user_query):
             search_terms = _extract_search_terms(user_query)
+            # If no search terms, use project context
+            if not search_terms and project:
+                search_terms = f"{project.preferred_style or ''} {project.building_type or ''} {project.bedrooms or ''} bedroom".strip()
+            
             floor_plan_results = _search_floor_plans(search_terms, limit=6)
 
         # ── /draw — image generation via Gemini (prompt eng by Claude) ──
         elif _is_drawing_request(user_query):
-            image_url, final_image_prompt, matched_preset, draw_error = self._handle_draw(user_query)
+            image_url, final_image_prompt, matched_preset, draw_error = self._handle_draw(user_query, project)
 
         # ── /scan — hand-drawn plan → professional drawing via Gemini ──
         elif _is_scan_request(user_query):
@@ -834,9 +934,9 @@ class ChatCompletionView(APIView):
         )
 
         if project:
+            system_content += f"\n\nDETAILED PROJECT DATA (SURVEY):\n{_get_project_context(project)}"
             system_content += (
-                f"\n\nProject Context: Title={project.title}; Location={project.location}; "
-                f"Brief={project.ai_brief or ''}; Site notes={project.site_notes or ''}; Constraints={project.constraints or ''}."
+                f"\n\nProject Brief/Notes: Brief={project.ai_brief or ''}; Site notes={project.site_notes or ''}; Constraints={project.constraints or ''}."
             )
 
         if context_text:
@@ -990,12 +1090,16 @@ class ChatCompletionView(APIView):
             }, status=http_status)
 
     # ── /draw handler ────────────────────────────────────────────────
-    def _handle_draw(self, user_query: str):
+    def _handle_draw(self, user_query: str, project=None):
         """
         Prompt engineering via Claude → image generation via Gemini.
         Returns (image_url, final_prompt, matched_preset).
         """
         matched_preset = _match_style_preset(user_query)
+        if not matched_preset and project:
+            # Try matching based on project preferred style if user query is generic
+            matched_preset = _match_style_preset(project.preferred_style or "")
+        
         top_prompts = _get_top_rated_prompts(matched_preset, limit=3)
 
         if matched_preset:
@@ -1020,15 +1124,15 @@ class ChatCompletionView(APIView):
 
         prompt_system = (
             f"You are an expert architectural prompt engineer specializing in {category_name}s. "
-            f"The user wants a 2D architectural drawing. "
+            f"The user wants a professional 2D ARCHITECTURAL FLOOR PLAN. "
             f"Generate a concise, vivid text-to-image prompt (max 150 words) that will produce "
-            f"a professional-quality {category_name}.\n\n"
-            f"REQUIREMENTS:\n"
-            f"- Include style keywords: {style_hint}\n"
-            f"- Specify view type (top-down, front elevation, cross section, etc.)\n"
-            f"- Describe line weights, labeling, dimensions, and scale bar\n"
-            f"- Use architectural terminology\n"
-            f"- Add context about materials and construction standards\n"
+            f"a strictly 2D, top-down CAD-style floor plan.\n\n"
+            f"CRITICAL REQUIREMENTS:\n"
+            f"- FORMAT: Strictly 2D top-down view. NO 3D perspective, NO isometric views, NO realistic renders.\n"
+            f"- STYLE: {style_hint}, professional technical drawing, thick cut walls.\n"
+            f"- DETAILS: Include room labels (e.g., 'Master Bed', 'Ensuite'), door swings, window symbols.\n"
+            f"- TECHNICAL: Include metric scale bar, north arrow, and clear dimension lines in millimeters (mm).\n"
+            f"- AESTHETIC: Clean black linework on a crisp white background, no gradients, no photorealism.\n"
         )
         if template_hint:
             prompt_system += f"\nTEMPLATE TO FOLLOW:\n{template_hint}\n"
@@ -1037,9 +1141,19 @@ class ChatCompletionView(APIView):
         prompt_system += "\nOutput ONLY the prompt text, nothing else."
 
         try:
+            # If user query is just "/draw", build a descriptive request from project data
+            effective_query = user_query
+            if user_query.strip().lower() in ['/draw', '/draw '] and project:
+                effective_query = (
+                    f"A 2D architectural drawing for a {project.building_type or 'building'}. "
+                    f"Details: {project.bedrooms or 'unspecified'} bedrooms, {project.bathrooms or 'unspecified'} bathrooms, "
+                    f"Style: {project.preferred_style or 'Modern'}. "
+                    f"Context: {project.ai_brief or ''}"
+                )
+
             image_prompt = _call_claude(
-                messages=[{"role": "user", "content": user_query}],
-                system=prompt_system,
+                messages=[{"role": "user", "content": effective_query}],
+                system=prompt_system + "\n\nCRITICAL: Use the provided project data if the user request is generic.",
                 max_tokens=300,
                 temperature=0.7,
             )
@@ -1158,6 +1272,7 @@ class ChatCompletionView(APIView):
             "a concise, vivid text-to-image prompt (max 200 words) that will generate a "
             "professional-quality architectural floor plan drawing.\n\n"
             "REQUIREMENTS:\n"
+            "- Strictly 2D TOP-DOWN view. Forbidden: 3D perspective, realistic renders, or messy sketches.\n"
             "- Produce a clean, professional 2D floor plan in CAD/blueprint style\n"
             "- Include room labels, door swings, and window markers\n"
             "- Use clean black lines on white background with proper line weights\n"
@@ -1195,9 +1310,9 @@ class ChatCompletionView(APIView):
         # ── Step 3: Generate the professional drawing via Gemini ──
         logger.info("[Scan] Step 3: Generating professional drawing via Gemini...")
         image_url, gen_error = _generate_image_from_gemini(
-            prompt=image_prompt + " Ensure extremely high architectural accuracy based on the provided dimensions and layout.",
-            negative_prompt="blurry, low quality, realistic photo, watermark, hand-drawn, sketch, messy lines",
-            guidance_scale=8.0,
+            prompt=image_prompt + " Ensure it is a STRICT 2D top-down floor plan only, with extremely high architectural accuracy.",
+            negative_prompt="photorealistic, 3d, perspective, shaded, render, blurry, low quality, hand-drawn, sketch, messy lines",
+            guidance_scale=9.0,
         )
 
         if gen_error:
@@ -1206,7 +1321,7 @@ class ChatCompletionView(APIView):
         return image_url, final_prompt, None
 
     # ── /analyse handler ─────────────────────────────────────────────
-    def _handle_analyse(self, user_query: str, images: list) -> dict:
+    def _handle_analyse(self, user_query: str, vision_images: list, project=None) -> dict:
         """
         Use Claude AI vision with structured output + extended thinking to analyse
         an uploaded image (floor plan, BOQ, site photo) and return structured
@@ -1287,6 +1402,12 @@ class ChatCompletionView(APIView):
 
             analyse_system += "\n".join(parts)
 
+        if project:
+            analyse_system += (
+                f"\n\n--- PROJECT SURVEY DATA (use for dimensional and material context) ---\n"
+                f"{_get_project_context(project)}"
+            )
+
         user_content = analyse_text if analyse_text else "Please analyse this image."
 
         try:
@@ -1297,7 +1418,7 @@ class ChatCompletionView(APIView):
             lc_messages = _build_lc_messages(
                 messages=[{"role": "user", "content": user_content}],
                 system=analyse_system,
-                images=images if images else None,
+                images=vision_images if vision_images else None,
             )
 
             result: BOQAnalysis = structured_llm.invoke(lc_messages)
@@ -1319,7 +1440,7 @@ class ChatCompletionView(APIView):
                     system=fallback_system,
                     max_tokens=4096,
                     temperature=0.3,
-                    images=images if images else None,
+                    images=vision_images if vision_images else None,
                 )
                 cleaned = raw.strip()
                 if cleaned.startswith('```'):
@@ -1411,10 +1532,19 @@ class ChatStreamView(APIView):
         session_id = request.data.get('session_id')
         user_image_data = request.data.get('image')
         user_pdf_data = request.data.get('pdf')  # base64 PDF
+        project_id = request.data.get('project_id')
+        project = None
         user = request.user
 
         if not messages:
             return Response({'error': 'No messages provided.'}, status=400)
+
+        if project_id:
+            try:
+                from apps.builder_dashboard.models import Project
+                project = Project.objects.get(pk=project_id)
+            except Exception:
+                pass # Silently proceed if project doesn't exist for streaming context
 
         user_query = messages[-1]['content'] if messages else ""
 
@@ -1485,6 +1615,13 @@ class ChatStreamView(APIView):
             "helpful, and professional."
         )
         system_content = base_instruction
+        
+        if project:
+            system_content += f"\n\nDETAILED PROJECT DATA (SURVEY):\n{_get_project_context(project)}"
+            system_content += (
+                f"\n\nProject Brief/Notes: Brief={project.ai_brief or ''}; Site notes={project.site_notes or ''}; Constraints={project.constraints or ''}."
+            )
+
         if context_text:
             system_content += (
                 f"\n\nCRITICAL KNOWLEDGE BASE INSTRUCTION: You must base your response STRICTLY and ENTIRELY on the following "
@@ -1725,7 +1862,7 @@ class AIInstructionView(APIView):
         return Response({'success': True, 'instruction_text': obj.instruction_text})
 
 
-# ── Chat Sessions ────────────────────────────────────────────────────
+# ── TOOL MAP ─────────────────────────────────────────────────────────
 
 class ChatSessionListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -2100,17 +2237,29 @@ class SiteIntelView(APIView):
         )
 
         system_content = base_instruction + (
-            "\n\nGenerate concise site intelligence. Respond ONLY with JSON matching: "
-            "{ 'summary': string, 'insights': [{aspect, finding, risk, recommendation}] }. "
-            "No markdown, no tables. Provide best-effort findings; if data is limited, state assumptions."
+            "\n\nCRITICAL INSTRUCTION: You are generating SITE INTELLIGENCE. "
+            "You MUST perform active research using the provided tools (e.g., search, maps, weather) "
+            "to gather real-world data about the project location. "
+            "Discover and use the available MCP tools to find nearby amenities, "
+            "neighborhood trends, and any local building regulations or zoning info.\n\n"
+            "Respond ONLY with a JSON object matching this schema:\n"
+            "{\n"
+            "  'summary': 'Detailed executive summary of findings',\n"
+            "  'insights': [\n"
+            "    { 'aspect': 'Category (e.g. Neighborhood, Transport, Compliance)', 'finding': 'Specific fact', 'risk': 'Potential issue', 'recommendation': 'Actionable advice' }\n"
+            "  ]\n"
+            "}\n"
+            "No markdown, no conversation. Be specific and fact-based."
         )
 
         prompt = prompt_override or _build_site_intel_prompt(project)
 
         try:
+            # Use call_claude_with_tools to allow the LLM to research
             response_content = _call_claude_with_tools(
                 messages=[{"role": "user", "content": prompt}],
                 system=system_content,
+                temperature=0.3, # Lower temperature for factual reporting
             )
         except Exception as e:
             logger.exception("Site intel generation failed")
