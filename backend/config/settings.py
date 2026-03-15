@@ -106,7 +106,7 @@ CLAUDE_MODEL = os.getenv('CLAUDE_MODEL', 'claude-sonnet-4-20250514')
 
 # Gemini Nano Banana — Image generation only
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', os.getenv('QWEN_API_KEY', ''))
-GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL', 'nano-banana-2')
+GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image-preview')
 
 # ── Model Context Protocol (MCP) Configuration ───────────────────────
 # List of URLs for remote MCP servers (SSE transport)
@@ -137,7 +137,7 @@ REST_FRAMEWORK = {
         'anon': '20/minute',
         'user': '120/minute',
         'ai_chat': '30/minute',       # tighter limit for AI endpoints
-        'ai_generate': '10/minute',    # image generation is expensive
+        'ai_generate': '10/minute',    # Image generation → Gemini 3.1 Flash Image
     },
 }
 

@@ -795,7 +795,7 @@ class ChatCompletionView(APIView):
     Main AI chat endpoint.
     • Chat / reasoning → Claude AI (Anthropic)
     • Image generation prompt engineering → Claude AI
-    • Image generation → Gemini Nano Banana
+    • Image generation → Gemini 3.1 Flash Image
     • Vision / multimodal analysis → Claude AI
     • /analyse command → Claude AI vision for BOQ extraction
     """
