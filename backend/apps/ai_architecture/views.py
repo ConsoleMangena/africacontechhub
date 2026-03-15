@@ -1122,23 +1122,32 @@ class ChatCompletionView(APIView):
             for i, p in enumerate(top_prompts, 1):
                 examples_block += f"Example {i}: {p}\n"
 
+        # Inject project context if available
+        project_context = ""
+        if project:
+            project_context = (
+                f"\nPROJECT REQUIREMENTS (MUST BE REPLICATED IN THE DRAWING):\n"
+                f"- Building Type: {project.building_type or 'Residential'}\n"
+                f"- Bedrooms: {project.bedrooms or 'Unspecified'}\n"
+                f"- Bathrooms: {project.bathrooms or 'Unspecified'}\n"
+                f"- Preferred Style: {project.preferred_style or 'Modern'}\n"
+                f"- Additional Brief: {project.ai_brief or 'N/A'}\n"
+            )
+
         prompt_system = (
             f"You are an expert architectural prompt engineer specializing in {category_name}s. "
-            f"The user wants a professional 2D ARCHITECTURAL FLOOR PLAN. "
+            f"The user wants a professional 2D ARCHITECTURAL FLOOR PLAN."
+            f"{project_context}\n"
             f"Generate a concise, vivid text-to-image prompt (max 150 words) that will produce "
-            f"a strictly 2D, top-down CAD-style floor plan.\n\n"
+            f"a strictly 2D, top-down CAD-style floor plan that MUST ALIGN with the project requirements above.\n\n"
             f"CRITICAL REQUIREMENTS:\n"
             f"- FORMAT: Strictly 2D top-down view. NO 3D perspective, NO isometric views, NO realistic renders.\n"
             f"- STYLE: {style_hint}, professional technical drawing, thick cut walls.\n"
-            f"- DETAILS: Include room labels (e.g., 'Master Bed', 'Ensuite'), door swings, window symbols.\n"
+            f"- DETAILS: Include room labels matching the bedroom/bathroom counts, door swings, window symbols.\n"
             f"- TECHNICAL: Include metric scale bar, north arrow, and clear dimension lines in millimeters (mm).\n"
             f"- AESTHETIC: Clean black linework on a crisp white background, no gradients, no photorealism.\n"
+            f"\nOutput ONLY the prompt text, nothing else."
         )
-        if template_hint:
-            prompt_system += f"\nTEMPLATE TO FOLLOW:\n{template_hint}\n"
-        if examples_block:
-            prompt_system += examples_block
-        prompt_system += "\nOutput ONLY the prompt text, nothing else."
 
         try:
             # If user query is just "/draw", build a descriptive request from project data
@@ -1152,8 +1161,8 @@ class ChatCompletionView(APIView):
                 )
 
             image_prompt = _call_claude(
-                messages=[{"role": "user", "content": effective_query}],
-                system=prompt_system + "\n\nCRITICAL: Use the provided project data if the user request is generic.",
+                messages=[{"role": "user", "content": f"User Request: {effective_query}\n\nStrictly prioritize the project requirements if the user request is generic or conflicting."}],
+                system=prompt_system,
                 max_tokens=300,
                 temperature=0.7,
             )
@@ -1266,13 +1275,26 @@ class ChatCompletionView(APIView):
             return None, None, f"⚠️ Failed to analyse the hand-drawn plan: {e}"
 
         # ── Step 2: Use Claude to craft an image-generation prompt ──
+        # Inject project context if available
+        project_context = ""
+        if project:
+            project_context = (
+                f"\nPROJECT REQUIREMENTS (REDRAW MUST MATCH THESE):\n"
+                f"- Building Type: {project.building_type or 'Residential'}\n"
+                f"- Bedrooms: {project.bedrooms or 'Unspecified'}\n"
+                f"- Bathrooms: {project.bathrooms or 'Unspecified'}\n"
+                f"- Preferred Style: {project.preferred_style or 'Modern'}\n"
+            )
+
         prompt_system = (
             "You are an expert architectural prompt engineer. You have just received a detailed "
             "description of a hand-drawn floor plan. Your job is to convert this description into "
             "a concise, vivid text-to-image prompt (max 200 words) that will generate a "
             "professional-quality architectural floor plan drawing.\n\n"
+            f"{project_context}\n"
             "REQUIREMENTS:\n"
             "- Strictly 2D TOP-DOWN view. Forbidden: 3D perspective, realistic renders, or messy sketches.\n"
+            "- The final drawing MUST respect the Project Requirements listed above.\n"
             "- Produce a clean, professional 2D floor plan in CAD/blueprint style\n"
             "- Include room labels, door swings, and window markers\n"
             "- Use clean black lines on white background with proper line weights\n"
