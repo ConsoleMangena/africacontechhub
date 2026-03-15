@@ -50,6 +50,7 @@ interface ChatMessage {
   analyse?: AnalyseResult;
   timestamp: Date;
   feedbackGiven?: 'up' | 'down';
+  suggestedProjects?: {id: number; title: string}[];
 }
 
 type SiteIntelRow = {
@@ -444,7 +445,8 @@ export function AiChatButton({ project }: AiChatButtonProps) {
             setMessages(prev => [...prev, {
               id: (Date.now() + 1).toString(),
               role: 'assistant' as const,
-              content: `🔍 Could not find a project matching "**${searchName}**". Please check the name or select a project from the list.`,
+              content: `🔍 Could not find a project matching "**${searchName}**". Please select one from the list:`,
+              suggestedProjects: projects,
               timestamp: new Date()
             }])
             setIsTyping(false)
@@ -462,7 +464,8 @@ export function AiChatButton({ project }: AiChatButtonProps) {
           setMessages(prev => [...prev, {
             id: (Date.now() + 1).toString(),
             role: 'assistant' as const,
-            content: `📋 Please specify a project name (e.g., \`${cmdName} Project Name\`) or select a project first so I can use its survey data for this command.`,
+            content: `📋 Please select a project for this command so I can use its survey data:`,
+            suggestedProjects: projects,
             timestamp: new Date()
           }])
           setIsTyping(false)
@@ -951,6 +954,31 @@ export function AiChatButton({ project }: AiChatButtonProps) {
                     }`}>
                       <ReactMarkdown>{message.content}</ReactMarkdown>
                     </div>
+
+                    {/* Suggested Project Buttons */}
+                    {message.role === 'assistant' && message.suggestedProjects && message.suggestedProjects.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {message.suggestedProjects.map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => {
+                              // Find the command that preceded this suggestion
+                              const lastUserMsg = [...messages].reverse().find(m => m.role === 'user' && m.content.startsWith('/'))
+                              if (lastUserMsg) {
+                                const cmd = lastUserMsg.content.split(' ')[0]
+                                handleSendMessage(null, `${cmd} ${p.title}`)
+                              } else {
+                                handleSendMessage(null, `/draw ${p.title}`)
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-lg border border-indigo-100 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 hover:border-indigo-200 transition-all flex items-center gap-1.5"
+                          >
+                            <Icon name="folder_shared" className="h-3.5 w-3.5" />
+                            {p.title}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     
                     {/* Generated image */}
                     {message.imageUrl && (
