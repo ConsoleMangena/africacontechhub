@@ -12,8 +12,13 @@ urlpatterns = [
     path('api/v1/auth/', include('apps.authentication.urls')),
     path('api/v1/billing/', include('apps.billing.urls')),
     path('api/v1/admin/', include('apps.admin_dashboard.urls')),
-    path('api/v1/ai/', include('apps.ai_architecture.urls')),
 ]
+
+# AI routes are optional in local/dev if optional deps (e.g. mcp, py>=3.10) are missing.
+try:
+    urlpatterns.append(path('api/v1/ai/', include('apps.ai_architecture.urls')))
+except Exception:
+    pass
 
 # Serve media files in development
 if settings.DEBUG:

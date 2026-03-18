@@ -5,6 +5,14 @@ import { AuthError } from "@supabase/supabase-js";
  */
 export function getSupabaseAuthErrorMessage(error: unknown): string {
   if (error instanceof AuthError) {
+    if (
+      error.message.includes("Failed to fetch") ||
+      error.message.includes("Network request failed") ||
+      error.message.includes("Load failed")
+    ) {
+      return "Network error while contacting Supabase. Check internet connection and verify your Supabase URL/key configuration.";
+    }
+
     switch (error.message) {
       case "Invalid login credentials":
         return "Invalid email or password. Please check your credentials and try again.";
@@ -33,6 +41,13 @@ export function getSupabaseAuthErrorMessage(error: unknown): string {
   }
 
   if (error instanceof Error) {
+    if (
+      error.message.includes("Failed to fetch") ||
+      error.message.includes("Network request failed") ||
+      error.message.includes("Load failed")
+    ) {
+      return "Network error while contacting Supabase. Check internet connection and verify your Supabase URL/key configuration.";
+    }
     return error.message;
   }
 

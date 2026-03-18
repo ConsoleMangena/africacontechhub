@@ -319,18 +319,23 @@ function RouteComponent() {
   }
 
   const handleDirectUpload = async () => {
-    if (!selectedProject || !directUploadForm.title || directFiles.length === 0) {
-      toast.error('Please fill in the title and select files')
+    if (!selectedProject || directFiles.length === 0) {
+      toast.error('Please select a project and choose files')
       return
     }
 
     setUploadingDirect(true)
     try {
+      const generatedTitle = directFiles.length === 1
+        ? directFiles[0].name.replace(/\.[^/.]+$/, '')
+        : `${directFiles.length} uploaded drawing files`
+      const title = directUploadForm.title.trim() || generatedTitle
+
       // Create a drawing request for the uploaded files
       const res = await builderApi.createDrawingRequest({
         project: selectedProject,
         drawing_type: directUploadForm.drawingType,
-        title: directUploadForm.title,
+        title,
       })
       const requestId = res.data.id
 
@@ -665,11 +670,11 @@ function RouteComponent() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Title</Label>
+                    <Label>Title (optional)</Label>
                     <Input
                       value={directUploadForm.title}
                       onChange={(e) => setDirectUploadForm(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="e.g., Ground Floor Plan - Final"
+                      placeholder="e.g., Ground Floor Plan - Final (auto-generated if blank)"
                     />
                   </div>
                 </div>
@@ -740,7 +745,7 @@ function RouteComponent() {
                     onClick={handleDirectUpload}
                     size="sm"
                     className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs"
-                    disabled={uploadingDirect || !directUploadForm.title || directFiles.length === 0}
+                    disabled={uploadingDirect || !selectedProject || directFiles.length === 0}
                   >
                     {uploadingDirect ? (
                       <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
@@ -860,11 +865,13 @@ function RouteComponent() {
                             >
                               <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-lg bg-white flex items-center justify-center border">
-                                  <Icon name={getFileIcon(file.type)} size={20} className="text-slate-600" />
+                                  <Icon name={getFileIcon(file.file_type || file.original_name.split('.').pop() || '')} size={20} className="text-slate-600" />
                                 </div>
                                 <div>
-                                  <p className="text-sm font-medium text-slate-900">{file.name}</p>
-                                  <p className="text-xs text-slate-500">{file.type.toUpperCase()} · {file.size} · {file.uploadedAt}</p>
+                                  <p className="text-sm font-medium text-slate-900">{file.original_name}</p>
+                                  <p className="text-xs text-slate-500">
+                                    {(file.file_type || 'file').toUpperCase()} · {file.file_size} · {new Date(file.created_at).toLocaleDateString()}
+                                  </p>
                                 </div>
                               </div>
                               <div className="flex gap-1">
@@ -872,7 +879,7 @@ function RouteComponent() {
                                   variant="ghost"
                                   size="sm"
                                   className="h-7 w-7 p-0"
-                                  onClick={() => window.open(file.url, '_blank')}
+                                  onClick={() => window.open(file.file, '_blank')}
                                 >
                                   <Icon name="visibility" size={14} />
                                 </Button>

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { AxiosError } from 'axios'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { apiClient } from '@/lib/api-client'
@@ -32,8 +33,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         if (error || !supabaseUser) throw error;
 
         // Fetch profile from Django
-        const response = await apiClient.get<any>('/api/v1/auth/me/');
-        if (!response.success) throw new Error(response.message || 'Failed to fetch profile');
+        const response = await apiClient.get('/api/v1/auth/me/');
         const userData = response.data;
         if (!userData) throw new Error('Failed to fetch profile');
         const profile = userData.profile;
@@ -82,23 +82,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
         if (session) {
           try {
-            const response = await apiClient.get<any>('/api/v1/auth/me/')
-            if (!response.success) {
-              if (response.message?.includes('Unauthorized') || response.message?.includes('credentials')) {
-                set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
-                return
-              }
-              if (response.message?.includes('Backend unreachable')) {
-                backendUnavailable = true
-                if (!backendWarned) {
-                  console.warn(response.message)
-                  backendWarned = true
-                }
-                set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
-                return
-              }
-              throw new Error(response.message || 'Failed to fetch profile')
-            }
+            const response = await apiClient.get('/api/v1/auth/me/')
             const userData = response.data
             if (!userData) throw new Error('Failed to fetch profile')
             const profile = userData.profile
@@ -126,6 +110,25 @@ export const useAuthStore = create<AuthState>()((set) => ({
               }
             }
           } catch (error) {
+            if (
+              error instanceof AxiosError &&
+              error.response?.status === 401
+            ) {
+              // Clear stale/invalid session so app can recover cleanly.
+              await supabase.auth.signOut()
+              set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
+              return
+            }
+
+            if (
+              error instanceof Error &&
+              error.message.includes('Invalid token')
+            ) {
+              await supabase.auth.signOut()
+              set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
+              return
+            }
+
             if (!backendUnavailable && error instanceof Error && error.message.includes('Backend unreachable')) {
               backendUnavailable = true
               if (!backendWarned) {
