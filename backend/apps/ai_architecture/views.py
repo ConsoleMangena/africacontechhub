@@ -1128,9 +1128,24 @@ class ChatCompletionView(APIView):
             project_context = (
                 f"\nPROJECT REQUIREMENTS (MUST BE REPLICATED IN THE DRAWING):\n"
                 f"- Building Type: {project.building_type or 'Residential'}\n"
+                f"- Use Case: {project.use_case or 'Unspecified'}\n"
+                f"- Occupants: {project.occupants or 'Unspecified'}\n"
+                f"- Floors/Storeys: {project.floors or 'Unspecified'}\n"
                 f"- Bedrooms: {project.bedrooms or 'Unspecified'}\n"
                 f"- Bathrooms: {project.bathrooms or 'Unspecified'}\n"
+                f"- Garage: {'Yes' if project.has_garage else 'No'}\n"
+                f"- Parking Spaces: {project.parking_spaces or 'Unspecified'}\n"
+                f"- Lot Size: {project.lot_size or 'Unspecified'}\n"
+                f"- Footprint: {project.footprint or 'Unspecified'}\n"
+                f"- Roof Type: {project.roof_type or 'Unspecified'}\n"
                 f"- Preferred Style: {project.preferred_style or 'Modern'}\n"
+                f"- Special Spaces: {project.special_spaces or 'None'}\n"
+                f"- Sustainability: {project.sustainability or 'None'}\n"
+                f"- Accessibility: {project.accessibility or 'None'}\n"
+                f"- Site Notes: {project.site_notes or 'None'}\n"
+                f"- Constraints: {project.constraints or 'None'}\n"
+                f"- Timeline: {project.timeline or 'Unspecified'}\n"
+                f"- Budget Flexibility: {project.budget_flex or 'Unspecified'}\n"
                 f"- Additional Brief: {project.ai_brief or 'N/A'}\n"
             )
 
@@ -1154,16 +1169,24 @@ class ChatCompletionView(APIView):
             effective_query = user_query
             if user_query.strip().lower() in ['/draw', '/draw '] and project:
                 effective_query = (
-                    f"A 2D architectural drawing for a {project.building_type or 'building'}. "
-                    f"Details: {project.bedrooms or 'unspecified'} bedrooms, {project.bathrooms or 'unspecified'} bathrooms, "
-                    f"Style: {project.preferred_style or 'Modern'}. "
-                    f"Context: {project.ai_brief or ''}"
+                    f"A 2D architectural drawing for a {project.building_type or 'building'} "
+                    f"({project.use_case or 'general use'}). "
+                    f"Details: {project.bedrooms or 'unspecified'} beds, {project.bathrooms or 'unspecified'} baths, "
+                    f"{project.floors or 'unspecified'} floors, "
+                    f"Garage: {'Yes' if project.has_garage else 'No'} ({project.parking_spaces or 'Unspecified'} spaces), "
+                    f"Lot Size: {project.lot_size or 'Unspecified'}, Footprint: {project.footprint or 'Unspecified'}, "
+                    f"Style: {project.preferred_style or 'Modern'}, Roof: {project.roof_type or 'Unspecified'}, "
+                    f"Special spaces: {project.special_spaces or 'None'}, "
+                    f"Sustainability: {project.sustainability or 'None'}, Accessibility: {project.accessibility or 'None'}, "
+                    f"Site Notes/Constraints: {project.site_notes or 'None'} / {project.constraints or 'None'}, "
+                    f"Timeline: {project.timeline or 'Unspecified'}, Budget Flex: {project.budget_flex or 'Unspecified'}. "
+                    f"Brief: {project.ai_brief or ''}"
                 )
 
             image_prompt = _call_claude(
                 messages=[{"role": "user", "content": f"User Request: {effective_query}\n\nStrictly prioritize the project requirements if the user request is generic or conflicting."}],
                 system=prompt_system,
-                max_tokens=300,
+                max_tokens=400,
                 temperature=0.7,
             )
         except Exception as e:
