@@ -52,24 +52,91 @@ def _log_token_usage(user, session, endpoint, response_metadata):
 
 # ── Pydantic schemas for structured output ───────────────────────────
 
-class BOQItem(BaseModel):
-    """A single item in a Bill of Quantities."""
-    category: str = Field(description="e.g. Substructure / Superstructure / Finishes / Services")
-    item_name: str = Field(description="e.g. Face Brick External Walls")
+class BOQBuildingItem(BaseModel):
+    bill_no: str = Field(description="e.g. 1, 1.1, 2.A")
     description: str = Field(description="Detailed description of the item")
     unit: str = Field(description="m² / m³ / m / nr / item")
-    quantity: float = Field(description="Measured quantity, estimate with (est.) in description if unsure")
+    quantity: float = Field(description="Measured quantity")
     rate: float = Field(description="Unit rate in local currency, estimate if unknown")
-    total_amount: float = Field(description="quantity × rate")
-    labour_rate: Optional[float] = Field(default=None, description="Labour cost per unit, if requested by template")
-    measurement_formula: Optional[str] = Field(default=None, description="How the quantity was calculated, e.g. '2×(12.5+8.0)×2.7'")
+
+class BOQProfessionalFee(BaseModel):
+    discipline: str = Field(description="e.g. Architect, Engineer")
+    role_scope: str = Field(description="Description of services")
+    basis: str = Field(description="Basis of fee calculation")
+    rate: str = Field(description="e.g. '5%' or 'Fixed'")
+    estimated_fee: float = Field(description="Calculated fee")
+
+class BOQAdminExpense(BaseModel):
+    item_role: str = Field(description="e.g. Project Manager")
+    description: str = Field(description="Details")
+    trips_per_week: Optional[float] = Field(default=None)
+    total_trips: Optional[float] = Field(default=None)
+    distance: Optional[float] = Field(default=None)
+    rate: float = Field(default=0)
+    total_cost: float = Field(default=0)
+
+class BOQLabourCost(BaseModel):
+    phase: str = Field(description="e.g. Substructure")
+    trade_role: str = Field(description="e.g. Bricklayer")
+    skill_level: str = Field(description="e.g. Skilled")
+    gang_size: float = Field(default=0)
+    duration_weeks: float = Field(default=0)
+    total_man_days: float = Field(default=0)
+    daily_rate: float = Field(default=0)
+    total_cost: float = Field(default=0)
+    weekly_wage_bill: Optional[float] = Field(default=None)
+
+class BOQMachinePlant(BaseModel):
+    category: str = Field(description="e.g. Earthmoving")
+    machine_item: str = Field(description="e.g. TLB")
+    qty: float = Field(default=1)
+    dry_hire_rate: Optional[float] = Field(default=None)
+    fuel_l_hr: Optional[float] = Field(default=None)
+    hrs_day: Optional[float] = Field(default=None)
+    fuel_cost: Optional[float] = Field(default=None)
+    operator_rate: Optional[str] = Field(default=None)
+    daily_wet_rate: float = Field(default=0)
+    days_rqd: float = Field(default=0)
+    total_cost: float = Field(default=0)
+
+class BOQLabourBreakdown(BaseModel):
+    phase: str = Field(description="e.g. Superstructure")
+    trade_role: str = Field(description="e.g. Carpenter")
+    skill_level: str = Field(description="e.g. Semi-skilled")
+    gang_size: float = Field(default=0)
+    duration_weeks: float = Field(default=0)
+    total_man_days: float = Field(default=0)
+    daily_rate: float = Field(default=0)
+    total_cost: float = Field(default=0)
+
+class BOQScheduleTask(BaseModel):
+    wbs: str = Field(description="Work Breakdown Structure ID")
+    task_description: str = Field(description="Name of the task")
+    start_date: str = Field(description="YYYY-MM-DD")
+    end_date: str = Field(description="YYYY-MM-DD")
+    days: str = Field(description="Duration in days")
+    predecessor: Optional[str] = Field(default=None)
+    est_cost: float = Field(default=0)
+
+class BOQScheduleMaterial(BaseModel):
+    section: str = Field(description="e.g. SUBSTRUCTURE, SUPERSTRUCTURE, ROOFING_CEILINGS, FINISHES, DOORS_WINDOWS, PLUMBING, ELECTRICAL_SOLAR")
+    material_description: str = Field(description="Description of the material")
+    specification: Optional[str] = Field(default=None, description="Detailed specification")
+    estimated_qty: Optional[str] = Field(default=None, description="Estimated quantity as text, e.g. '50 bags'")
 
 class BOQAnalysis(BaseModel):
     """Structured BOQ analysis result from Claude vision."""
-    summary: str = Field(description="Brief overall description of what you see in the image")
-    items: List[BOQItem] = Field(description="List of BOQ line items extracted from the image")
-    compliance_notes: List[str] = Field(description="Any SI-56 or regulatory observations")
-    recommendations: List[str] = Field(description="Suggested next steps for the builder")
+    summary: str = Field(description="Brief overall description of the project budget")
+    building_items: List[BOQBuildingItem] = Field(default_factory=list, description="Bill of Quantities items")
+    professional_fees: List[BOQProfessionalFee] = Field(default_factory=list, description="Professional fees")
+    admin_expenses: List[BOQAdminExpense] = Field(default_factory=list, description="Admin and expenses")
+    labour_costs: List[BOQLabourCost] = Field(default_factory=list, description="Labor costs by phase")
+    machine_plants: List[BOQMachinePlant] = Field(default_factory=list, description="Machinery and plant costs")
+    labour_breakdowns: List[BOQLabourBreakdown] = Field(default_factory=list, description="Detailed labor breakdown")
+    schedule_tasks: List[BOQScheduleTask] = Field(default_factory=list, description="Project schedule timeline")
+    schedule_materials: List[BOQScheduleMaterial] = Field(default_factory=list, description="Schedule of materials list")
+    compliance_notes: List[str] = Field(default_factory=list, description="Any SI-56 or regulatory observations")
+    recommendations: List[str] = Field(default_factory=list, description="Suggested next steps for the builder")
 
 
 # ── Tool definitions for Claude function-calling ─────────────────────
@@ -572,11 +639,12 @@ def _build_lc_messages(messages: list, system: str = "", images: list | None = N
     return lc_messages
 
 
-def _get_claude_llm(temperature: float = 0.7, max_tokens: int = 8192):
+def _get_claude_llm(temperature: float = 0.7, max_tokens: int = 8192, model: str | None = None):
     """Return a ChatAnthropic instance with retry resilience."""
     from langchain_anthropic import ChatAnthropic
+    model_name = model or settings.CLAUDE_MODEL
     return ChatAnthropic(
-        model=settings.CLAUDE_MODEL,
+        model=model_name,
         anthropic_api_key=settings.ANTHROPIC_API_KEY,
         temperature=temperature,
         max_tokens=max_tokens,
@@ -589,7 +657,7 @@ def _get_claude_llm(temperature: float = 0.7, max_tokens: int = 8192):
 
 
 def _call_claude(messages: list, system: str = "", max_tokens: int = 8192,
-                 temperature: float = 0.7, images: list | None = None) -> str:
+                 temperature: float = 0.7, images: list | None = None, model: str | None = None) -> str:
     """
     Call Anthropic Claude API via langchain-anthropic.
     *messages* is a list of dicts with 'role' and 'content'.
@@ -597,14 +665,14 @@ def _call_claude(messages: list, system: str = "", max_tokens: int = 8192,
     last user message (for vision / multimodal analysis).
     Returns the assistant text response.
     """
-    llm = _get_claude_llm(temperature=temperature, max_tokens=max_tokens)
+    llm = _get_claude_llm(temperature=temperature, max_tokens=max_tokens, model=model)
     lc_messages = _build_lc_messages(messages, system=system, images=images)
     response = llm.invoke(lc_messages)
     return response.content
 
 
 def _call_claude_with_tools(messages: list, system: str = "", max_tokens: int = 8192,
-                            temperature: float = 0.7, images: list | None = None) -> str:
+                            temperature: float = 0.7, images: list | None = None, model: str | None = None) -> str:
     """
     Call Claude with tool-use (function-calling) support.
     Runs a tool-loop: if Claude emits tool_calls we execute them locally and
@@ -615,7 +683,7 @@ def _call_claude_with_tools(messages: list, system: str = "", max_tokens: int = 
 
     mcp_tools = sync_get_mcp_tools()
     all_tool_defs = _TOOL_DEFINITIONS + mcp_tools
-    llm = _get_claude_llm(temperature=temperature, max_tokens=max_tokens)
+    llm = _get_claude_llm(temperature=temperature, max_tokens=max_tokens, model=model)
     llm_with_tools = llm.bind_tools(all_tool_defs)
     lc_messages = _build_lc_messages(messages, system=system, images=images)
 
@@ -625,7 +693,11 @@ def _call_claude_with_tools(messages: list, system: str = "", max_tokens: int = 
 
         if not response.tool_calls:
             # Final answer — return text
-            return response.content
+            content = response.content
+            if isinstance(content, list):
+                text_parts = [b.get('text', '') for b in content if isinstance(b, dict) and b.get('type') == 'text']
+                return "\n".join(text_parts) if text_parts else str(content)
+            return str(content)
 
         # Execute each tool call
         lc_messages.append(response)  # Add AIMessage with tool_calls
@@ -649,7 +721,11 @@ def _call_claude_with_tools(messages: list, system: str = "", max_tokens: int = 
             ))
 
     # If we exhausted the loop, return whatever we have
-    return response.content if hasattr(response, 'content') else "I was unable to complete the request."
+    content = response.content if hasattr(response, 'content') else "I was unable to complete the request."
+    if isinstance(content, list):
+        text_parts = [b.get('text', '') for b in content if isinstance(b, dict) and b.get('type') == 'text']
+        return "\n".join(text_parts) if text_parts else str(content)
+    return str(content)
 
 
 def _stream_claude_with_tools(messages: list, system: str = "", max_tokens: int = 8192,
@@ -760,6 +836,32 @@ def _get_project_context(project) -> str:
         lines.append("\nCapital Schedule:")
         for s in schedule:
             lines.append(f"- {s.description}: ${s.amount} (Due: {s.due_date}, Status: {s.status})")
+
+    # Fully explore the database for related BOQ information 
+    try:
+        from apps.builder_dashboard.models import BOQBuildingItem, BOQCorrection
+        
+        existing_items = BOQBuildingItem.objects.filter(project=project)
+        if existing_items.exists():
+            lines.append("\n--- EXISTING BOQ ITEMS ALREADY ON PROJECT ---")
+            for item in existing_items:
+                ai_flag = "[AI-Generated]" if getattr(item, 'is_ai_generated', False) else "[Manual]"
+                lines.append(f"- {getattr(item, 'bill_no', '')} | {item.description}: {item.quantity} {getattr(item, 'unit', '')} @ ${item.rate} {ai_flag}")
+                
+        corrections = BOQCorrection.objects.filter(project=project).order_by('-created_at')[:30]
+        if corrections.exists():
+            lines.append("\n--- PAST USER CORRECTIONS TO BOQ (Learn from these adjustments!) ---")
+            lines.append("Review how the user manually corrected previous AI outputs, and adjust your current calculations/rates to match their preferences.")
+            for c in corrections:
+                ai_src = "AI-Generated Item" if c.was_ai_generated else "Manual Item"
+                msg = f"- [{c.action}] on {ai_src}."
+                if c.action == "UPDATE":
+                    msg += f"\n  Before: {c.previous_data}\n  After:  {c.new_data}"
+                elif c.action == "DELETE":
+                    msg += f"\n  Deleted: {c.previous_data}"
+                lines.append(msg)
+    except Exception:
+        pass
 
     return "\n".join(lines)
 
@@ -1387,77 +1489,36 @@ class ChatCompletionView(APIView):
         analyse_system = (
             "You are a professional Quantity Surveyor and Construction Analyst AI for the DzeNhare "
             "Smart Quality Builder platform.\n\n"
-            "You are required to create a detailed Bill of Quantities (BoQ) based on the provided drawing. "
-            "The BoQ should accurately represent all items, including their dimensions, quantities, and any "
-            "relevant specifications visible or inferable from the drawing.\n\n"
-            "Follow these steps:\n"
-            "1. Examine the drawing meticulously to identify ALL distinct components — structural elements, "
-            "finishes, openings, services, and external works.\n"
-            "2. For each component, note its type, dimensions (length, width, height, depth as applicable), "
-            "and calculate the quantity required. Show the measurement formula where possible.\n"
-            "3. Organize the information systematically by category (e.g. Substructure, Superstructure, "
-            "Finishes, Windows & Doors, Plumbing, Electrical, External Works).\n"
-            "4. Provide clear labels and SI units for all measurements "
-            "(m², m³, m, nr, item, kg as appropriate).\n"
-            "5. Apply standard Zimbabwean construction rates (USD) to each item. If the rate cannot be "
-            "determined, provide a reasonable estimate and append '(est.)' to the description.\n"
-            "6. Check for SI-56 compliance issues and note them in compliance_notes.\n\n"
+            "You are required to create a FULL, EXHAUSTIVE, AND COMPREHENSIVE Project Budget based on the provided drawing "
+            "following the exact 7-sheet format. "
+            "CRITICAL INSTRUCTION: DO NOT provide a summarized, brief, or abbreviated Budget. You MUST generate a complete "
+            "line-by-line breakdown across all 7 budget categories. A typical residential/commercial project has at least 20-40 line items "
+            "in the Building Items alone.\n\n"
+            "Follow these steps to populate the 7 arrays:\n"
+            "1. building_items: Meticulously identify ALL distinct components (structural elements, finishes, services). Provide bill_no, description, unit, quantity, rate. Use SI units.\n"
+            "2. professional_fees: Detail Architectural, Engineering, QS, and Council fees. Include discipline, role_scope, basis, rate (string like '5%'), and estimated_fee.\n"
+            "3. admin_expenses: List site management costs (e.g. Project Manager, Site Agent, Security). Include item_role, trips/distance if applicable, rate, and total_cost.\n"
+            "4. labour_costs: Provide labor estimates by construction phase (e.g. Substructure, Roof). Detail trade_role, skill_level, gang_size, duration_weeks, total_man_days, daily_rate, and total_cost.\n"
+            "5. machine_plants: Note any heavy machinery needed (TLB, Excavator, Crane). Specify category, machine_item, qty, dry/wet rates, fuel costs, operator_rate, days_rqd, and total_cost.\n"
+            "6. labour_breakdowns: Provide granular manpower tasks for complex phases (phase, trade_role, skill_level, gang_size, duration_weeks, total_man_days, daily_rate, total_cost).\n"
+            "7. schedule_tasks: Output a high-level Gantt chart / Timeline outlining wbs, task_description, start_date/end_date (Format: YYYY-MM-DD), days, predecessor, and est_cost.\n\n"
             "If no image is attached, set summary to explain that you need an image and leave items empty."
         )
 
-        # ── Overlay active BOQ template (if any) ─────────────────────
-        template = BOQTemplate.objects.filter(is_active=True).order_by('-updated_at').first()
-        if template:
-            parts = ["\n\n--- BOQ TEMPLATE INSTRUCTIONS (follow exactly) ---"]
-
-            if template.category_order:
-                parts.append(
-                    f"\n**Category Order** – output items grouped in this sequence:\n{template.category_order}"
-                )
-
-            if template.extraction_rules:
-                parts.append(
-                    f"\n**Extraction Rules** – follow these rules when measuring and pricing:\n{template.extraction_rules}"
-                )
-
-            example_items = template.get_example_items()
-            if example_items:
-                parts.append(
-                    "\n**Example Items (mimic this naming, detail level and categorisation):**\n"
-                    + json.dumps(example_items, indent=2)
-                )
-
-            if template.include_labour_rate:
-                parts.append(
-                    "\nIMPORTANT: For every item, also include a `labour_rate` (labour cost per unit). "
-                    "Estimate if not known."
-                )
-
-            if template.include_measurement_formula:
-                parts.append(
-                    "\nIMPORTANT: For every item, include a `measurement_formula` string showing how "
-                    "the quantity was calculated, e.g. '2×(12.5+8.0)×2.7 = 110.7 m²'."
-                )
-
-            if template.header_text:
-                parts.append(f"\nBOQ Header (include verbatim at the start of the summary):\n{template.header_text}")
-
-            if template.footer_text:
-                parts.append(f"\nBOQ Footer (include verbatim at the end of the summary):\n{template.footer_text}")
-
-            analyse_system += "\n".join(parts)
-
         if project:
             analyse_system += (
-                f"\n\n--- PROJECT SURVEY DATA (use for dimensional and material context) ---\n"
+                f"\n\n--- PROJECT DB CONTEXT (YOU MUST FULLY EXPLORE THIS BEFORE ANALYSING) ---\n"
+                f"You are instructed to fully explore the data related to this project (Project ID: {project.id}). "
+                f"Thoroughly review the existing BOQ items and learn from the 'PAST USER CORRECTIONS' shown below. "
+                f"You MUST adjust your assumptions, measurements, branding, or pricing to perfectly mirror how the user corrected past entries.\n"
                 f"{_get_project_context(project)}"
             )
 
         user_content = analyse_text if analyse_text else "Please analyse this image."
 
         try:
-            # Use structured output with Pydantic schema
-            llm = _get_claude_llm(temperature=0.3, max_tokens=8192)
+            # Use structured output with Pydantic schema (OPUS for technical analysis)
+            llm = _get_claude_llm(temperature=0.3, max_tokens=8192, model=settings.CLAUDE_OPUS_MODEL)
             structured_llm = llm.with_structured_output(BOQAnalysis)
 
             lc_messages = _build_lc_messages(
@@ -1475,9 +1536,9 @@ class ChatCompletionView(APIView):
             try:
                 fallback_system = analyse_system + (
                     "\n\nRESPOND WITH a JSON OBJECT with keys: summary (str), "
-                    "items (list of {category, item_name, description, unit, quantity, rate, total_amount, "
-                    "labour_rate (optional float), measurement_formula (optional str)}), "
-                    "compliance_notes (list of str), recommendations (list of str). "
+                    "building_items (list), professional_fees (list), admin_expenses (list), "
+                    "labour_costs (list), machine_plants (list), labour_breakdowns (list), "
+                    "schedule_tasks (list), schedule_materials (list), compliance_notes (list of str), recommendations (list of str). "
                     "Output ONLY valid JSON, no markdown fences."
                 )
                 raw = _call_claude(
@@ -1486,6 +1547,7 @@ class ChatCompletionView(APIView):
                     max_tokens=4096,
                     temperature=0.3,
                     images=vision_images if vision_images else None,
+                    model=settings.CLAUDE_OPUS_MODEL,
                 )
                 cleaned = raw.strip()
                 if cleaned.startswith('```'):

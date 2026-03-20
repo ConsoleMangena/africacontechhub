@@ -204,20 +204,11 @@ function RouteComponent() {
   }
 
   const fetchRequests = useCallback(async () => {
-    if (!selectedProject) return
-    // Show cached data immediately
-    const cached = requestsCacheRef.current.get(selectedProject)
-    if (cached) {
-      setRequests(cached)
-      setRefetching(true)
-    } else {
-      setLoading(true)
-    }
+    setLoading(true)
     try {
-      const res = await builderApi.getProjectDrawingRequests(selectedProject)
+      const res = await builderApi.getAllDrawingRequests()
       const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
       setRequests(data)
-      requestsCacheRef.current.set(selectedProject, data)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load requests')
@@ -225,11 +216,11 @@ function RouteComponent() {
       setLoading(false)
       setRefetching(false)
     }
-  }, [selectedProject])
+  }, [])
 
   useEffect(() => {
     fetchRequests()
-  }, [selectedProject])
+  }, [fetchRequests])
 
   const handleSubmitRequest = async () => {
     if (!selectedProject || !form.title) {
@@ -306,14 +297,12 @@ function RouteComponent() {
     const previousRequests = requests
     const updated = requests.filter(r => r.id !== requestId)
     setRequests(updated)
-    if (selectedProject) requestsCacheRef.current.set(selectedProject, updated)
     try {
       await builderApi.deleteDrawingRequest(requestId)
       toast.success('Request deleted')
     } catch (err) {
       console.error(err)
       setRequests(previousRequests)
-      if (selectedProject) requestsCacheRef.current.set(selectedProject, previousRequests)
       toast.error('Failed to delete request')
     }
   }
@@ -800,9 +789,23 @@ function RouteComponent() {
                 </div>
               </Card>
             ) : (
-              requests.map(request => (
-                <Card key={request.id} className="overflow-hidden">
-                  <CardHeader className="pb-3">
+              Array.from(new Set(requests.map(r => r.project))).map(projectId => {
+                const project = projects.find(p => p.id === projectId)
+                const projectRequests = requests.filter(r => r.project === projectId)
+                return (
+                  <div key={projectId} className="mb-8 last:mb-0">
+                    <div className="flex items-center gap-3 mb-4 pb-2 border-b border-slate-200">
+                      <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                        <Icon name="building2" size={16} className="text-indigo-600" />
+                      </div>
+                      <h3 className="text-md font-bold text-slate-800">
+                        {project ? project.title : `Project #${projectId}`}
+                      </h3>
+                    </div>
+                    <div className="grid gap-4">
+                      {projectRequests.map(request => (
+                        <Card key={request.id} className="overflow-hidden">
+                          <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-start gap-3">
                         <div className="h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
@@ -898,9 +901,13 @@ function RouteComponent() {
                       </div>
                     </CardContent>
                   )}
-                </Card>
-            ))
-          )}
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </div>
 
           {/* File Types Info */}

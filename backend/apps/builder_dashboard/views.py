@@ -8,14 +8,19 @@ from django.shortcuts import get_object_or_404
 from .models import (
     Project, SiteUpdate, EscrowMilestone, CapitalSchedule,
     MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera,
-    BOQItem, MaterialRequest, DrawingRequest, DrawingFile, ProjectTeam
+    BOQBuildingItem, BOQProfessionalFee, BOQAdminExpense,
+    BOQLabourCost, BOQMachinePlant, BOQLabourBreakdown, BOQScheduleTask,
+    MaterialRequest, DrawingRequest, DrawingFile, ProjectTeam,
+    BOQCorrection, ScheduleOfMaterial
 )
 from .serializers import (
     ProjectSerializer, SiteUpdateSerializer, EscrowMilestoneSerializer,
     CapitalScheduleSerializer, MaterialAuditSerializer, WeatherEventSerializer,
-    ESignatureRequestSerializer, SiteCameraSerializer, BOQItemSerializer,
+    ESignatureRequestSerializer, SiteCameraSerializer, BOQBuildingItemSerializer,
+    BOQProfessionalFeeSerializer, BOQAdminExpenseSerializer, BOQLabourCostSerializer,
+    BOQMachinePlantSerializer, BOQLabourBreakdownSerializer, BOQScheduleTaskSerializer,
     MaterialRequestSerializer, DrawingRequestSerializer, DrawingFileSerializer,
-    ProjectTeamSerializer
+    ProjectTeamSerializer, BOQCorrectionSerializer, ScheduleOfMaterialSerializer
 )
 from apps.authentication.permissions import IsBuilder, IsAdmin
 from apps.contractor_dashboard.models import Bid, ContractorProfile, ContractorRating
@@ -155,90 +160,146 @@ class SiteCameraViewSet(viewsets.ModelViewSet):
         project = get_object_or_404(Project, id=self.request.data.get('project'), owner=self.request.user)
         serializer.save(project=project)
 
-class BOQItemViewSet(viewsets.ModelViewSet):
-    serializer_class = BOQItemSerializer
-    permission_classes = [permissions.IsAuthenticated, IsBuilder]
-
-    def get_queryset(self):
-        qs = BOQItem.objects.filter(project__owner=self.request.user)
-        project_id = self.request.query_params.get('project')
-        if project_id:
-            qs = qs.filter(project_id=project_id)
-        return qs
-
+class BOQCorrectionMixin:
     def perform_create(self, serializer):
         from django.shortcuts import get_object_or_404
+        from django.contrib.contenttypes.models import ContentType
         project = get_object_or_404(Project, id=self.request.data.get('project'), owner=self.request.user)
-        serializer.save(project=project)
-
-    @action(detail=False, methods=['post'])
-    def generate_template(self, request):
-        project_id = request.data.get('project')
-        if not project_id:
-            return Response({'error': 'Project ID required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        try:
-            project = Project.objects.get(id=project_id, owner=request.user)
-        except Project.DoesNotExist:
-            return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+        is_ai = str(self.request.data.get('is_ai_generated', False)).lower() == 'true'
+        instance = serializer.save(project=project, is_ai_generated=is_ai)
+        
+        ct = ContentType.objects.get_for_model(instance)
+        BOQCorrection.objects.create(
+            project=project,
+            user=self.request.user,
+            content_type=ct,
+            object_id=instance.id,
+            action='CREATE',
+            was_ai_generated=is_ai,
+            previous_data=None,
+            new_data=self.get_serializer(instance).data
+        )
 
-        # Idempotency check: don't generate if items already exist
-        if BOQItem.objects.filter(project=project).exists():
-            return Response({'error': 'BOQ template has already been generated for this project.'}, status=status.HTTP_400_BAD_REQUEST)
+    def perform_update(self, serializer):
+        from django.contrib.contenttypes.models import ContentType
+        old_instance = self.get_object()
+        old_data = self.get_serializer(old_instance).data
+        was_ai = getattr(old_instance, 'is_ai_generated', False)
+        
+        instance = serializer.save()
+        new_data = self.get_serializer(instance).data
+        
+        ct = ContentType.objects.get_for_model(instance)
+        BOQCorrection.objects.create(
+            project=instance.project,
+            user=self.request.user,
+            content_type=ct,
+            object_id=instance.id,
+            action='UPDATE',
+            was_ai_generated=was_ai,
+            previous_data=old_data,
+            new_data=new_data
+        )
 
-        # Idempotency check: don't generate if items already exist
-        if BOQItem.objects.filter(project=project).exists():
-            return Response({'error': 'BOQ template has already been generated for this project.'}, status=status.HTTP_400_BAD_REQUEST)
+    def perform_destroy(self, instance):
+        old_data = self.get_serializer(instance).data
+        project = instance.project
+        was_ai = getattr(instance, 'is_ai_generated', False)
+        
+        # We cannot link to a deleted object using generic foreign key,
+        # so we leave content_type/object_id blank.
+        BOQCorrection.objects.create(
+            project=project,
+            user=self.request.user,
+            content_type=None,
+            object_id=None,
+            action='DELETE',
+            was_ai_generated=was_ai,
+            previous_data=old_data,
+            new_data=None
+        )
+        instance.delete()
 
-        # Basic ZIQS Home Template Items
-        template_items = [
-            # Bill 1
-            {'category': '1. Preliminaries & General', 'item_name': 'Site Clearance', 'unit': 'm²', 'description': 'Clear site of all rubbish, grass, and bushes'},
-            {'category': '1. Preliminaries & General', 'item_name': 'Setting Out', 'unit': 'item', 'description': 'Setting out of the building'},
-            # Bill 2
-            {'category': '2. Earthworks & Excavation', 'item_name': 'Trench Excavation', 'unit': 'm³', 'description': 'Excavate trenches for foundations'},
-            {'category': '2. Earthworks & Excavation', 'item_name': 'Hardcore Filling', 'unit': 'm³', 'description': 'Supply and fill with approved hardcore'},
-            {'category': '2. Earthworks & Excavation', 'item_name': 'Ant Poisoning', 'unit': 'm²', 'description': 'Apply approved ant poison to surfaces'},
-            # Bill 3
-            {'category': '3. Concrete, Formwork & Reinforcement', 'item_name': 'Strip Footings', 'unit': 'm³', 'description': '20MPa concrete in strip footings'},
-            {'category': '3. Concrete, Formwork & Reinforcement', 'item_name': 'Surface Bed', 'unit': 'm³', 'description': '20MPa concrete in surface bed'},
-            {'category': '3. Concrete, Formwork & Reinforcement', 'item_name': 'BRC Mesh', 'unit': 'm²', 'description': 'Supply and fix welded mesh reinforcement'},
-            # Bill 4
-            {'category': '4. Brickwork & Blockwork', 'item_name': 'Foundation Brickwork', 'unit': 'm²', 'description': 'Half brick/one brick walling in foundation'},
-            {'category': '4. Brickwork & Blockwork', 'item_name': 'Superstructure Brickwork', 'unit': 'm²', 'description': 'Common bricks in superstructure'},
-            # Bill 5
-            {'category': '5. Waterproofing', 'item_name': 'DPC (Damp Proof Course)', 'unit': 'm', 'description': 'Lay standard DPC under all brick walls'},
-            {'category': '5. Waterproofing', 'item_name': 'DPM (Damp Proof Membrane)', 'unit': 'm²', 'description': 'Lay 250 micron polythene sheet under surface bed'},
-            # Bill 7
-            {'category': '7. Roof Coverings', 'item_name': 'Timber Trusses', 'unit': 'nr', 'description': 'Supply and fix standard sawn timber roof trusses'},
-            {'category': '7. Roof Coverings', 'item_name': 'Roof Sheeting/Tiles', 'unit': 'm²', 'description': 'Supply and fit chromadek sheeting or concrete tiles'},
-            # Bill 8
-            {'category': '8. Plumbing & Drainage', 'item_name': 'Internal Plumbing', 'unit': 'item', 'description': 'First and second fix plumbing'},
-            {'category': '8. Plumbing & Drainage', 'item_name': 'Sewer Connection', 'unit': 'item', 'description': 'Connect to main municipal sewer line'},
-            # Bill 9
-            {'category': '9. Electrical Installations', 'item_name': 'Tubing & Wiring', 'unit': 'item', 'description': 'First fix electrical tubing and wiring'},
-            # Bill 10
-            {'category': '10. Floor, Wall & Ceiling Finishes', 'item_name': 'Internal Plaster', 'unit': 'm²', 'description': 'Apply 15mm cement plaster to internal walls'},
-            {'category': '10. Floor, Wall & Ceiling Finishes', 'item_name': 'Floor Screed', 'unit': 'm²', 'description': '30mm thick cement screed finishing'},
-            {'category': '10. Floor, Wall & Ceiling Finishes', 'item_name': 'Ceiling Boards', 'unit': 'm²', 'description': 'Supply and fix skimmed ceiling boards'},
-            # Bill 11
-            {'category': '11. Glazing & Painting', 'item_name': 'Internal Painting', 'unit': 'm²', 'description': 'Prepare and apply 2 coats PVA'},
-        ]
+class BOQBuildingItemViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
+    serializer_class = BOQBuildingItemSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+    def get_queryset(self):
+        qs = BOQBuildingItem.objects.filter(project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
+        return qs
 
-        created_count = 0
-        for item in template_items:
-            BOQItem.objects.create(
-                project=project,
-                category=item['category'],
-                item_name=item['item_name'],
-                unit=item['unit'],
-                description=item['description'],
-                quantity=0,
-                rate=0
-            )
-            created_count += 1
+class BOQProfessionalFeeViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
+    serializer_class = BOQProfessionalFeeSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+    def get_queryset(self):
+        qs = BOQProfessionalFee.objects.filter(project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
+        return qs
 
-        return Response({'message': f'Successfully generated {created_count} BOQ template line items.'})
+class BOQAdminExpenseViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
+    serializer_class = BOQAdminExpenseSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+    def get_queryset(self):
+        qs = BOQAdminExpense.objects.filter(project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
+        return qs
+
+class BOQLabourCostViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
+    serializer_class = BOQLabourCostSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+    def get_queryset(self):
+        qs = BOQLabourCost.objects.filter(project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
+        return qs
+
+class BOQMachinePlantViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
+    serializer_class = BOQMachinePlantSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+    def get_queryset(self):
+        qs = BOQMachinePlant.objects.filter(project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
+        return qs
+
+class BOQLabourBreakdownViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
+    serializer_class = BOQLabourBreakdownSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+    def get_queryset(self):
+        qs = BOQLabourBreakdown.objects.filter(project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
+        return qs
+
+class BOQScheduleTaskViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
+    serializer_class = BOQScheduleTaskSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+    def get_queryset(self):
+        qs = BOQScheduleTask.objects.filter(project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
+        return qs
+
+class ScheduleOfMaterialViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
+    serializer_class = ScheduleOfMaterialSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+    def get_queryset(self):
+        qs = ScheduleOfMaterial.objects.filter(project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
+        return qs
+
+class BudgetAggregateView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+    
+    def get(self, request, project_id):
+        project = get_object_or_404(Project, id=project_id, owner=request.user)
+        return Response({
+            'building_items': BOQBuildingItemSerializer(project.building_items.all(), many=True).data,
+            'professional_fees': BOQProfessionalFeeSerializer(project.professional_fees.all(), many=True).data,
+            'admin_expenses': BOQAdminExpenseSerializer(project.admin_expenses.all(), many=True).data,
+            'labour_costs': BOQLabourCostSerializer(project.labour_costs.all(), many=True).data,
+            'machine_plants': BOQMachinePlantSerializer(project.machine_plants.all(), many=True).data,
+            'labour_breakdowns': BOQLabourBreakdownSerializer(project.labour_breakdowns.all(), many=True).data,
+            'schedule_tasks': BOQScheduleTaskSerializer(project.schedule_tasks.all(), many=True).data,
+            'schedule_materials': ScheduleOfMaterialSerializer(project.schedule_materials.all(), many=True).data,
+        })
 
 class BuilderConnectionsView(views.APIView):
     """
@@ -474,10 +535,34 @@ class MaterialRequestViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        from django.shortcuts import get_object_or_404
+        from django.contrib.contenttypes.models import ContentType
         project_id = self.request.data.get('project')
+        category = self.request.data.get('procurement_category', 'MATERIAL')
+        boq_item_id = self.request.data.get('boq_item')
+        
         project = get_object_or_404(Project, id=project_id, owner=self.request.user)
-        serializer.save(project=project)
+        
+        content_type = None
+        object_id = None
+        
+        if boq_item_id:
+            object_id = boq_item_id
+            if category == 'MATERIAL':
+                content_type = ContentType.objects.get_for_model(BOQBuildingItem)
+            elif category == 'LABOUR':
+                content_type = ContentType.objects.get_for_model(BOQLabourCost)
+            elif category == 'PLANT':
+                content_type = ContentType.objects.get_for_model(BOQMachinePlant)
+            elif category == 'PROFESSIONAL':
+                content_type = ContentType.objects.get_for_model(BOQProfessionalFee)
+            elif category == 'ADMIN':
+                content_type = ContentType.objects.get_for_model(BOQAdminExpense)
+
+        serializer.save(
+            project=project,
+            content_type=content_type,
+            object_id=object_id
+        )
 
 class DrawingRequestViewSet(viewsets.ModelViewSet):
     serializer_class = DrawingRequestSerializer

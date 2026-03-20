@@ -2,7 +2,10 @@ from rest_framework import serializers
 from .models import (
     Project, SiteUpdate, EscrowMilestone, CapitalSchedule,
     MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera,
-    BOQItem, MaterialRequest, DrawingRequest, DrawingFile, ProjectTeam
+    BOQBuildingItem, BOQProfessionalFee, BOQAdminExpense,
+    BOQLabourCost, BOQMachinePlant, BOQLabourBreakdown, BOQScheduleTask,
+    MaterialRequest, DrawingRequest, DrawingFile, ProjectTeam,
+    BOQCorrection, ScheduleOfMaterial
 )
 from apps.authentication.models import Profile
 
@@ -131,11 +134,59 @@ class SiteCameraSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
 
-class BOQItemSerializer(serializers.ModelSerializer):
+class BOQBuildingItemSerializer(serializers.ModelSerializer):
     class Meta:
-        model = BOQItem
+        model = BOQBuildingItem
         fields = '__all__'
-        read_only_fields = ('total_amount', 'created_at', 'updated_at')
+        read_only_fields = ('amount', 'created_at', 'updated_at')
+
+class BOQProfessionalFeeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BOQProfessionalFee
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+class BOQAdminExpenseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BOQAdminExpense
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+class BOQLabourCostSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BOQLabourCost
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+class BOQMachinePlantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BOQMachinePlant
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+class BOQLabourBreakdownSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BOQLabourBreakdown
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+class BOQScheduleTaskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BOQScheduleTask
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+class ScheduleOfMaterialSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ScheduleOfMaterial
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+class BOQCorrectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BOQCorrection
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
 
 class MaterialRequestSerializer(serializers.ModelSerializer):
     class Meta:

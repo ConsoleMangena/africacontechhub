@@ -162,20 +162,39 @@ export interface SiteCamera {
     updated_at: string;
 }
 
-export interface BOQItem {
-    id: number;
-    project: number;
-    category: string;
-    item_name: string;
-    description: string;
-    unit: string;
-    quantity: string;
-    rate: string;
-    total_amount: string;
-    labour_rate?: string;
-    measurement_formula?: string;
-    created_at: string;
-    updated_at: string;
+export interface BOQBuildingItem {
+    id: number; project: number; bill_no?: string; description: string; specification?: string; unit?: string; quantity: string; rate: string; amount: string; is_ai_generated: boolean; created_at: string; updated_at: string;
+}
+export interface BOQProfessionalFee {
+    id: number; project: number; discipline?: string; role_scope?: string; basis?: string; rate?: string; estimated_fee: string; is_ai_generated: boolean; created_at: string; updated_at: string;
+}
+export interface BOQAdminExpense {
+    id: number; project: number; item_role?: string; description?: string; trips_per_week?: string; total_trips?: string; distance?: string; rate: string; total_cost: string; is_ai_generated: boolean; created_at: string; updated_at: string;
+}
+export interface BOQLabourCost {
+    id: number; project: number; phase?: string; trade_role?: string; skill_level?: string; gang_size?: string; duration_weeks?: string; total_man_days?: string; daily_rate: string; total_cost: string; weekly_wage_bill?: string; is_ai_generated: boolean; created_at: string; updated_at: string;
+}
+export interface BOQMachinePlant {
+    id: number; project: number; category?: string; machine_item?: string; qty: string; dry_hire_rate?: string; fuel_l_hr?: string; hrs_day?: string; fuel_cost?: string; operator_rate?: string; daily_wet_rate: string; days_rqd?: string; total_cost: string; is_ai_generated: boolean; created_at: string; updated_at: string;
+}
+export interface BOQLabourBreakdown {
+    id: number; project: number; phase?: string; trade_role?: string; skill_level?: string; gang_size?: string; duration_weeks?: string; total_man_days?: string; daily_rate: string; total_cost: string; is_ai_generated: boolean; created_at: string; updated_at: string;
+}
+export interface BOQScheduleTask {
+    id: number; project: number; wbs?: string; task_description?: string; start_date?: string; end_date?: string; days?: string; predecessor?: string; est_cost?: string; is_ai_generated: boolean; created_at: string; updated_at: string;
+}
+export interface BOQScheduleMaterial {
+    id: number; project: number; section: string; material_description: string; specification?: string; estimated_qty?: string; is_ai_generated: boolean; created_at: string; updated_at: string;
+}
+export interface BudgetSheets {
+    building_items: BOQBuildingItem[];
+    professional_fees: BOQProfessionalFee[];
+    admin_expenses: BOQAdminExpense[];
+    labour_costs: BOQLabourCost[];
+    machine_plants: BOQMachinePlant[];
+    labour_breakdowns: BOQLabourBreakdown[];
+    schedule_tasks: BOQScheduleTask[];
+    schedule_materials: BOQScheduleMaterial[];
 }
 
 export interface ProjectDashboard {
@@ -272,6 +291,9 @@ export interface MaterialRequest {
     id: number;
     project: number;
     boq_item?: number;
+    content_type?: number;
+    object_id?: number;
+    procurement_category: 'MATERIAL' | 'LABOUR' | 'PLANT' | 'PROFESSIONAL' | 'ADMIN' | 'OTHER';
     material_name: string;
     quantity_requested: string;
     unit: string;

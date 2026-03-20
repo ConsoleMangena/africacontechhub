@@ -102,7 +102,9 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 # ── AI Provider Configuration ────────────────────────────────────────
 # Claude AI (Anthropic) — Main chat, reasoning, vision, prompt engineering
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
-CLAUDE_MODEL = os.getenv('CLAUDE_MODEL', 'claude-sonnet-4-20250514')
+CLAUDE_OPUS_MODEL = os.getenv('CLAUDE_OPUS_MODEL', 'claude-opus-4-6')
+CLAUDE_SONNET_MODEL = os.getenv('CLAUDE_SONNET_MODEL', 'claude-sonnet-4-6')
+CLAUDE_MODEL = CLAUDE_SONNET_MODEL  # Default fallback
 
 # Gemini Nano Banana — Image generation only
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', os.getenv('QWEN_API_KEY', ''))
@@ -110,16 +112,31 @@ GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image-pre
 
 # ── Model Context Protocol (MCP) Configuration ───────────────────────
 # List of URLs for remote MCP servers (SSE transport)
-# Adding "open" servers for Site Intelligence (Search, Maps, Weather)
-MCP_SERVERS = os.getenv('MCP_SERVERS', '').split(',')
-# Defaults for enhanced site research if none provided in env
-if not any(MCP_SERVERS):
-    MCP_SERVERS = [
-        "https://brave-search.mcp.run/sse",
-        "https://google-maps.mcp.run/sse",
-        "https://weather.mcp.run/sse",
-    ]
-MCP_SERVERS = [s.strip() for s in MCP_SERVERS if s.strip()]
+# Set via environment variable 'MCP_SERVERS=url1,url2'
+_raw_servers = os.getenv('MCP_SERVERS', '')
+MCP_SERVERS = []
+if _raw_servers:
+    MCP_SERVERS = [s.strip() for s in _raw_servers.split(',') if s.strip()]
+
+# ── Local Stdio MCP Servers ──────────────────────────────────────────
+# These servers execute locally via standard I/O (e.g. npx)
+MCP_STDIO_SERVERS = [
+    {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-everything"]
+    }
+]
+
+_db_url = os.getenv('DATABASE_URL', '')
+if _db_url.startswith('postgres'):
+    MCP_STDIO_SERVERS.append({
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-postgres", _db_url]
+    })
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

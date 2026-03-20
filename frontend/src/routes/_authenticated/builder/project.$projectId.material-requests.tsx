@@ -1,149 +1,180 @@
 import { Icon } from '@/components/ui/material-icon'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { builderApi } from '@/services/api'
-import type { BOQItem } from '@/types/api'
+import type { 
+  Project, MaterialRequest, 
+  BOQBuildingItem, BOQLabourCost, BOQMachinePlant, 
+  BOQProfessionalFee, BOQAdminExpense 
+} from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute(
   '/_authenticated/builder/project/$projectId/material-requests',
 )({
-  component: MaterialRequestsPage,
+  component: ProjectProcurementPage,
 })
 
-interface MaterialRequest {
-  id: number
-  boq_item: number
-  material_name: string
-  quantity_requested: string
-  unit: string
-  status: 'pending' | 'approved' | 'ordered' | 'delivered'
-  notes: string
-  created_at: string
+type ProcurementCategory = 'MATERIAL' | 'LABOUR' | 'PLANT' | 'PROFESSIONAL' | 'ADMIN'
+
+const CATEGORIES: { key: ProcurementCategory; label: string; icon: string; color: string }[] = [
+  { key: 'MATERIAL', label: 'Materials', icon: 'construction', color: 'emerald' },
+  { key: 'LABOUR',   label: 'Labour',    icon: 'engineering',   color: 'blue' },
+  { key: 'PLANT',    label: 'Plant',     icon: 'precision_manufacturing', color: 'amber' },
+  { key: 'PROFESSIONAL', label: 'Fees',  icon: 'badge',      color: 'purple' },
+  { key: 'ADMIN',    label: 'Admin',     icon: 'receipt_long', color: 'slate' },
+]
+
+const STATUS_COLORS: Record<string, string> = {
+  PENDING:   'bg-amber-50 text-amber-700 border border-amber-200',
+  APPROVED:  'bg-blue-50 text-blue-700 border border-blue-200',
+  ORDERED:   'bg-violet-50 text-violet-700 border border-violet-200',
+  DELIVERED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  CANCELLED: 'bg-slate-100 text-slate-500 border border-slate-200',
 }
 
-function MaterialRequestsPage() {
+function ProjectProcurementPage() {
   const { projectId } = Route.useParams()
   const pid = Number(projectId)
-  const [boqItems, setBoqItems] = useState<BOQItem[]>([])
+  const [project, setProject] = useState<Project | null>(null)
+  const [activeCategory, setActiveCategory] = useState<ProcurementCategory>('MATERIAL')
   const [requests, setRequests] = useState<MaterialRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingRequests, setLoadingRequests] = useState(false)
+  
+  // BOQ source items
+  const [boqBuilding, setBoqBuilding] = useState<BOQBuildingItem[]>([])
+  const [boqLabour, setBoqLabour] = useState<BOQLabourCost[]>([])
+  const [boqPlant, setBoqPlant] = useState<BOQMachinePlant[]>([])
+  const [boqProfessional, setBoqProfessional] = useState<BOQProfessionalFee[]>([])
+  const [boqAdmin, setBoqAdmin] = useState<BOQAdminExpense[]>([])
+  
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    boq_item: '',
-    material_name: '',
-    quantity_requested: '',
+    boq_ref: '',
     unit: '',
+    procurement_method: 'SELF' as 'SELF' | 'GROUP_BUY',
     notes: '',
   })
 
-  const fetchData = async () => {
+  const loadProject = async () => {
     try {
-      // Fetch BOQ items for the project
-      const boqRes = await builderApi.getProjectBOQItems(pid)
-      const items = Array.isArray(boqRes.data) ? boqRes.data : (boqRes.data as any).results || []
-      setBoqItems(items.filter((item: BOQItem) => 
-        item.category.includes('Concrete') || 
-        item.category.includes('Brickwork') || 
-        item.category.includes('Roof') ||
-        item.category.includes('Timber') ||
-        item.category.includes('Plumbing') ||
-        item.category.includes('Electrical') ||
-        item.category.includes('Finishes')
-      ))
-    } catch { 
-      toast.error('Failed to load BOQ items')
-    } finally { 
-      setLoading(false) 
+      const res = await builderApi.getProject(pid)
+      setProject(res.data)
+    } catch {
+      toast.error('Failed to load project details')
     }
   }
 
-  useEffect(() => { fetchData() }, [pid])
+  const loadBOQData = async () => {
+    try {
+      const [b, l, p, pf, a] = await Promise.all([
+        builderApi.getProjectBOQBuildingItems(pid),
+        builderApi.getProjectBOQLabourCosts(pid),
+        builderApi.getProjectBOQMachinePlants(pid),
+        builderApi.getProjectBOQProfessionalFees(pid),
+        builderApi.getProjectBOQAdminExpenses(pid),
+      ])
+      const extract = (r: any) => Array.isArray(r.data) ? r.data : (r.data as any).results || []
+      setBoqBuilding(extract(b))
+      setBoqLabour(extract(l))
+      setBoqPlant(extract(p))
+      setBoqProfessional(extract(pf))
+      setBoqAdmin(extract(a))
+    } catch {
+      toast.error('Failed to load BOQ items')
+    }
+  }
+
+  const fetchRequests = useCallback(async () => {
+    setLoadingRequests(true)
+    try {
+      const res = await builderApi.getProjectMaterialRequests(pid)
+      const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
+      setRequests(data)
+    } catch {
+      toast.error('Failed to load procurement requests')
+    } finally {
+      setLoadingRequests(false)
+    }
+  }, [pid])
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true)
+      await Promise.all([loadProject(), loadBOQData(), fetchRequests()])
+      setLoading(false)
+    }
+    init()
+  }, [pid])
+
+  const handleBoqRefChange = (id: string) => {
+    setForm(f => ({ ...f, boq_ref: id }))
+    if (!id) return
+    const numId = Number(id)
+    if (activeCategory === 'MATERIAL') {
+      const item = boqBuilding.find(i => i.id === numId)
+      if (item) setForm(f => ({ ...f, material_name: item.description, unit: item.unit || '', quantity_requested: item.quantity }))
+    } else if (activeCategory === 'LABOUR') {
+      const item = boqLabour.find(i => i.id === numId)
+      if (item) setForm(f => ({ ...f, material_name: item.trade_role || item.phase || 'Labour', unit: 'day', quantity_requested: item.total_man_days || '1' }))
+    } else if (activeCategory === 'PLANT') {
+      const item = boqPlant.find(i => i.id === numId)
+      if (item) setForm(f => ({ ...f, material_name: item.machine_item || item.category || 'Plant', unit: 'day', quantity_requested: item.days_rqd || '1' }))
+    } else if (activeCategory === 'PROFESSIONAL') {
+      const item = boqProfessional.find(i => i.id === numId)
+      if (item) setForm(f => ({ ...f, material_name: item.role_scope || item.discipline || 'Fee', unit: 'lump sum', quantity_requested: '1' }))
+    } else if (activeCategory === 'ADMIN') {
+      const item = boqAdmin.find(i => i.id === numId)
+      if (item) setForm(f => ({ ...f, material_name: item.item_role || item.description || 'Admin', unit: 'trip', quantity_requested: item.total_trips || '1' }))
+    }
+  }
 
   const handleSubmit = async () => {
     if (!form.material_name || !form.quantity_requested) return
     setSaving(true)
     try {
-      // Create material request
+      const boqItemRef = activeCategory === 'MATERIAL' && form.boq_ref ? Number(form.boq_ref) : undefined
+      
       await builderApi.createMaterialRequest({
-        project: pid as any,
-        boq_item: form.boq_item ? Number(form.boq_item) : undefined,
+        project: pid,
+        procurement_category: activeCategory,
+        boq_item: boqItemRef,
         material_name: form.material_name,
         quantity_requested: form.quantity_requested,
         unit: form.unit,
         notes: form.notes,
-      })
-      setForm({ boq_item: '', material_name: '', quantity_requested: '', unit: '', notes: '' })
+        procurement_method: form.procurement_method,
+        price_at_request: '0',
+      } as any)
+      
+      setForm({ boq_ref: '', material_name: '', quantity_requested: '1', unit: '', procurement_method: 'SELF', notes: '' })
       setShowForm(false)
-      toast.success('Material request created')
-    } catch (err) { 
-      console.error(err)
+      toast.success('Procurement request created')
+      fetchRequests()
+    } catch {
       toast.error('Failed to create request')
-    } finally { 
-      setSaving(false) 
+    } finally {
+      setSaving(false)
     }
   }
 
-  const selectedBOQItem = boqItems.find(item => item.id === Number(form.boq_item))
+  const categoryRequests = requests.filter(r => r.procurement_category === activeCategory)
+  const currentCategory = CATEGORIES.find(c => c.key === activeCategory)!
 
   if (loading) {
     return (
-      <>
-        <Header>
-          <div className='ms-auto flex items-center space-x-4'>
-            <Search />
-            <ProfileDropdown />
-          </div>
-        </Header>
-        <Main>
-          <div className="w-full max-w-5xl mx-auto space-y-5">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-slate-200 animate-pulse" />
-              <div className="space-y-2">
-                <div className="h-5 w-40 bg-slate-200 rounded animate-pulse" />
-                <div className="h-3 w-56 bg-slate-100 rounded animate-pulse" />
-              </div>
-            </div>
-            <Card>
-              <CardContent className="p-0">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50">
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">BOQ Item</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">Category</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Quantity</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">Unit</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Rate</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Total</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b border-slate-50">
-                        <td className="px-4 py-3"><div className="h-4 w-28 bg-slate-200 rounded animate-pulse" /></td>
-                        <td className="px-4 py-3"><div className="h-4 w-32 bg-slate-100 rounded animate-pulse" /></td>
-                        <td className="px-4 py-3 text-right"><div className="h-4 w-12 bg-slate-100 rounded animate-pulse ml-auto" /></td>
-                        <td className="px-4 py-3"><div className="h-4 w-8 bg-slate-100 rounded animate-pulse" /></td>
-                        <td className="px-4 py-3 text-right"><div className="h-4 w-14 bg-slate-100 rounded animate-pulse ml-auto" /></td>
-                        <td className="px-4 py-3 text-right"><div className="h-4 w-16 bg-slate-200 rounded animate-pulse ml-auto" /></td>
-                        <td className="px-4 py-3 text-center"><div className="h-7 w-16 bg-slate-100 rounded animate-pulse mx-auto" /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
-          </div>
-        </Main>
-      </>
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Icon name="progress_activity" size={40} className="animate-spin text-primary mb-3" />
+        <p className="text-slate-500 text-sm">Loading Project Procurement...</p>
+      </div>
     )
   }
 
@@ -151,165 +182,247 @@ function MaterialRequestsPage() {
     <>
       <Header>
         <div className='ms-auto flex items-center space-x-4'>
-          <Search />
           <ProfileDropdown />
         </div>
       </Header>
       <Main>
-        <div className="w-full max-w-5xl mx-auto space-y-5">
+        <div className="w-full max-w-6xl mx-auto space-y-6 p-4 md:p-8">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Link to={`/builder/measurements`} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                <Icon name="arrow_left" size={18} className="text-slate-500" />
+                <Icon name="arrow_back" size={18} className="text-slate-500" />
               </Link>
               <div>
                 <h1 className="text-xl font-bold font-display text-slate-900 flex items-center gap-2">
                   <Icon name="inventory_2" size={22} className="text-emerald-600" />
-                  Material Requests
+                  {project?.title} — Procurement
                 </h1>
-                <p className="text-xs text-slate-500 mt-0.5">Procure materials from finalized budget</p>
+                <p className="text-xs text-slate-500 mt-0.5">Manage material, labour, and equipment requests</p>
               </div>
             </div>
-            <Button onClick={() => setShowForm(true)} size="sm">
+            <Button onClick={() => setShowForm(true)} size="sm" className="bg-emerald-600 hover:bg-emerald-700">
               <Icon name="add" size={14} className="mr-1.5" />
               New Request
             </Button>
           </div>
 
-          {/* Material Requests List */}
-          {boqItems.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Icon name="inventory_2" size={48} className="text-slate-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">No Budget Items Available</h3>
-                <p className="text-sm text-slate-500 max-w-sm mx-auto mb-4">
-                  Create your construction budget first to enable material procurement.
-                </p>
-                <Link to="/builder/measurements">
-                  <Button variant="outline" size="sm">
-                    Go to Budget
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="p-0">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50">
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">BOQ Item</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">Category</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Quantity</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">Unit</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Rate</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Total</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {boqItems.map(item => (
-                      <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                        <td className="px-4 py-3 text-sm font-medium text-slate-900">{item.item_name}</td>
-                        <td className="px-4 py-3 text-xs text-slate-500">{item.category}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700 text-right">{parseFloat(item.quantity).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-xs text-slate-500">{item.unit}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700 text-right">${parseFloat(item.rate).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-slate-900 text-right">${parseFloat(item.total_amount).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-center">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => {
-                              setForm({
-                                boq_item: String(item.id),
-                                material_name: item.item_name,
-                                quantity_requested: item.quantity,
-                                unit: item.unit,
-                                notes: '',
-                              })
-                              setShowForm(true)
-                            }}
-                          >
-                            Request
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
-          )}
+          {/* Category Tabs */}
+          <div className="flex gap-2 border-b border-slate-100 pb-px overflow-x-auto">
+            {CATEGORIES.map(c => (
+              <button
+                key={c.key}
+                onClick={() => { setActiveCategory(c.key); setShowForm(false) }}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
+                  activeCategory === c.key
+                    ? `border-${c.color}-600 text-${c.color}-600`
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-200'
+                )}
+              >
+                <Icon name={c.icon} size={16} />
+                {c.label}
+                <span className={cn(
+                  'ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold',
+                  activeCategory === c.key ? `bg-${c.color}-100 text-${c.color}-700` : 'bg-slate-100 text-slate-400'
+                )}>
+                  {requests.filter(r => r.procurement_category === c.key).length}
+                </span>
+              </button>
+            ))}
+          </div>
 
-          {/* New Request Form Modal */}
-          {showForm && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-slate-900">Create Material Request</h3>
-                  <button onClick={() => setShowForm(false)} className="p-1 hover:bg-slate-100 rounded">
-                    <Icon name="close" size={20} className="text-slate-400" />
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 uppercase">Material Name</label>
-                    <input 
-                      value={form.material_name} 
-                      onChange={e => setForm({...form, material_name: e.target.value})} 
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                      placeholder="e.g. Portland Cement"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-600 uppercase">Quantity</label>
-                      <input 
-                        value={form.quantity_requested} 
-                        onChange={e => setForm({...form, quantity_requested: e.target.value})} 
-                        type="number"
-                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                      />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-4">
+              {/* Requests Table */}
+              <Card>
+                <CardContent className="p-0">
+                  {loadingRequests ? (
+                    <div className="p-12 text-center text-slate-400">
+                      <Icon name="progress_activity" className="animate-spin mx-auto mb-2" />
+                      <p className="text-xs">Loading requests...</p>
                     </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-600 uppercase">Unit</label>
-                      <input 
-                        value={form.unit} 
-                        onChange={e => setForm({...form, unit: e.target.value})} 
-                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                        placeholder="e.g. bags, m³"
-                      />
+                  ) : categoryRequests.length === 0 ? (
+                    <div className="py-16 text-center">
+                      <Icon name={currentCategory.icon} size={48} className="text-slate-200 mx-auto mb-3" />
+                      <p className="text-sm font-medium text-slate-600">No {currentCategory.label.toLowerCase()} requests found</p>
+                      <p className="text-xs text-slate-400 mt-1">Start by clicking "New Request"</p>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 uppercase">Notes</label>
-                    <textarea 
-                      value={form.notes} 
-                      onChange={e => setForm({...form, notes: e.target.value})} 
-                      rows={3}
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                      placeholder="Any special requirements..."
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-                  <Button 
-                    onClick={handleSubmit} 
-                    disabled={saving || !form.material_name || !form.quantity_requested}
-                  >
-                    {saving ? 'Creating...' : 'Create Request'}
-                  </Button>
-                </div>
-              </div>
+                  ) : (
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-slate-100 bg-slate-50/50">
+                          <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">Description</th>
+                          <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-right">Qty</th>
+                          <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase text-center">Status</th>
+                          <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase">Created</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {categoryRequests.map(req => (
+                          <tr key={req.id} className="border-b border-slate-50 hover:bg-slate-50/20 transition-colors">
+                            <td className="px-4 py-3">
+                              <p className="text-sm font-medium text-slate-900">{req.material_name}</p>
+                              {req.notes && <p className="text-[11px] text-slate-400 truncate max-w-xs">{req.notes}</p>}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-700 text-right">
+                              {parseFloat(req.quantity_requested).toLocaleString()} {req.unit}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', STATUS_COLORS[req.status] || 'bg-slate-100')}>
+                                {req.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-slate-400">
+                              {new Date(req.created_at).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-          )}
+
+            {/* Form & Info Sidebar */}
+            <div className="space-y-4">
+              {showForm && (
+                <Card className="border-emerald-200 bg-emerald-50/10">
+                  <CardContent className="p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                        <Icon name="add_circle" size={16} className="text-emerald-600" />
+                        Create {currentCategory.label} Request
+                      </h3>
+                      <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
+                        <Icon name="close" size={18} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Select BOQ Item</label>
+                        <select 
+                          value={form.boq_ref}
+                          onChange={e => handleBoqRefChange(e.target.value)}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 mt-1 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                        >
+                          <option value="">— Choose from Budget —</option>
+                          {activeCategory === 'MATERIAL' && boqBuilding.map(i => <option key={i.id} value={i.id}>{i.description}</option>)}
+                          {activeCategory === 'LABOUR' && boqLabour.map(i => <option key={i.id} value={i.id}>{i.trade_role || i.phase}</option>)}
+                          {activeCategory === 'PLANT' && boqPlant.map(i => <option key={i.id} value={i.id}>{i.machine_item || i.category}</option>)}
+                          {activeCategory === 'PROFESSIONAL' && boqProfessional.map(i => <option key={i.id} value={i.id}>{i.role_scope || i.discipline}</option>)}
+                          {activeCategory === 'ADMIN' && boqAdmin.map(i => <option key={i.id} value={i.id}>{i.item_role || i.description}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Description</label>
+                        <input 
+                          value={form.material_name} 
+                          onChange={e => setForm({...form, material_name: e.target.value})} 
+                          className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 mt-1 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          placeholder="e.g. Portland Cement"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Quantity</label>
+                          <input 
+                            value={form.quantity_requested} 
+                            onChange={e => setForm({...form, quantity_requested: e.target.value})} 
+                            type="number"
+                            className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 mt-1 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Unit</label>
+                          <input 
+                            value={form.unit} 
+                            onChange={e => setForm({...form, unit: e.target.value})} 
+                            className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 mt-1 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            placeholder="bags, m³"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Procurement Method</label>
+                        <div className="flex gap-2 mt-1">
+                          {(['SELF', 'GROUP_BUY'] as const).map(m => (
+                            <button
+                              key={m}
+                              onClick={() => setForm(f => ({ ...f, procurement_method: m }))}
+                              className={cn(
+                                'flex-1 py-1.5 rounded-lg text-[11px] font-medium border transition-all flex items-center justify-center gap-1.5',
+                                form.procurement_method === m
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                              )}
+                            >
+                              <Icon name={m === 'SELF' ? 'foundation' : 'groups'} size={14} />
+                              {m === 'SELF' ? 'Self' : 'Group'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Additional Notes</label>
+                        <textarea 
+                          value={form.notes} 
+                          onChange={e => setForm({...form, notes: e.target.value})} 
+                          rows={2}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 mt-1 outline-none focus:ring-2 focus:ring-emerald-500/20 resize-none"
+                          placeholder="Special requirements..."
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 pt-2">
+                      <Button 
+                        onClick={handleSubmit} 
+                        disabled={saving || !form.material_name || !form.quantity_requested}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        {saving ? 'Creating...' : 'Submit Request'}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setShowForm(false)} className="text-slate-400">
+                        Cancel
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* BOQ Overview Widget */}
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">BOQ Overview</h3>
+                  <div className="space-y-2">
+                    {CATEGORIES.map(c => {
+                       const count = c.key === 'MATERIAL' ? boqBuilding.length
+                       : c.key === 'LABOUR' ? boqLabour.length
+                       : c.key === 'PLANT' ? boqPlant.length
+                       : c.key === 'PROFESSIONAL' ? boqProfessional.length
+                       : boqAdmin.length
+                       return (
+                        <div key={c.key} className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500 flex items-center gap-2">
+                            <Icon name={c.icon} size={14} />
+                            {c.label}
+                          </span>
+                          <span className="font-bold text-slate-700">{count} source items</span>
+                        </div>
+                       )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       </Main>
     </>

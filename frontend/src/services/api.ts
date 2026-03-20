@@ -5,7 +5,9 @@ import {
     PaginatedResponse, ProjectDashboard,
     Project, SiteUpdate, EscrowMilestone, CapitalScheduleItem,
     MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera,
-    BOQItem, DrawingRequest, DrawingFile, MaterialRequest, ProjectTeam, ProfessionalProfile
+    BOQBuildingItem, BOQProfessionalFee, BOQAdminExpense, BOQLabourCost,
+    BOQMachinePlant, BOQLabourBreakdown, BOQScheduleTask, BOQScheduleMaterial, BudgetSheets,
+    DrawingRequest, DrawingFile, MaterialRequest, ProjectTeam, ProfessionalProfile
 } from '../types/api';
 const api = axios.create({
     baseURL: `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1`,
@@ -36,7 +38,13 @@ supabase.auth.getSession().then(
 
 // Add a request interceptor to inject the Supabase token
 api.interceptors.request.use(
-    (config) => {
+    async (config) => {
+        // Fallback to getting session directly if cache isn't ready
+        if (!cachedSession) {
+            const { data: { session } } = await supabase.auth.getSession();
+            cachedSession = session?.access_token || null;
+        }
+
         if (cachedSession) {
             config.headers.Authorization = `Bearer ${cachedSession}`;
         }
@@ -219,12 +227,49 @@ export const builderApi = {
     updateSiteCamera: (id: number, data: Partial<SiteCamera>) => api.patch<SiteCamera>(`/site-cameras/${id}/`, data),
     deleteSiteCamera: (id: number) => api.delete(`/site-cameras/${id}/`),
 
-    // BOQ Items CRUD
-    getProjectBOQItems: (projectId: number) => api.get<BOQItem[]>(`/boq-items/?project=${projectId}`),
-    getAllBOQItems: () => api.get<BOQItem[]>('/boq-items/'),
-    createBOQItem: (data: Partial<BOQItem>) => api.post<BOQItem>('/boq-items/', data),
-    updateBOQItem: (id: number, data: Partial<BOQItem>) => api.patch<BOQItem>(`/boq-items/${id}/`, data),
-    deleteBOQItem: (id: number) => api.delete(`/boq-items/${id}/`),
+    // --- 7-SHEET BUDGET CRUD ---
+    getProjectBudgetSheets: (projectId: number) => api.get<BudgetSheets>(`/projects/${projectId}/budget-sheets/`),
+    
+    getProjectBOQBuildingItems:  (projectId: number) => api.get<BOQBuildingItem[]>(`/boq-building-items/?project=${projectId}`),
+    getProjectBOQProfessionalFees: (projectId: number) => api.get<BOQProfessionalFee[]>(`/boq-professional-fees/?project=${projectId}`),
+    getProjectBOQAdminExpenses:  (projectId: number) => api.get<BOQAdminExpense[]>(`/boq-admin-expenses/?project=${projectId}`),
+    getProjectBOQLabourCosts:    (projectId: number) => api.get<BOQLabourCost[]>(`/boq-labour-costs/?project=${projectId}`),
+    getProjectBOQMachinePlants:  (projectId: number) => api.get<BOQMachinePlant[]>(`/boq-machine-plants/?project=${projectId}`),
+    getProjectBOQLabourBreakdowns: (projectId: number) => api.get<BOQLabourBreakdown[]>(`/boq-labour-breakdowns/?project=${projectId}`),
+    getProjectBOQScheduleTasks:  (projectId: number) => api.get<BOQScheduleTask[]>(`/boq-schedule-tasks/?project=${projectId}`),
+
+    createBOQBuildingItem: (data: Partial<BOQBuildingItem>) => api.post<BOQBuildingItem>('/boq-building-items/', data),
+
+    updateBOQBuildingItem: (id: number, data: Partial<BOQBuildingItem>) => api.patch<BOQBuildingItem>(`/boq-building-items/${id}/`, data),
+    deleteBOQBuildingItem: (id: number) => api.delete(`/boq-building-items/${id}/`),
+
+    createBOQProfessionalFee: (data: Partial<BOQProfessionalFee>) => api.post<BOQProfessionalFee>('/boq-professional-fees/', data),
+    updateBOQProfessionalFee: (id: number, data: Partial<BOQProfessionalFee>) => api.patch<BOQProfessionalFee>(`/boq-professional-fees/${id}/`, data),
+    deleteBOQProfessionalFee: (id: number) => api.delete(`/boq-professional-fees/${id}/`),
+
+    createBOQAdminExpense: (data: Partial<BOQAdminExpense>) => api.post<BOQAdminExpense>('/boq-admin-expenses/', data),
+    updateBOQAdminExpense: (id: number, data: Partial<BOQAdminExpense>) => api.patch<BOQAdminExpense>(`/boq-admin-expenses/${id}/`, data),
+    deleteBOQAdminExpense: (id: number) => api.delete(`/boq-admin-expenses/${id}/`),
+
+    createBOQLabourCost: (data: Partial<BOQLabourCost>) => api.post<BOQLabourCost>('/boq-labour-costs/', data),
+    updateBOQLabourCost: (id: number, data: Partial<BOQLabourCost>) => api.patch<BOQLabourCost>(`/boq-labour-costs/${id}/`, data),
+    deleteBOQLabourCost: (id: number) => api.delete(`/boq-labour-costs/${id}/`),
+
+    createBOQMachinePlant: (data: Partial<BOQMachinePlant>) => api.post<BOQMachinePlant>('/boq-machine-plants/', data),
+    updateBOQMachinePlant: (id: number, data: Partial<BOQMachinePlant>) => api.patch<BOQMachinePlant>(`/boq-machine-plants/${id}/`, data),
+    deleteBOQMachinePlant: (id: number) => api.delete(`/boq-machine-plants/${id}/`),
+
+    createBOQLabourBreakdown: (data: Partial<BOQLabourBreakdown>) => api.post<BOQLabourBreakdown>('/boq-labour-breakdowns/', data),
+    updateBOQLabourBreakdown: (id: number, data: Partial<BOQLabourBreakdown>) => api.patch<BOQLabourBreakdown>(`/boq-labour-breakdowns/${id}/`, data),
+    deleteBOQLabourBreakdown: (id: number) => api.delete(`/boq-labour-breakdowns/${id}/`),
+
+    createBOQScheduleTask: (data: Partial<BOQScheduleTask>) => api.post<BOQScheduleTask>('/boq-schedule-tasks/', data),
+    updateBOQScheduleTask: (id: number, data: Partial<BOQScheduleTask>) => api.patch<BOQScheduleTask>(`/boq-schedule-tasks/${id}/`, data),
+    deleteBOQScheduleTask: (id: number) => api.delete(`/boq-schedule-tasks/${id}/`),
+
+    createScheduleMaterial: (data: Partial<BOQScheduleMaterial>) => api.post<BOQScheduleMaterial>('/schedule-materials/', data),
+    updateScheduleMaterial: (id: number, data: Partial<BOQScheduleMaterial>) => api.patch<BOQScheduleMaterial>(`/schedule-materials/${id}/`, data),
+    deleteScheduleMaterial: (id: number) => api.delete(`/schedule-materials/${id}/`),
 
     // Material Requests
     getProjectMaterialRequests: (projectId: number) => api.get<PaginatedResponse<MaterialRequest>>(`/material-requests/?project=${projectId}`),
@@ -232,6 +277,7 @@ export const builderApi = {
 
     // Drawing Requests
     getProjectDrawingRequests: (projectId: number) => api.get<PaginatedResponse<DrawingRequest>>(`/drawing-requests/?project=${projectId}`),
+    getAllDrawingRequests: () => api.get<PaginatedResponse<DrawingRequest>>('/drawing-requests/'),
     createDrawingRequest: (data: Partial<DrawingRequest>) => api.post<DrawingRequest>('/drawing-requests/', data),
     uploadDrawingFile: (data: FormData) => api.post<DrawingFile>('/drawing-files/', data, {
         headers: {

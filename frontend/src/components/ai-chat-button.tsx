@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { aiApi, builderApi } from '@/services/api'
-import type { Project } from '@/types/api'
+import type { Project, BOQBuildingItem, BOQProfessionalFee, BOQAdminExpense, BOQLabourCost, BOQMachinePlant, BOQLabourBreakdown, BOQScheduleTask, BOQScheduleMaterial } from '@/types/api'
 import ReactMarkdown from 'react-markdown'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { toast } from 'sonner'
@@ -23,7 +23,14 @@ interface AnalyseItem {
 
 interface AnalyseResult {
   summary: string;
-  items: AnalyseItem[];
+  building_items: BOQBuildingItem[];
+  professional_fees: BOQProfessionalFee[];
+  admin_expenses: BOQAdminExpense[];
+  labour_costs: BOQLabourCost[];
+  machine_plants: BOQMachinePlant[];
+  labour_breakdowns: BOQLabourBreakdown[];
+  schedule_tasks: BOQScheduleTask[];
+  schedule_materials: BOQScheduleMaterial[];
   compliance_notes: string[];
   recommendations: string[];
 }
@@ -215,7 +222,9 @@ export function AiChatButton({ project }: AiChatButtonProps) {
   }
 
   // ── BOQ Export helpers ──
-  const exportBOQToCSV = (analyse: AnalyseResult) => {
+  const exportBOQToCSV = (analyse: AnalyseResult) => { toast.info('Exporting 7 sheets to CSV is coming soon!') }
+/*
+const oldExport = () => {
     const hasLabour = analyse.items.some(i => i.labour_rate != null)
     const hasFormula = analyse.items.some(i => i.measurement_formula != null)
     const headers = ['Category', 'Item', 'Description', 'Unit', 'Quantity', 'Rate', 'Total']
@@ -245,7 +254,9 @@ export function AiChatButton({ project }: AiChatButtonProps) {
     URL.revokeObjectURL(url)
   }
 
-  const exportBOQToPrint = (analyse: AnalyseResult) => {
+  const exportBOQToPrint = (analyse: AnalyseResult) => { toast.info('Printing 7 sheets is coming soon!') }
+/*
+const oldPrint = () => {
     const grandTotal = analyse.items.reduce((s, i) => s + (i.total_amount || 0), 0)
     const hasLabour = analyse.items.some(i => i.labour_rate != null)
     const hasFormula = analyse.items.some(i => i.measurement_formula != null)
@@ -262,7 +273,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
         .notes { margin-top: 1rem; font-size: 0.8rem; color: #b45309; }
         .recs { margin-top: 0.5rem; font-size: 0.8rem; color: #1d4ed8; }
       </style></head><body>
-      <h1>📋 BOQ Analysis — Dzenhare SQB</h1>
+      <h1>BOQ Analysis — Dzenhare SQB</h1>
       <p>${analyse.summary}</p>
       <table>
         <thead><tr><th>Category</th><th>Item</th><th>Description</th><th>Unit</th><th>Qty</th><th>Rate</th><th>Total</th>${hasLabour ? '<th>Labour</th>' : ''}${hasFormula ? '<th>Formula</th>' : ''}</tr></thead>
@@ -271,8 +282,8 @@ export function AiChatButton({ project }: AiChatButtonProps) {
           <tr class="total"><td colspan="${colCount - 1}" style="text-align:right">Grand Total</td><td>${grandTotal.toLocaleString()}</td></tr>
         </tbody>
       </table>
-      ${analyse.compliance_notes?.length ? `<div class="notes"><strong>⚠️ Compliance Notes:</strong><ul>${analyse.compliance_notes.map(n => `<li>${n}</li>`).join('')}</ul></div>` : ''}
-      ${analyse.recommendations?.length ? `<div class="recs"><strong>💡 Recommendations:</strong><ul>${analyse.recommendations.map(r => `<li>${r}</li>`).join('')}</ul></div>` : ''}
+      ${analyse.compliance_notes?.length ? `\u003cdiv class=\"notes\"\u003e\u003cstrong\u003eCompliance Notes:\u003c/strong\u003e\u003cul\u003e${analyse.compliance_notes.map(n =\u003e `\u003cli\u003e${n}\u003c/li\u003e`).join('')}\u003c/ul\u003e\u003c/div\u003e` : ''}
+      ${analyse.recommendations?.length ? `<div class="recs"><strong>Recommendations:</strong><ul>${analyse.recommendations.map(r => `<li>${r}</li>`).join('')}</ul></div>` : ''}
       </body></html>`
     const win = window.open('', '_blank')
     if (win) {
@@ -282,6 +293,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
     }
   }
 
+*/
   // Map AI-generated category strings to exact ZIQS category values the backend accepts
   const ZIQS_CATEGORIES = [
     '1. Preliminaries & General',
@@ -322,46 +334,79 @@ export function AiChatButton({ project }: AiChatButtonProps) {
     return ZIQS_CATEGORIES[0]
   }
 
-  const handleSaveToBOQ = async (items: AnalyseItem[]) => {
+
+  const handleSaveToBOQ = async (analyse: AnalyseResult) => {
     if (!selectedProjectId) return
     setIsSavingBOQ(true)
     setBoqSaveSuccessMsg(null)
-    let savedCount = 0
     try {
-      for (const item of items) {
-        try {
-          await builderApi.createBOQItem({
-            project: Number(selectedProjectId),
-            category: mapToZIQSCategory(item.category),
-            item_name: item.item_name,
-            description: item.description,
-            unit: item.unit,
-            quantity: String(item.quantity) as any,
-            rate: String(item.rate) as any,
-            labour_rate: item.labour_rate ? String(item.labour_rate) : undefined as any,
-            measurement_formula: item.measurement_formula || undefined,
-          })
-          savedCount++
-        } catch (itemErr) {
-          console.warn(`Failed to save item "${item.item_name}":`, itemErr)
+      const existingRes = await builderApi.getProjectBudgetSheets(Number(selectedProjectId));
+      const ext = existingRes.data;
+
+      if (analyse.building_items) {
+        for (const item of analyse.building_items) {
+          if (!ext.building_items.some(e => e.description === item.description && e.bill_no === item.bill_no)) {
+            await builderApi.createBOQBuildingItem({ ...item, project: Number(selectedProjectId) });
+          }
         }
       }
-      if (savedCount === items.length) {
-        setBoqSaveSuccessMsg(`✅ Successfully saved all ${savedCount} items to BOQ!`)
-      } else if (savedCount > 0) {
-        setBoqSaveSuccessMsg(`⚠️ Saved ${savedCount}/${items.length} items. Some items had errors.`)
-      } else {
-        setBoqSaveSuccessMsg("❌ Error saving items. Please try again.")
+      if (analyse.professional_fees) {
+        for (const item of analyse.professional_fees) {
+          if (!ext.professional_fees.some(e => e.discipline === item.discipline && e.role_scope === item.role_scope)) {
+            await builderApi.createBOQProfessionalFee({ ...item, project: Number(selectedProjectId) });
+          }
+        }
       }
-      setTimeout(() => setBoqSaveSuccessMsg(null), 8000)
+      if (analyse.admin_expenses) {
+        for (const item of analyse.admin_expenses) {
+          if (!ext.admin_expenses.some(e => e.item_role === item.item_role && e.description === item.description)) {
+            await builderApi.createBOQAdminExpense({ ...item, project: Number(selectedProjectId) });
+          }
+        }
+      }
+      if (analyse.labour_costs) {
+        for (const item of analyse.labour_costs) {
+          if (!ext.labour_costs.some(e => e.phase === item.phase && e.trade_role === item.trade_role)) {
+            await builderApi.createBOQLabourCost({ ...item, project: Number(selectedProjectId) });
+          }
+        }
+      }
+      if (analyse.machine_plants) {
+        for (const item of analyse.machine_plants) {
+          if (!ext.machine_plants.some(e => e.machine_item === item.machine_item && e.category === item.category)) {
+            await builderApi.createBOQMachinePlant({ ...item, project: Number(selectedProjectId) });
+          }
+        }
+      }
+      if (analyse.labour_breakdowns) {
+        for (const item of analyse.labour_breakdowns) {
+          if (!ext.labour_breakdowns.some(e => e.phase === item.phase && e.trade_role === item.trade_role)) {
+            await builderApi.createBOQLabourBreakdown({ ...item, project: Number(selectedProjectId) });
+          }
+        }
+      }
+      if (analyse.schedule_tasks) {
+        for (const item of analyse.schedule_tasks) {
+          if (!ext.schedule_tasks.some(e => e.wbs === item.wbs && e.task_description === item.task_description)) {
+            await builderApi.createBOQScheduleTask({ ...item, project: Number(selectedProjectId) });
+          }
+        }
+      }
+      if (analyse.schedule_materials) {
+        for (const item of analyse.schedule_materials) {
+          if (!ext.schedule_materials?.some(e => e.section === item.section && e.material_description === item.material_description)) {
+            await builderApi.createScheduleMaterial({ ...item, project: Number(selectedProjectId) });
+          }
+        }
+      }
+      setBoqSaveSuccessMsg(`Successfully saved BOQ sheets including materials!`)
     } catch (err) {
-      console.error("Failed to save to BOQ", err)
-      setBoqSaveSuccessMsg("❌ Error saving items. Please try again.")
+      console.error(err);
+      setBoqSaveSuccessMsg("Error saving some items.")
     } finally {
       setIsSavingBOQ(false)
     }
   }
-
   // Auto-scroll to bottom of chat when messages change
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -381,7 +426,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
       setMessages([{
         id: 'welcome',
         role: 'assistant',
-        content: '✨ Chat cleared! How can I help you today?\n\nRemember: `/draw`, `/scan`, `/plans`, `/analyse`, or just ask me anything.',
+        content: 'Chat cleared! How can I help you today?\n\n**Commands:** `/draw` generate • `/scan` redraw • `/plans` search • `/analyse` BOQ • `/clear` reset',
         timestamp: new Date()
       }])
       setSessionId(undefined)
@@ -444,7 +489,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
             setMessages(prev => [...prev, {
               id: (Date.now() + 1).toString(),
               role: 'assistant' as const,
-              content: `🔍 Could not find a project matching "**${searchName}**". Please select one from the list:`,
+              content: `Could not find a project matching "**${searchName}**". Please select one from the list:`,
               suggestedProjects: projects,
               timestamp: new Date()
             }])
@@ -463,7 +508,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
           setMessages(prev => [...prev, {
             id: (Date.now() + 1).toString(),
             role: 'assistant' as const,
-            content: `📋 Please select a project for this command so I can use its survey data:`,
+            content: `Please select a project for this command so I can use its survey data:`,
             suggestedProjects: projects,
             timestamp: new Date()
           }])
@@ -488,7 +533,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
             setMessages(prev => [...prev, {
               id: (Date.now() + 1).toString(),
               role: 'assistant' as const,
-              content: `📋 No drawing files found for project **${targetProjectTitle}**. Please upload drawings first via the **Design Drafting** page, then come back and type \`/analyse\`.`,
+              content: `No drawing files found for project **${targetProjectTitle}**. Please upload drawings first via the **Design Drafting** page, then come back and type \`/analyse\`.`,
               timestamp: new Date()
             }])
             setIsTyping(false)
@@ -521,7 +566,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
           setMessages(prev => [...prev, {
             id: (Date.now() + 0.5).toString(),
             role: 'assistant' as const,
-            content: `📄 Found **${allFiles.length}** drawing file(s) for **${targetProjectTitle}**. Analysing: **${chosenFile.original_name}** (${chosenFile.file_type?.toUpperCase()})...`,
+            content: `Found **${allFiles.length}** drawing file(s) for **${targetProjectTitle}**. Analysing: **${chosenFile.original_name}** (${chosenFile.file_type?.toUpperCase()})...`,
             timestamp: new Date()
           }])
         } catch (err) {
@@ -529,7 +574,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
           setMessages(prev => [...prev, {
             id: (Date.now() + 1).toString(),
             role: 'assistant' as const,
-            content: `⚠️ Failed to fetch drawing files for **${targetProjectTitle}**. Please try again.`,
+            content: `Failed to fetch drawing files for **${targetProjectTitle}**. Please try again.`,
             timestamp: new Date()
           }])
           setIsTyping(false)
@@ -573,100 +618,20 @@ export function AiChatButton({ project }: AiChatButtonProps) {
         }
         setMessages(prev => [...prev, replyMessage])
       } else {
-        // Regular chat uses SSE streaming
-        const streamResponse = await aiApi.sendMessageStream(
-          chatHistory,
-          sessionId,
-          undefined,
-          undefined,
-          targetProjectId,
-        )
-
-        // Check if the backend fell back to JSON (e.g. for commands)
-        const contentType = streamResponse.headers.get('content-type') || ''
-        if (contentType.includes('application/json')) {
-          const data = await streamResponse.json()
-          if (data.session_id && !sessionId) setSessionId(data.session_id)
-          setMessages(prev => [...prev, {
-            id: (Date.now() + 1).toString(),
-            role: 'assistant',
-            content: data.message || 'Error processing request.',
-            imageUrl: data.image_url || undefined,
-            imagePrompt: data.image_prompt || undefined,
-            presetId: data.preset_id || undefined,
-            presetName: data.preset_name || undefined,
-            floorPlans: data.floor_plans || undefined,
-            analyse: data.analyse || undefined,
-            timestamp: new Date()
-          }])
-        } else {
-          // SSE stream
-          const reader = streamResponse.body?.getReader()
-          const decoder = new TextDecoder()
-          let streamedContent = ''
-          const streamMsgId = (Date.now() + 1).toString()
-
-          // Add placeholder message that we'll update
-          setMessages(prev => [...prev, {
-            id: streamMsgId,
-            role: 'assistant' as const,
-            content: '',
-            timestamp: new Date()
-          }])
-          setIsTyping(false) // Hide typing indicator, show streaming message instead
-
-          if (reader) {
-            let buffer = ''
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done) break
-
-              buffer += decoder.decode(value, { stream: true })
-              const lines = buffer.split('\n')
-              buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-              for (const line of lines) {
-                if (!line.startsWith('data: ')) continue
-                const payload = line.slice(6).trim()
-                if (payload === '[DONE]') continue
-
-                try {
-                  const event = JSON.parse(payload)
-                  if (event.type === 'token') {
-                    streamedContent += event.content
-                    setMessages(prev => prev.map(m =>
-                      m.id === streamMsgId ? { ...m, content: streamedContent } : m
-                    ))
-                  } else if (event.type === 'tool_status') {
-                    const toolNames: Record<string, string> = {
-                      get_material_prices: '💰 Looking up material prices...',
-                      check_compliance: '📋 Checking building regulations...',
-                      calculate_area: '📐 Calculating area...',
-                    }
-                    setToolStatus(toolNames[event.tool] || `🔧 Using ${event.tool}...`)
-                  } else if (event.type === 'meta') {
-                    if (event.session_id && !sessionIdRef.current) {
-                      setSessionId(event.session_id)
-                      sessionIdRef.current = event.session_id
-                    }
-                  } else if (event.type === 'error') {
-                    streamedContent += `\n\n⚠️ Error: ${event.content}`
-                    setMessages(prev => prev.map(m =>
-                      m.id === streamMsgId ? { ...m, content: streamedContent } : m
-                    ))
-                  }
-                } catch { /* ignore unparseable lines */ }
-              }
-            }
-          }
-        }
+        // Enforce command-only mode instead of freeform conversation
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: '**Notice:** I am strictly configured for specific project capabilities. Please use one of the available commands:\n\n* **`/draw`** - Generate architectural images\n* **`/scan`** - Redraw floor plans\n* **`/plans`** - Search floor plans\n* **`/analyse`** - Extract Bill of Quantities',
+          timestamp: new Date()
+        }])
       }
     } catch (error) {
       console.error("AI chat error:", error)
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "⚠️ I couldn't process your request. Please check your connection and try again.",
+        content: "I couldn't process your request. Please check your connection and try again.",
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMessage])
@@ -859,7 +824,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
               <div className="flex items-center justify-between mb-1.5 px-1">
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Recent Sessions</span>
                 <button
-                  onClick={() => { setSessionId(undefined); sessionIdRef.current = undefined; setMessages([{ id: 'welcome', role: 'assistant', content: '✨ New chat started! How can I help?\n\n**Commands:** `/draw` generate • `/scan` redraw • `/plans` search • `/analyse` BOQ • `/clear` reset', timestamp: new Date() }]); setShowSessions(false) }}
+                  onClick={() => { setSessionId(undefined); sessionIdRef.current = undefined; setMessages([{ id: 'welcome', role: 'assistant', content: 'New chat started! How can I help?\n\n**Commands:** `/draw` generate • `/scan` redraw • `/plans` search • `/analyse` BOQ • `/clear` reset', timestamp: new Date() }]); setShowSessions(false) }}
                   className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium"
                 >
                   + New Chat
@@ -892,7 +857,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
                           if (s.id === sessionId) {
                             setSessionId(undefined)
                             sessionIdRef.current = undefined
-                            setMessages([{ id: 'welcome', role: 'assistant', content: '✨ New chat started! How can I help?\n\n**Commands:** `/draw` generate • `/scan` redraw • `/plans` search • `/analyse` BOQ • `/clear` reset', timestamp: new Date() }])
+                            setMessages([{ id: 'welcome', role: 'assistant', content: 'New chat started! How can I help?\n\n**Commands:** `/draw` generate • `/scan` redraw • `/plans` search • `/analyse` BOQ • `/clear` reset', timestamp: new Date() }])
                           }
                           toast.success('Session deleted')
                         } catch { toast.error('Failed to delete session') }
@@ -1120,73 +1085,49 @@ export function AiChatButton({ project }: AiChatButtonProps) {
                     )}
 
                     {/* Analyse / BOQ results */}
-                    {message.analyse && message.analyse.items && message.analyse.items.length > 0 && (
+                                        {message.analyse && message.analyse.building_items && message.analyse.building_items.length > 0 && (
                       <div className="mt-3">
                         <div className="flex items-center gap-1.5 mb-2">
                           <Icon name="assignment" className="h-3 w-3 text-emerald-500" />
                           <span className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">
-                            BOQ Analysis — {message.analyse.items.length} Item{message.analyse.items.length !== 1 ? 's' : ''}
+                            BOQ Analysis — 7 Sheets Generated ({message.analyse.building_items.length} Building Items)
                           </span>
                         </div>
-                        {(() => {
-                          const hasLabour = message.analyse!.items.some(i => i.labour_rate != null)
-                          const hasFormula = message.analyse!.items.some(i => i.measurement_formula != null)
-                          const totalColSpan = 5 + (hasLabour ? 1 : 0) + (hasFormula ? 1 : 0)
-                          return (
+                        
                         <div className="overflow-x-auto -mx-1 px-1">
                           <table className="w-full text-[10px] border-collapse">
                             <thead>
                               <tr className="bg-emerald-50 text-emerald-700">
-                                <th className="text-left px-2 py-1.5 font-semibold border-b border-emerald-200">Category</th>
-                                <th className="text-left px-2 py-1.5 font-semibold border-b border-emerald-200">Item</th>
+                                <th className="text-left px-2 py-1.5 font-semibold border-b border-emerald-200">Bill No</th>
+                                <th className="text-left px-2 py-1.5 font-semibold border-b border-emerald-200">Description</th>
                                 <th className="text-right px-2 py-1.5 font-semibold border-b border-emerald-200">Qty</th>
                                 <th className="text-center px-2 py-1.5 font-semibold border-b border-emerald-200">Unit</th>
                                 <th className="text-right px-2 py-1.5 font-semibold border-b border-emerald-200">Rate</th>
-                                <th className="text-right px-2 py-1.5 font-semibold border-b border-emerald-200">Total</th>
-                                {hasLabour && <th className="text-right px-2 py-1.5 font-semibold border-b border-emerald-200">Labour</th>}
-                                {hasFormula && <th className="text-left px-2 py-1.5 font-semibold border-b border-emerald-200">Formula</th>}
+                                <th className="text-right px-2 py-1.5 font-semibold border-b border-emerald-200">Amount</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {message.analyse!.items.map((item, idx) => (
+                              {message.analyse.building_items.slice(0, 5).map((item, idx) => (
                                 <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                  <td className="px-2 py-1 text-gray-600 border-b border-gray-100">{item.category}</td>
-                                  <td className="px-2 py-1 text-gray-800 font-medium border-b border-gray-100" title={item.description}>{item.item_name}</td>
+                                  <td className="px-2 py-1 text-gray-600 border-b border-gray-100">{item.bill_no || '-'}</td>
+                                  <td className="px-2 py-1 text-gray-800 font-medium border-b border-gray-100" title={item.description}>{item.description}</td>
                                   <td className="px-2 py-1 text-right text-gray-700 border-b border-gray-100">{item.quantity}</td>
-                                  <td className="px-2 py-1 text-center text-gray-500 border-b border-gray-100">{item.unit}</td>
+                                  <td className="px-2 py-1 text-center text-gray-500 border-b border-gray-100">{item.unit || '-'}</td>
                                   <td className="px-2 py-1 text-right text-gray-700 border-b border-gray-100">{typeof item.rate === 'number' ? item.rate.toLocaleString() : item.rate}</td>
-                                  <td className="px-2 py-1 text-right text-gray-800 font-medium border-b border-gray-100">{typeof item.total_amount === 'number' ? item.total_amount.toLocaleString() : item.total_amount}</td>
-                                  {hasLabour && <td className="px-2 py-1 text-right text-gray-600 border-b border-gray-100">{item.labour_rate != null ? item.labour_rate.toLocaleString() : '-'}</td>}
-                                  {hasFormula && <td className="px-2 py-1 text-left text-gray-500 border-b border-gray-100 text-[9px]">{item.measurement_formula ?? '-'}</td>}
+                                  <td className="px-2 py-1 text-right text-gray-800 font-medium border-b border-gray-100">{typeof item.amount === 'number' ? item.amount.toLocaleString() : item.amount}</td>
                                 </tr>
                               ))}
-                              <tr className="bg-emerald-50 font-semibold">
-                                <td colSpan={totalColSpan} className="px-2 py-1.5 text-right text-emerald-700 border-t-2 border-emerald-300">Grand Total</td>
-                                <td className="px-2 py-1.5 text-right text-emerald-800 border-t-2 border-emerald-300">
-                                  {message.analyse!.items.reduce((sum, i) => sum + (typeof i.total_amount === 'number' ? i.total_amount : 0), 0).toLocaleString()}
-                                </td>
-                              </tr>
+                              {message.analyse.building_items.length > 5 && (
+                                <tr className="bg-white">
+                                  <td colSpan={6} className="px-2 py-1.5 text-center text-gray-500 italic border-b border-gray-100">
+                                    ... and {message.analyse.building_items.length - 5} more building items.<br/>
+                                    Plus items in Professional Fees, Expenses, Labour, Schedule, etc.
+                                  </td>
+                                </tr>
+                              )}
                             </tbody>
                           </table>
                         </div>
-                          )
-                        })()}
-                        {message.analyse.compliance_notes && message.analyse.compliance_notes.length > 0 && (
-                          <div className="mt-2 px-2 py-1.5 bg-amber-50 rounded-lg border border-amber-200">
-                            <p className="text-[10px] font-semibold text-amber-700 mb-0.5">⚠️ Compliance Notes</p>
-                            {message.analyse.compliance_notes.map((note, i) => (
-                              <p key={i} className="text-[10px] text-amber-600">• {note}</p>
-                            ))}
-                          </div>
-                        )}
-                        {message.analyse.recommendations && message.analyse.recommendations.length > 0 && (
-                          <div className="mt-1.5 px-2 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
-                            <p className="text-[10px] font-semibold text-blue-700 mb-0.5">💡 Recommendations</p>
-                            {message.analyse.recommendations.map((rec, i) => (
-                              <p key={i} className="text-[10px] text-blue-600">• {rec}</p>
-                            ))}
-                          </div>
-                        )}
 
                         {/* Save to Project BOQ feature */}
                         <div className="mt-3 p-2 bg-indigo-50/50 rounded-lg border border-indigo-100 flex flex-col gap-2">
@@ -1203,7 +1144,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
                               ))}
                             </select>
                             <button
-                              onClick={() => handleSaveToBOQ(message.analyse!.items)}
+                              onClick={() => handleSaveToBOQ(message.analyse!)}
                               disabled={isSavingBOQ || !selectedProjectId}
                               className="px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 text-[10px] font-semibold rounded-md shadow-sm transition-colors whitespace-nowrap"
                             >
@@ -1277,7 +1218,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
                         <span>Scanning hand-drawn plan...</span>
                       </div>
                       <div className="flex gap-1 items-center ml-5">
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-100 text-cyan-700 font-semibold animate-pulse">🔍 Analysing sketch → 🎨 Crafting prompt → 📐 Generating drawing</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-100 text-cyan-700 font-semibold animate-pulse">Analysing sketch ... Crafting prompt ... Generating drawing</span>
                       </div>
                     </div>
                   ) : isSearchingPlans ? (
@@ -1293,7 +1234,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
                       </div>
                       <div className="flex gap-1 items-center ml-5">
                         {(['uploading', 'analysing', 'extracting', 'done'] as const).map((step, i) => {
-                          const labels = ['📤 Uploading', '🧠 Analysing', '📋 Extracting', '✅ Done']
+                          const labels = ['Uploading', 'Analysing', 'Extracting', 'Done']
                           const active = analyseStep === step
                           const completed = ['uploading', 'analysing', 'extracting', 'done'].indexOf(analyseStep) > i
                           return (
@@ -1334,7 +1275,7 @@ export function AiChatButton({ project }: AiChatButtonProps) {
               <Input
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder="/draw [Project], /scan [Project], /plans [Project], /analyse [Project]"
+                placeholder="/draw, /scan, /plans, /analyse"
                 maxLength={4000}
                 className="pr-12 rounded-xl border-gray-200 bg-gray-50 focus-visible:ring-indigo-500/30 focus-visible:border-indigo-500 h-12 text-sm"
               />
