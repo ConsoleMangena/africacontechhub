@@ -149,8 +149,11 @@ export function LocationPicker({ onLocationSelect, initialLocation, searchLocati
                     // Track this as the last geocoded location
                     lastGeocodedLocationRef.current = address
 
-                    // Call the callback with the geocoded location
-                    onLocationSelect(lat, lng, address)
+                    // We intentionally DO NOT call onLocationSelect(lat, lng, address) here.
+                    // If we do, the text input will constantly be overwritten by the API's formatted 
+                    // address while the user is typing, making it impossible to type fluidly.
+                    // The map will just center on the typed location.
+                    onLocationSelect(lat, lng)
                 } else {
                     // Location not found, but don't show error - user might still be typing
                     console.log('Location not found:', searchLocation)

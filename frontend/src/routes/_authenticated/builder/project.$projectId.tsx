@@ -12,6 +12,7 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { AiChatButton } from '@/components/ai-chat-button'
+import { toast } from 'sonner'
 export const Route = createFileRoute(
   '/_authenticated/builder/project/$projectId',
 )({
@@ -24,6 +25,7 @@ function ProjectRouteComponent() {
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [initiating, setInitiating] = useState(false)
 
   useEffect(() => {
     const id = Number(projectId)
@@ -50,6 +52,21 @@ function ProjectRouteComponent() {
 
     fetchProject()
   }, [projectId])
+
+  const handleInitiateProject = async () => {
+    if (!project) return
+    setInitiating(true)
+    try {
+      const response = await builderApi.updateProject(project.id, { status: 'IN_PROGRESS' })
+      setProject(response.data)
+      toast.success('Project initiated! Status changed to In Progress.')
+    } catch (err) {
+      console.error('Failed to initiate project', err)
+      toast.error('Failed to initiate project. Please try again.')
+    } finally {
+      setInitiating(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -127,9 +144,31 @@ function ProjectRouteComponent() {
               <p className="text-xs text-muted-foreground line-clamp-1">{project.location}</p>
             )}
           </div>
-          <div className='ms-auto flex items-center space-x-4'>
+          <div className='ms-auto flex items-center justify-end gap-4 min-w-[300px]'>
+            {project.status === 'PLANNING' && (
+              <Button
+                size="sm"
+                className="mr-4 bg-primary hover:bg-primary/90 text-primary-foreground min-w-[120px]"
+                onClick={handleInitiateProject}
+                disabled={initiating}
+              >
+                {initiating ? (
+                  <>
+                    <Icon name="progress_activity" className="mr-2 h-4 w-4 animate-spin" />
+                    Initiating...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="play_arrow" className="mr-2 h-4 w-4" />
+                    Initiate Project
+                  </>
+                )}
+              </Button>
+            )}
             <Search />
-            <ProfileDropdown />
+            <div className="ml-4">
+              <ProfileDropdown />
+            </div>
           </div>
         </div>
       </Header>

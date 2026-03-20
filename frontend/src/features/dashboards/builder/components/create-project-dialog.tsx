@@ -192,7 +192,7 @@ export function CreateProjectDialog({
                 title: title.trim(),
                 location: location.trim(),
                 budget,
-                status,
+                status: isEditing ? project.status : 'PLANNING',
                 engagement_tier: engagementTier,
                 ai_brief: aiBrief,
                 building_type: buildingType,
@@ -378,17 +378,13 @@ export function CreateProjectDialog({
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                 <div className="space-y-2">
                                                     <Label>Status</Label>
-                                                    <Select value={status} onValueChange={(v) => setStatus(v as Project['status'])}>
-                                                        <SelectTrigger>
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="PLANNING">Planning</SelectItem>
-                                                            <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                                                            <SelectItem value="ON_HOLD">On Hold</SelectItem>
-                                                            <SelectItem value="COMPLETED">Completed</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
+                                                    <div className="flex items-center gap-2 h-10 rounded-md border border-input bg-muted/50 px-3 py-2">
+                                                        <Icon name="lock" className="h-4 w-4 text-muted-foreground" />
+                                                        <span className="text-sm text-muted-foreground">Planning</span>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Projects start in Planning. Initiate from the project page when ready.
+                                                    </p>
                                                 </div>
 
                                                 <div className="space-y-2">
@@ -412,7 +408,7 @@ export function CreateProjectDialog({
                                                         onLocationSelect={(lat, lng, address) => {
                                                             setLatitude(lat)
                                                             setLongitude(lng)
-                                                            if (address && !location) {
+                                                            if (address && address !== location) {
                                                                 setLocation(address)
                                                             }
                                                         }}
