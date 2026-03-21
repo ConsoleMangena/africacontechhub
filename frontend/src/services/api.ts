@@ -404,7 +404,7 @@ export const builderApi = {
     
     // Professional Profiles
     getProfessionals: (params?: { page?: number; search?: string; role?: string }) => 
-        api.get<PaginatedResponse<ProfessionalProfile>>('/professional-profiles/', { params }),
+        api.get<PaginatedResponse<ProfessionalProfile>>('/professionals/', { params }),
 
     // Milestones
     getProjectMilestones: (projectId: number) => api.get<PaginatedResponse<ProjectMilestone>>(`/project-milestones/?project=${projectId}`),
