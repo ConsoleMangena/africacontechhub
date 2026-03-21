@@ -403,7 +403,8 @@ export const builderApi = {
     removeFromTeam: (id: number) => api.delete(`/project-team/${id}/`),
     
     // Professional Profiles
-    getProfessionalProfiles: () => api.get<PaginatedResponse<ProfessionalProfile>>('/professional-profiles/'),
+    getProfessionals: (params?: { page?: number; search?: string; role?: string }) => 
+        api.get<PaginatedResponse<ProfessionalProfile>>('/professional-profiles/', { params }),
 
     // Milestones
     getProjectMilestones: (projectId: number) => api.get<PaginatedResponse<ProjectMilestone>>(`/project-milestones/?project=${projectId}`),
