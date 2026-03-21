@@ -1214,7 +1214,7 @@ def _get_project_vision_images(project: Project) -> list:
     Fetch all drawings associated with a project and convert them to base64
     for Gemini vision analysis.
     """
-    from .models import DrawingFile
+    from apps.builder_dashboard.models import DrawingFile
     images = []
     # Fetch all files for this project's requests
     files = DrawingFile.objects.filter(request__project=project).order_by('-created_at')
