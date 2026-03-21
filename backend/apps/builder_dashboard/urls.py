@@ -8,7 +8,10 @@ from .views import (
     MaterialRequestViewSet, DrawingRequestViewSet, DrawingFileViewSet, ProjectTeamViewSet,
     BOQBuildingItemViewSet, BOQProfessionalFeeViewSet, BOQAdminExpenseViewSet,
     BOQLabourCostViewSet, BOQMachinePlantViewSet, BOQLabourBreakdownViewSet,
-    BOQScheduleTaskViewSet, BudgetAggregateView, ScheduleOfMaterialViewSet
+    BOQScheduleTaskViewSet, BudgetAggregateView, ScheduleOfMaterialViewSet,
+    PromoteFinalBudgetView, SignFinalBudgetView,
+    ProjectMilestoneViewSet, ProjectActivityViewSet, UserNotificationViewSet,
+    ProjectDocumentViewSet,
 )
 
 router = DefaultRouter()
@@ -32,10 +35,16 @@ router.register(r'material-requests', MaterialRequestViewSet, basename='material
 router.register(r'drawing-requests', DrawingRequestViewSet, basename='drawingrequest')
 router.register(r'drawing-files', DrawingFileViewSet, basename='drawingfile')
 router.register(r'project-team', ProjectTeamViewSet, basename='projectteam')
+router.register(r'project-milestones', ProjectMilestoneViewSet, basename='projectmilestone')
+router.register(r'project-activities', ProjectActivityViewSet, basename='projectactivity')
+router.register(r'notifications', UserNotificationViewSet, basename='notification')
+router.register(r'project-documents', ProjectDocumentViewSet, basename='projectdocument')
 
 urlpatterns = [
     path('', include(router.urls)),
     path('projects/<int:project_id>/budget-sheets/', BudgetAggregateView.as_view(), name='budget-aggregate'),
+    path('projects/<int:project_id>/budget/promote-to-final/', PromoteFinalBudgetView.as_view(), name='budget-promote-final'),
+    path('projects/<int:project_id>/budget/sign-final/', SignFinalBudgetView.as_view(), name='budget-sign-final'),
     path('projects/<int:pk>/dashboard/', ProjectDashboardView.as_view(), name='project-dashboard'),
     path('builder-connections/', BuilderConnectionsView.as_view(), name='builder-connections'),
     path('projects/<int:project_id>/connections/', ProjectConnectionsView.as_view(), name='project-connections'),

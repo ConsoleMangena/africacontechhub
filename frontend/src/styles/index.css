@@ -127,3 +127,34 @@
     height: 0;
   }
 }
+
+/* Safe area support for notched devices */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Smooth scrolling on mobile */
+@media (max-width: 767px) {
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure tap targets are at least 44px */
+  button,
+  a,
+  [role="button"] {
+    min-height: 36px;
+  }
+}
+
+/* Scrollbar-hide utility for horizontal scroll areas */
+@utility scrollbar-hide {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

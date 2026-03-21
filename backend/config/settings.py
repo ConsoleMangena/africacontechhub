@@ -100,14 +100,10 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
 # ── AI Provider Configuration ────────────────────────────────────────
-# Claude AI (Anthropic) — Main chat, reasoning, vision, prompt engineering
-ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
-CLAUDE_OPUS_MODEL = os.getenv('CLAUDE_OPUS_MODEL', 'claude-opus-4-6')
-CLAUDE_SONNET_MODEL = os.getenv('CLAUDE_SONNET_MODEL', 'claude-sonnet-4-6')
-CLAUDE_MODEL = CLAUDE_SONNET_MODEL  # Default fallback
-
-# Gemini Nano Banana — Image generation only
+# Gemini — All AI: chat, reasoning, vision, image generation, /analyse
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', os.getenv('QWEN_API_KEY', ''))
+GEMINI_CHAT_MODEL = os.getenv('GEMINI_CHAT_MODEL', 'gemini-3.1-pro-preview')
+GEMINI_ANALYSE_MODEL = os.getenv('GEMINI_ANALYSE_MODEL', 'gemini-3.1-pro-preview')
 GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image-preview')
 
 # ── Model Context Protocol (MCP) Configuration ───────────────────────

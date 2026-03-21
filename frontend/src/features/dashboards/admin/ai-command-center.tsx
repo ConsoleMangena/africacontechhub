@@ -899,7 +899,7 @@ function StylePresetsTab({ presets }: { presets: any[] }) {
         <div>
           <h3 className="text-lg font-semibold">Drawing Style Presets</h3>
           <p className="text-sm text-muted-foreground">
-            Keyword-matched templates that guide how Claude crafts Gemini image prompts for /draw commands.
+            Keyword-matched templates that guide how Gemini crafts image prompts for /draw commands.
           </p>
         </div>
         <Button onClick={() => { setForm(blankPreset); setEditing(null); setCreating(true) }} className="gap-1.5 bg-purple-600 hover:bg-purple-700">

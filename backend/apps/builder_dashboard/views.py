@@ -5,13 +5,22 @@ from django.db.models import Sum, Q, Avg
 from django.db import models
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import PermissionDenied, ValidationError
+
 from .models import (
     Project, SiteUpdate, EscrowMilestone, CapitalSchedule,
     MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera,
     BOQBuildingItem, BOQProfessionalFee, BOQAdminExpense,
     BOQLabourCost, BOQMachinePlant, BOQLabourBreakdown, BOQScheduleTask,
     MaterialRequest, DrawingRequest, DrawingFile, ProjectTeam,
-    BOQCorrection, ScheduleOfMaterial
+    BOQCorrection, ScheduleOfMaterial, ProjectBudgetVersion,
+    ProjectMilestone, ProjectActivity, UserNotification, ProjectDocument,
+)
+from .budget_utils import (
+    get_or_create_preliminary_version,
+    promote_preliminary_to_final,
+    final_version_is_locked,
+    format_gross_total,
 )
 from .serializers import (
     ProjectSerializer, SiteUpdateSerializer, EscrowMilestoneSerializer,
@@ -20,8 +29,11 @@ from .serializers import (
     BOQProfessionalFeeSerializer, BOQAdminExpenseSerializer, BOQLabourCostSerializer,
     BOQMachinePlantSerializer, BOQLabourBreakdownSerializer, BOQScheduleTaskSerializer,
     MaterialRequestSerializer, DrawingRequestSerializer, DrawingFileSerializer,
-    ProjectTeamSerializer, BOQCorrectionSerializer, ScheduleOfMaterialSerializer
+    ProjectTeamSerializer, BOQCorrectionSerializer, ScheduleOfMaterialSerializer,
+    ProjectMilestoneSerializer, ProjectActivitySerializer, UserNotificationSerializer,
+    ProjectDocumentSerializer,
 )
+from apps.authentication.models import Profile
 from apps.authentication.permissions import IsBuilder, IsAdmin
 from apps.contractor_dashboard.models import Bid, ContractorProfile, ContractorRating
 from apps.supplier_dashboard.models import MaterialOrder, SupplierProfile
@@ -160,15 +172,23 @@ class SiteCameraViewSet(viewsets.ModelViewSet):
         project = get_object_or_404(Project, id=self.request.data.get('project'), owner=self.request.user)
         serializer.save(project=project)
 
+def _budget_kind_filter(queryset, request):
+    bk = request.query_params.get('budget_kind', 'preliminary').lower()
+    if bk == 'final':
+        return queryset.filter(budget_version__kind=ProjectBudgetVersion.Kind.FINAL)
+    return queryset.filter(budget_version__kind=ProjectBudgetVersion.Kind.PRELIMINARY)
+
+
 class BOQCorrectionMixin:
     def perform_create(self, serializer):
         from django.shortcuts import get_object_or_404
         from django.contrib.contenttypes.models import ContentType
         project = get_object_or_404(Project, id=self.request.data.get('project'), owner=self.request.user)
-        
+        bv = get_or_create_preliminary_version(project)
+
         is_ai = str(self.request.data.get('is_ai_generated', False)).lower() == 'true'
-        instance = serializer.save(project=project, is_ai_generated=is_ai)
-        
+        instance = serializer.save(budget_version=bv, is_ai_generated=is_ai)
+
         ct = ContentType.objects.get_for_model(instance)
         BOQCorrection.objects.create(
             project=project,
@@ -184,15 +204,17 @@ class BOQCorrectionMixin:
     def perform_update(self, serializer):
         from django.contrib.contenttypes.models import ContentType
         old_instance = self.get_object()
+        if final_version_is_locked(old_instance.budget_version):
+            raise PermissionDenied('The signed final budget cannot be edited.')
         old_data = self.get_serializer(old_instance).data
         was_ai = getattr(old_instance, 'is_ai_generated', False)
-        
+
         instance = serializer.save()
         new_data = self.get_serializer(instance).data
-        
+
         ct = ContentType.objects.get_for_model(instance)
         BOQCorrection.objects.create(
-            project=instance.project,
+            project=instance.budget_version.project,
             user=self.request.user,
             content_type=ct,
             object_id=instance.id,
@@ -203,12 +225,12 @@ class BOQCorrectionMixin:
         )
 
     def perform_destroy(self, instance):
+        if final_version_is_locked(instance.budget_version):
+            raise PermissionDenied('The signed final budget cannot be deleted.')
         old_data = self.get_serializer(instance).data
-        project = instance.project
+        project = instance.budget_version.project
         was_ai = getattr(instance, 'is_ai_generated', False)
-        
-        # We cannot link to a deleted object using generic foreign key,
-        # so we leave content_type/object_id blank.
+
         BOQCorrection.objects.create(
             project=project,
             user=self.request.user,
@@ -225,81 +247,206 @@ class BOQBuildingItemViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
     serializer_class = BOQBuildingItemSerializer
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
     def get_queryset(self):
-        qs = BOQBuildingItem.objects.filter(project__owner=self.request.user)
-        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
-        return qs
+        qs = BOQBuildingItem.objects.filter(budget_version__project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'):
+            qs = qs.filter(budget_version__project_id=pid)
+        return _budget_kind_filter(qs, self.request)
 
 class BOQProfessionalFeeViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
     serializer_class = BOQProfessionalFeeSerializer
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
     def get_queryset(self):
-        qs = BOQProfessionalFee.objects.filter(project__owner=self.request.user)
-        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
-        return qs
+        qs = BOQProfessionalFee.objects.filter(budget_version__project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'):
+            qs = qs.filter(budget_version__project_id=pid)
+        return _budget_kind_filter(qs, self.request)
 
 class BOQAdminExpenseViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
     serializer_class = BOQAdminExpenseSerializer
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
     def get_queryset(self):
-        qs = BOQAdminExpense.objects.filter(project__owner=self.request.user)
-        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
-        return qs
+        qs = BOQAdminExpense.objects.filter(budget_version__project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'):
+            qs = qs.filter(budget_version__project_id=pid)
+        return _budget_kind_filter(qs, self.request)
 
 class BOQLabourCostViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
     serializer_class = BOQLabourCostSerializer
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
     def get_queryset(self):
-        qs = BOQLabourCost.objects.filter(project__owner=self.request.user)
-        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
-        return qs
+        qs = BOQLabourCost.objects.filter(budget_version__project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'):
+            qs = qs.filter(budget_version__project_id=pid)
+        return _budget_kind_filter(qs, self.request)
 
 class BOQMachinePlantViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
     serializer_class = BOQMachinePlantSerializer
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
     def get_queryset(self):
-        qs = BOQMachinePlant.objects.filter(project__owner=self.request.user)
-        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
-        return qs
+        qs = BOQMachinePlant.objects.filter(budget_version__project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'):
+            qs = qs.filter(budget_version__project_id=pid)
+        return _budget_kind_filter(qs, self.request)
 
 class BOQLabourBreakdownViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
     serializer_class = BOQLabourBreakdownSerializer
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
     def get_queryset(self):
-        qs = BOQLabourBreakdown.objects.filter(project__owner=self.request.user)
-        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
-        return qs
+        qs = BOQLabourBreakdown.objects.filter(budget_version__project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'):
+            qs = qs.filter(budget_version__project_id=pid)
+        return _budget_kind_filter(qs, self.request)
 
 class BOQScheduleTaskViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
     serializer_class = BOQScheduleTaskSerializer
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
     def get_queryset(self):
-        qs = BOQScheduleTask.objects.filter(project__owner=self.request.user)
-        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
-        return qs
+        qs = BOQScheduleTask.objects.filter(budget_version__project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'):
+            qs = qs.filter(budget_version__project_id=pid)
+        return _budget_kind_filter(qs, self.request)
 
 class ScheduleOfMaterialViewSet(BOQCorrectionMixin, viewsets.ModelViewSet):
     serializer_class = ScheduleOfMaterialSerializer
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
     def get_queryset(self):
-        qs = ScheduleOfMaterial.objects.filter(project__owner=self.request.user)
-        if pid := self.request.query_params.get('project'): qs = qs.filter(project_id=pid)
-        return qs
+        qs = ScheduleOfMaterial.objects.filter(budget_version__project__owner=self.request.user)
+        if pid := self.request.query_params.get('project'):
+            qs = qs.filter(budget_version__project_id=pid)
+        return _budget_kind_filter(qs, self.request)
+
+
+def _budget_sheets_payload(project: Project, kind: str):
+    """kind: 'preliminary' | 'final'"""
+    vkind = (
+        ProjectBudgetVersion.Kind.FINAL
+        if kind == 'final'
+        else ProjectBudgetVersion.Kind.PRELIMINARY
+    )
+    bv = ProjectBudgetVersion.objects.filter(project=project, kind=vkind).first()
+    if not bv:
+        return {
+            'building_items': [],
+            'professional_fees': [],
+            'admin_expenses': [],
+            'labour_costs': [],
+            'machine_plants': [],
+            'labour_breakdowns': [],
+            'schedule_tasks': [],
+            'schedule_materials': [],
+            'budget_meta': {
+                'kind': vkind,
+                'signed_at': None,
+                'signed_by_id': None,
+                'signed_by_name': None,
+                'author_signature': '',
+                'is_locked': False,
+                'version_id': None,
+                'gross_total': '0.00',
+                'signature_image': None,
+            },
+        }
+
+    signed_name = ''
+    if bv.signed_by_id:
+        u = bv.signed_by
+        signed_name = (u.get_full_name() or u.email or '').strip() if u else ''
+
+    return {
+        'building_items': BOQBuildingItemSerializer(bv.building_items.all(), many=True).data,
+        'professional_fees': BOQProfessionalFeeSerializer(bv.professional_fees.all(), many=True).data,
+        'admin_expenses': BOQAdminExpenseSerializer(bv.admin_expenses.all(), many=True).data,
+        'labour_costs': BOQLabourCostSerializer(bv.labour_costs.all(), many=True).data,
+        'machine_plants': BOQMachinePlantSerializer(bv.machine_plants.all(), many=True).data,
+        'labour_breakdowns': BOQLabourBreakdownSerializer(bv.labour_breakdowns.all(), many=True).data,
+        'schedule_tasks': BOQScheduleTaskSerializer(bv.schedule_tasks.all(), many=True).data,
+        'schedule_materials': ScheduleOfMaterialSerializer(bv.schedule_materials.all(), many=True).data,
+        'budget_meta': {
+            'kind': bv.kind,
+            'signed_at': bv.signed_at.isoformat() if bv.signed_at else None,
+            'signed_by_id': bv.signed_by_id,
+            'signed_by_name': signed_name,
+            'author_signature': bv.author_signature or '',
+            'is_locked': final_version_is_locked(bv),
+            'version_id': bv.id,
+            'gross_total': format_gross_total(bv),
+            'signature_image': bv.signature_image or None,
+        },
+    }
+
 
 class BudgetAggregateView(views.APIView):
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
-    
+
     def get(self, request, project_id):
         project = get_object_or_404(Project, id=project_id, owner=request.user)
-        return Response({
-            'building_items': BOQBuildingItemSerializer(project.building_items.all(), many=True).data,
-            'professional_fees': BOQProfessionalFeeSerializer(project.professional_fees.all(), many=True).data,
-            'admin_expenses': BOQAdminExpenseSerializer(project.admin_expenses.all(), many=True).data,
-            'labour_costs': BOQLabourCostSerializer(project.labour_costs.all(), many=True).data,
-            'machine_plants': BOQMachinePlantSerializer(project.machine_plants.all(), many=True).data,
-            'labour_breakdowns': BOQLabourBreakdownSerializer(project.labour_breakdowns.all(), many=True).data,
-            'schedule_tasks': BOQScheduleTaskSerializer(project.schedule_tasks.all(), many=True).data,
-            'schedule_materials': ScheduleOfMaterialSerializer(project.schedule_materials.all(), many=True).data,
-        })
+        kind = request.query_params.get('budget', 'preliminary').lower()
+        if kind not in ('preliminary', 'final'):
+            kind = 'preliminary'
+        return Response(_budget_sheets_payload(project, kind))
+
+
+class PromoteFinalBudgetView(views.APIView):
+    """Copy preliminary BOQ into the final budget (overwrites previous final rows, clears signature)."""
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def post(self, request, project_id):
+        project = get_object_or_404(Project, id=project_id, owner=request.user)
+        promote_preliminary_to_final(project)
+        return Response(_budget_sheets_payload(project, 'final'))
+
+
+class SignFinalBudgetView(views.APIView):
+    """Sign final budget using the builder's saved profile signature (locks editing)."""
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def post(self, request, project_id):
+        project = get_object_or_404(Project, id=project_id, owner=request.user)
+        profile, _ = Profile.objects.get_or_create(user=request.user)
+        sig_data = (profile.signature or "").strip()
+        if not sig_data:
+            raise ValidationError(
+                "Save a digital signature under Settings → Profile before signing the final budget."
+            )
+        final = ProjectBudgetVersion.objects.filter(
+            project=project, kind=ProjectBudgetVersion.Kind.FINAL
+        ).first()
+        if not final:
+            raise ValidationError('Final budget does not exist yet. Promote from preliminary first.')
+        n_rows = (
+            final.building_items.count()
+            + final.professional_fees.count()
+            + final.admin_expenses.count()
+            + final.labour_costs.count()
+            + final.machine_plants.count()
+            + final.labour_breakdowns.count()
+            + final.schedule_tasks.count()
+            + final.schedule_materials.count()
+        )
+        if n_rows == 0:
+            raise ValidationError('Final budget is empty. Promote from preliminary first.')
+
+        display_name = " ".join(
+            p for p in (profile.first_name, profile.last_name) if p
+        ).strip() or (
+            request.user.get_full_name() or ""
+        ).strip() or (request.user.email or "Signer")
+        final.author_signature = display_name[:255]
+        final.signature_image = sig_data
+        final.signed_at = timezone.now()
+        final.signed_by = request.user
+        final.save(
+            update_fields=[
+                "author_signature",
+                "signature_image",
+                "signed_at",
+                "signed_by",
+                "updated_at",
+            ]
+        )
+        project.is_budget_signed = True
+        project.save(update_fields=['is_budget_signed'])
+        return Response(_budget_sheets_payload(project, 'final'))
 
 class BuilderConnectionsView(views.APIView):
     """
@@ -526,6 +673,7 @@ class IsAdminOrReadOnlyBuilder(permissions.BasePermission):
 class MaterialRequestViewSet(viewsets.ModelViewSet):
     serializer_class = MaterialRequestSerializer
     permission_classes = [permissions.IsAuthenticated, IsBuilder]
+    pagination_class = None
 
     def get_queryset(self):
         qs = MaterialRequest.objects.filter(project__owner=self.request.user)
@@ -538,31 +686,60 @@ class MaterialRequestViewSet(viewsets.ModelViewSet):
         from django.contrib.contenttypes.models import ContentType
         project_id = self.request.data.get('project')
         category = self.request.data.get('procurement_category', 'MATERIAL')
-        boq_item_id = self.request.data.get('boq_item')
-        
+        boq_item_id = (
+            self.request.data.get('boq_source_id')
+            or self.request.data.get('boq_item')
+        )
+
         project = get_object_or_404(Project, id=project_id, owner=self.request.user)
-        
+        if not project.is_budget_signed:
+            raise ValidationError(
+                "Procurement is available only after the final construction budget is signed."
+            )
+
+        final_bv = ProjectBudgetVersion.objects.filter(
+            project=project, kind=ProjectBudgetVersion.Kind.FINAL
+        ).first()
+        if not final_bv or not final_version_is_locked(final_bv):
+            raise ValidationError(
+                "Procurement requires a signed final budget. Sign the final budget under Construction Budget."
+            )
+
         content_type = None
         object_id = None
-        
-        if boq_item_id:
-            object_id = boq_item_id
-            if category == 'MATERIAL':
-                content_type = ContentType.objects.get_for_model(BOQBuildingItem)
-            elif category == 'LABOUR':
-                content_type = ContentType.objects.get_for_model(BOQLabourCost)
-            elif category == 'PLANT':
-                content_type = ContentType.objects.get_for_model(BOQMachinePlant)
-            elif category == 'PROFESSIONAL':
-                content_type = ContentType.objects.get_for_model(BOQProfessionalFee)
-            elif category == 'ADMIN':
-                content_type = ContentType.objects.get_for_model(BOQAdminExpense)
+        model_for_category = None
+        if category == 'MATERIAL':
+            model_for_category = BOQBuildingItem
+        elif category == 'LABOUR':
+            model_for_category = BOQLabourCost
+        elif category == 'PLANT':
+            model_for_category = BOQMachinePlant
+        elif category == 'PROFESSIONAL':
+            model_for_category = BOQProfessionalFee
+        elif category == 'ADMIN':
+            model_for_category = BOQAdminExpense
 
-        serializer.save(
-            project=project,
-            content_type=content_type,
-            object_id=object_id
-        )
+        boq_row_obj = None
+        if boq_item_id and model_for_category is not None:
+            try:
+                boq_row_obj = model_for_category.objects.get(
+                    pk=boq_item_id, budget_version=final_bv
+                )
+            except model_for_category.DoesNotExist:
+                raise ValidationError(
+                    {"boq_item": "This line is not part of the signed final budget."}
+                )
+            object_id = boq_row_obj.pk
+            content_type = ContentType.objects.get_for_model(model_for_category)
+
+        save_kwargs = {
+            "project": project,
+            "content_type": content_type,
+            "object_id": object_id,
+        }
+        if category == "MATERIAL" and boq_row_obj is not None:
+            save_kwargs["boq_item"] = boq_row_obj
+        serializer.save(**save_kwargs)
 
 class DrawingRequestViewSet(viewsets.ModelViewSet):
     serializer_class = DrawingRequestSerializer
@@ -607,3 +784,111 @@ class ProjectTeamViewSet(viewsets.ModelViewSet):
         project_id = self.request.data.get('project')
         project = get_object_or_404(Project, id=project_id, owner=self.request.user)
         serializer.save(project=project)
+
+
+class ProjectMilestoneViewSet(viewsets.ModelViewSet):
+    serializer_class = ProjectMilestoneSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = ProjectMilestone.objects.filter(project__owner=self.request.user)
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    def perform_create(self, serializer):
+        project_id = self.request.data.get('project')
+        project = get_object_or_404(Project, id=project_id, owner=self.request.user)
+        serializer.save(project=project)
+
+    @action(detail=True, methods=['post'])
+    def toggle_complete(self, request, pk=None):
+        milestone = self.get_object()
+        milestone.completed = not milestone.completed
+        milestone.completed_date = timezone.now() if milestone.completed else None
+        milestone.save()
+        
+        # Log activity
+        ProjectActivity.objects.create(
+            project=milestone.project,
+            user=request.user,
+            type='general',
+            action='Milestone Updated',
+            description=f"Milestone '{milestone.name}' marked as {'completed' if milestone.completed else 'incomplete'}"
+        )
+        
+        return Response(self.get_serializer(milestone).data)
+
+
+class ProjectActivityViewSet(viewsets.ModelViewSet):
+    serializer_class = ProjectActivitySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'head', 'options']  # Read-only except POST
+
+    def get_queryset(self):
+        qs = ProjectActivity.objects.filter(project__owner=self.request.user)
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs.select_related('user', 'project')
+
+    def perform_create(self, serializer):
+        project_id = self.request.data.get('project')
+        project = get_object_or_404(Project, id=project_id, owner=self.request.user)
+        serializer.save(project=project, user=self.request.user)
+
+
+class UserNotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = UserNotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return UserNotification.objects.filter(user=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        notification = self.get_object()
+        notification.read = True
+        notification.save()
+        return Response({'status': 'marked as read'})
+
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        UserNotification.objects.filter(user=request.user, read=False).update(read=True)
+        return Response({'status': 'all marked as read'})
+
+
+class ProjectDocumentViewSet(viewsets.ModelViewSet):
+    serializer_class = ProjectDocumentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = ProjectDocument.objects.filter(project__owner=self.request.user)
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs.select_related('uploaded_by', 'project')
+
+    def perform_create(self, serializer):
+        project_id = self.request.data.get('project')
+        project = get_object_or_404(Project, id=project_id, owner=self.request.user)
+        
+        # Get file size
+        file = self.request.FILES.get('file')
+        file_size = file.size if file else 0
+        
+        serializer.save(
+            project=project,
+            uploaded_by=self.request.user,
+            file_size=file_size
+        )
+        
+        # Log activity
+        ProjectActivity.objects.create(
+            project=project,
+            user=self.request.user,
+            type='document',
+            action='Document Uploaded',
+            description=f"Document '{serializer.instance.name}' uploaded"
+        )

@@ -7,13 +7,13 @@ import { Icon } from '@/components/ui/material-icon'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { ProjectModeBadge } from '@/components/project-mode-badge'
 import { builderApi } from '@/services/api'
-import type { Project, DrawingRequest, DrawingFile } from '@/types/api'
+import type { Project, DrawingRequest } from '@/types/api'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/builder/design-drafting')({
@@ -35,37 +35,25 @@ const ARTISAN_ROLES: { value: string; label: string; icon: string }[] = [
   { value: 'tiler', label: 'Tiler', icon: 'grid_on' },
 ]
 
-const PROFESSIONAL_ROLES = ARTISAN_ROLES;
+const DRAWING_TYPES: { value: string; label: string; icon: string }[] = [
+  { value: 'floor_plan', label: 'Floor Plan', icon: 'domain' },
+  { value: 'elevation', label: 'Elevation', icon: 'view_sidebar' },
+  { value: 'section', label: 'Section View', icon: 'view_column' },
+  { value: '3d_render', label: '3D Render', icon: 'view_in_ar' },
+  { value: 'blueprint', label: 'Blueprint', icon: 'blueprint' },
+]
 
-// Skeleton cards for loading state
-function RequestsSkeleton() {
-  return (
-    <div className="space-y-4">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <Card key={i} className="overflow-hidden">
-          <CardHeader className="pb-3">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-slate-200 animate-pulse" />
-              <div className="flex-1 space-y-2">
-                <div className="h-5 w-48 bg-slate-200 rounded animate-pulse" />
-                <div className="h-3 w-24 bg-slate-100 rounded animate-pulse" />
-                <div className="h-3 w-32 bg-slate-100 rounded animate-pulse" />
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-      ))}
-    </div>
-  )
+const STATUS_CLS: Record<string, string> = {
+  PENDING: 'bg-amber-100 text-amber-700',
+  IN_PROGRESS: 'bg-blue-100 text-blue-700',
+  COMPLETED: 'bg-emerald-100 text-emerald-700',
+  REJECTED: 'bg-red-100 text-red-600',
 }
 
-function DesignLoadingBar() {
-  return (
-    <div className="h-0.5 w-full bg-slate-100 overflow-hidden rounded-full">
-      <div className="h-full w-1/3 bg-indigo-500 rounded-full" style={{ animation: 'designShimmer 1.2s ease-in-out infinite' }} />
-      <style>{`@keyframes designShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }`}</style>
-    </div>
-  )
+function getInitials(name?: string) {
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/)
+  return parts.length >= 2 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : name.slice(0, 2).toUpperCase()
 }
 
 function RouteComponent() {
@@ -76,9 +64,6 @@ function RouteComponent() {
   const [saving, setSaving] = useState(false)
   const [showRequestForm, setShowRequestForm] = useState(false)
   const [uploadingForRequest, setUploadingForRequest] = useState<number | null>(null)
-  const [showUploadModal, setShowUploadModal] = useState(false)
-  const [selectedDrawingType, setSelectedDrawingType] = useState<DrawingRequest['drawing_type']>('floor_plan')
-  const [refetching, setRefetching] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const directUploadRef = useRef<HTMLInputElement>(null)
   const [showDirectUpload, setShowDirectUpload] = useState(false)
@@ -107,6 +92,10 @@ function RouteComponent() {
     drawingType: 'floor_plan' as DrawingRequest['drawing_type'],
     title: '',
   })
+
+  // DIFY mode check
+  const currentProject = projects.find(p => p.id === selectedProject)
+  const isDIFY = currentProject?.engagement_tier === 'DIFY'
 
   // Load projects
   const fetchProjects = useCallback(() => {
@@ -175,10 +164,6 @@ function RouteComponent() {
     setShowContactModal(true)
   }
 
-  const getRoleIcon = (role: string) => {
-    return ARTISAN_ROLES.find(r => r.value === role)?.icon || 'person'
-  }
-
   const getRoleLabel = (role: string) => {
     return ARTISAN_ROLES.find(r => r.value === role)?.label || role
   }
@@ -192,17 +177,6 @@ function RouteComponent() {
     }
   }
 
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Icon 
-        key={i} 
-        name={i < Math.floor(rating) ? 'star' : 'star_border'} 
-        size={14} 
-        className={i < Math.floor(rating) ? 'text-amber-400' : 'text-slate-300'}
-      />
-    ))
-  }
-
   const fetchRequests = useCallback(async () => {
     setLoading(true)
     try {
@@ -214,7 +188,6 @@ function RouteComponent() {
       toast.error('Failed to load requests')
     } finally {
       setLoading(false)
-      setRefetching(false)
     }
   }, [])
 
@@ -277,7 +250,6 @@ function RouteComponent() {
     } finally {
       setLoading(false)
       setUploadingForRequest(null)
-      setShowUploadModal(false)
     }
   }
 
@@ -357,27 +329,6 @@ function RouteComponent() {
     }
   }
 
-  const getStatusColor = (status: DrawingRequest['status']) => {
-    switch (status) {
-      case 'PENDING': return 'bg-amber-100 text-amber-700 border-amber-200'
-      case 'IN_PROGRESS': return 'bg-blue-100 text-blue-700 border-blue-200'
-      case 'COMPLETED': return 'bg-green-100 text-green-700 border-green-200'
-      case 'REJECTED': return 'bg-red-100 text-red-700 border-red-200'
-      default: return 'bg-slate-100 text-slate-700'
-    }
-  }
-
-  const getDrawingTypeLabel = (type: DrawingRequest['drawing_type']) => {
-    switch (type) {
-      case 'floor_plan': return 'Floor Plan'
-      case 'elevation': return 'Elevation'
-      case 'section': return 'Section View'
-      case '3d_render': return '3D Render'
-      case 'blueprint': return 'Blueprint'
-      default: return 'Other'
-    }
-  }
-
   const getFileIcon = (type: string) => {
     switch (type.toLowerCase()) {
       case 'pdf': return 'picture_as_pdf'
@@ -397,6 +348,9 @@ function RouteComponent() {
     }
   }
 
+  const curProj = projects.find(p => p.id === selectedProject)
+  const archDetails = curProj?.architect_details
+
   return (
     <>
       <Header>
@@ -405,782 +359,366 @@ function RouteComponent() {
           <ProfileDropdown />
         </div>
       </Header>
-      <Main>
-        <div className="max-w-7xl mx-auto space-y-6">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                <Icon name="architecture" size={24} className="text-indigo-600" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold font-display">Design Drafting</h1>
-                <p className="text-sm text-muted-foreground">
-                  Upload your own drawings or request them from certified architects
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setShowDirectUpload(true)}
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-              >
-                <Icon name="cloud_upload" size={14} className="mr-1.5" />
-                Upload Drawings
-              </Button>
-              <Button
-                onClick={() => setShowRequestForm(true)}
-                size="sm"
-                className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs font-semibold"
-              >
-                <Icon name="add" size={14} className="mr-1.5" />
-                Request Drawing
-              </Button>
-            </div>
-          </div>
+      <Main className="bg-slate-50 min-h-[calc(100vh-theme(spacing.16))]">
+        <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-5">
 
-          {/* Stats Cards */}
-          <div className="grid gap-3 md:grid-cols-4">
-            <Card className="bg-gradient-to-br from-indigo-50 to-white border-indigo-200">
-              <CardContent className="p-3">
-                <p className="text-[9px] font-semibold text-indigo-600 uppercase tracking-wider">Total Requests</p>
-                <span className="text-xl font-bold text-indigo-700">{requests.length}</span>
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-amber-50 to-white border-amber-200">
-              <CardContent className="p-3">
-                <p className="text-[9px] font-semibold text-amber-600 uppercase tracking-wider">Pending</p>
-                <span className="text-xl font-bold text-amber-700">{requests.filter(r => r.status === 'PENDING').length}</span>
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200">
-              <CardContent className="p-3">
-                <p className="text-[9px] font-semibold text-blue-600 uppercase tracking-wider">In Progress</p>
-                <span className="text-xl font-bold text-blue-700">{requests.filter(r => r.status === 'IN_PROGRESS').length}</span>
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-green-50 to-white border-green-200">
-              <CardContent className="p-3">
-                <p className="text-[9px] font-semibold text-green-600 uppercase tracking-wider">Completed</p>
-                <span className="text-xl font-bold text-green-700">{requests.filter(r => r.status === 'COMPLETED').length}</span>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Request Form */}
-          {showRequestForm && (
-            <Card className="border-indigo-200">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Icon name="request_page" size={20} />
-                  Request New Drawing
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Assigned Architect - Dynamic */}
-                <div className={cn(
-                  "border rounded-lg p-4 transition-colors",
-                  projects.find(p => p.id === selectedProject)?.architect_details 
-                    ? "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200" 
-                    : "bg-slate-50 border-slate-200"
-                )}>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Icon name="architecture" size={20} className={cn(
-                        projects.find(p => p.id === selectedProject)?.architect_details ? "text-amber-600" : "text-slate-400"
-                      )} />
-                      <span className={cn(
-                        "text-sm font-semibold uppercase tracking-wider",
-                        projects.find(p => p.id === selectedProject)?.architect_details ? "text-amber-800" : "text-slate-500"
-                      )}>
-                        Assigned Architect (Team: {projects.find(p => p.id === selectedProject)?.total_team_count || 0})
-                      </span>
-                    </div>
-                    {!projects.find(p => p.id === selectedProject)?.architect_details && (
-                      <Button 
-                        onClick={() => setShowExploreModal(true)}
-                        variant="outline" 
-                        size="sm"
-                        className="h-7 text-[10px] font-bold gap-1 border-slate-300 hover:bg-white"
-                      >
-                        <Icon name="person_search" size={14} />
-                        Assign Architect
-                      </Button>
-                    )}
-                  </div>
-
-                  {projects.find(p => p.id === selectedProject)?.architect_details ? (
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center overflow-hidden border border-amber-200">
-                        {projects.find(p => p.id === selectedProject)?.architect_details?.avatar ? (
-                          <img 
-                            src={projects.find(p => p.id === selectedProject)?.architect_details?.avatar || ''} 
-                            alt="avatar" 
-                            className="h-full w-full object-cover" 
-                          />
-                        ) : (
-                          <Icon name="person" size={20} className="text-amber-600" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900">
-                          {projects.find(p => p.id === selectedProject)?.architect_details?.full_name}
-                        </p>
-                        <p className="text-sm text-slate-500">Professional Architect</p>
-                        <p className="text-xs text-slate-400">
-                          {projects.find(p => p.id === selectedProject)?.architect_details?.email} · {projects.find(p => p.id === selectedProject)?.architect_details?.phone}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-2 text-center">
-                      <p className="text-xs text-slate-500 italic">
-                        {projects.find(p => p.id === selectedProject)?.total_team_count && projects.find(p => p.id === selectedProject)?.total_team_count! > 0 
-                          ? `You have ${projects.find(p => p.id === selectedProject)?.total_team_count} team members, but no Architect assigned.`
-                          : "No architect has been assigned to this project yet."}
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-1">You need an architect to process your drawing requests.</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Project</Label>
-                    <Select 
-                      value={selectedProject?.toString() || ''} 
-                      onValueChange={(v) => setSelectedProject(Number(v))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a project" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projects.map(p => (
-                          <SelectItem key={p.id} value={p.id.toString()}>{p.title}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Drawing Type</Label>
-                    <Select 
-                      value={form.drawingType} 
-                      onValueChange={(v) => setForm(prev => ({ ...prev, drawingType: v as DrawingRequest['drawing_type'] }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="floor_plan">Floor Plan</SelectItem>
-                        <SelectItem value="elevation">Elevation</SelectItem>
-                        <SelectItem value="section">Section View</SelectItem>
-                        <SelectItem value="3d_render">3D Render</SelectItem>
-                        <SelectItem value="blueprint">Technical Blueprint</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Title</Label>
-                  <Input 
-                    value={form.title}
-                    onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="e.g., Ground Floor Plan - 4 Bedroom Layout"
-                  />
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowRequestForm(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleSubmitRequest}
-                    size="sm"
-                    className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs"
-                    disabled={saving}
-                  >
-                    {saving ? (
-                      <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
-                    ) : (
-                      <Icon name="send" size={14} className="mr-1.5" />
-                    )}
-                    {saving ? 'Submitting...' : 'Submit Request'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Direct Upload Form */}
-          {showDirectUpload && (
-            <Card className="border-emerald-200">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Icon name="cloud_upload" size={20} className="text-emerald-600" />
-                  Upload Your Drawings
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">Already have drawing files? Upload them directly without requesting from an architect.</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label>Project</Label>
-                    <Select
-                      value={selectedProject?.toString() || ''}
-                      onValueChange={(v) => setSelectedProject(Number(v))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a project" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projects.map(p => (
-                          <SelectItem key={p.id} value={p.id.toString()}>{p.title}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Drawing Type</Label>
-                    <Select
-                      value={directUploadForm.drawingType}
-                      onValueChange={(v) => setDirectUploadForm(prev => ({ ...prev, drawingType: v as DrawingRequest['drawing_type'] }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="floor_plan">Floor Plan</SelectItem>
-                        <SelectItem value="elevation">Elevation</SelectItem>
-                        <SelectItem value="section">Section View</SelectItem>
-                        <SelectItem value="3d_render">3D Render</SelectItem>
-                        <SelectItem value="blueprint">Technical Blueprint</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Title (optional)</Label>
-                    <Input
-                      value={directUploadForm.title}
-                      onChange={(e) => setDirectUploadForm(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="e.g., Ground Floor Plan - Final (auto-generated if blank)"
-                    />
-                  </div>
-                </div>
-
-                {/* Drop zone */}
-                <div
-                  className={cn(
-                    "border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer",
-                    directFiles.length > 0 ? "border-emerald-300 bg-emerald-50/50" : "border-slate-300 hover:border-indigo-300 hover:bg-indigo-50/30"
-                  )}
-                  onClick={() => directUploadRef.current?.click()}
-                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    const files = Array.from(e.dataTransfer.files)
-                    setDirectFiles(prev => [...prev, ...files])
-                  }}
+          {/* ── Header ── */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Design Drafting</h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedProject ?? ''}
+                  onChange={e => setSelectedProject(Number(e.target.value))}
+                  className="h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none w-56"
                 >
-                  <Icon name="cloud_upload" size={36} className="text-slate-400 mx-auto mb-2" />
-                  <p className="text-sm text-slate-600 mb-1">Click to select files or drag and drop</p>
-                  <p className="text-xs text-slate-400">PDF, PNG, JPG, DWG, DXF and more (Max 50MB each)</p>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                </select>
+                {currentProject && <ProjectModeBadge engagementTier={currentProject.engagement_tier} size="sm" />}
+              </div>
+              {isDIFY ? (
+                <div className="text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center gap-1.5">
+                  <Icon name="info" size={14} className="text-slate-400" />
+                  <span>SQB manages design for DIFY projects</span>
                 </div>
-                <input
-                  type="file"
-                  ref={directUploadRef}
-                  className="hidden"
-                  multiple
-                  onChange={(e) => {
-                    if (e.target.files) {
-                      setDirectFiles(prev => [...prev, ...Array.from(e.target.files!)])
-                      e.target.value = ''
-                    }
-                  }}
-                />
-
-                {/* Selected files list */}
-                {directFiles.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{directFiles.length} file(s) selected</p>
-                    <div className="space-y-1.5">
-                      {directFiles.map((file, i) => (
-                        <div key={i} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <Icon name={getFileIcon(file.name.split('.').pop() || '')} size={16} className="text-slate-500" />
-                            <span className="text-sm text-slate-700">{file.name}</span>
-                            <span className="text-xs text-slate-400">{(file.size / (1024 * 1024)).toFixed(1)} MB</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => setDirectFiles(prev => prev.filter((_, idx) => idx !== i))}
-                          >
-                            <Icon name="close" size={14} />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => { setShowDirectUpload(false); setDirectFiles([]) }}>
-                    Cancel
+              ) : (
+                <>
+                  <Button onClick={() => setShowDirectUpload(true)} size="sm" variant="outline" className="h-9 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                    <Icon name="cloud_upload" size={16} className="mr-1.5" />Upload
                   </Button>
-                  <Button
-                    onClick={handleDirectUpload}
-                    size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs"
-                    disabled={uploadingDirect || !selectedProject || directFiles.length === 0}
-                  >
-                    {uploadingDirect ? (
-                      <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
-                    ) : (
-                      <Icon name="cloud_upload" size={14} className="mr-1.5" />
-                    )}
-                    {uploadingDirect ? 'Uploading...' : `Upload ${directFiles.length} File(s)`}
+                  <Button onClick={() => setShowRequestForm(true)} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-9 text-xs">
+                    <Icon name="add" size={16} className="mr-1.5" />Request Drawing
                   </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── Stats ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {([
+              { icon: 'description', label: 'Total', value: requests.length, bg: 'bg-indigo-50', text: 'text-indigo-600' },
+              { icon: 'schedule', label: 'Pending', value: requests.filter(r => r.status === 'PENDING').length, bg: 'bg-amber-50', text: 'text-amber-600' },
+              { icon: 'sync', label: 'In Progress', value: requests.filter(r => r.status === 'IN_PROGRESS').length, bg: 'bg-blue-50', text: 'text-blue-600' },
+              { icon: 'check_circle', label: 'Completed', value: requests.filter(r => r.status === 'COMPLETED').length, bg: 'bg-emerald-50', text: 'text-emerald-600' },
+            ] as const).map(s => (
+              <div key={s.label} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${s.bg}`}>
+                  <Icon name={s.icon} size={20} className={s.text} />
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Hidden file input */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            multiple
-            onChange={(e) => uploadingForRequest && handleFileUpload(uploadingForRequest, e.target.files)}
-          />
-
-          {/* Requests List */}
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Icon name="folder" size={20} />
-              Drawing Requests & Files
-            </h2>
-
-            {refetching && <DesignLoadingBar />}
-
-            {loading ? (
-              <RequestsSkeleton />
-            ) : requests.length === 0 ? (
-              <Card className="p-6 text-center">
-                <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Icon name="architecture" size={20} className="text-slate-400" />
+                <div>
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide leading-none">{s.label}</p>
+                  <p className="text-lg font-bold text-slate-900 leading-tight mt-0.5">{s.value}</p>
                 </div>
-                <h3 className="text-sm font-medium text-slate-900 mb-1">No Drawing Requests Yet</h3>
-                <p className="text-xs text-slate-500 max-w-md mx-auto mb-3">
-                  Request drawings from a certified architect, or upload your own files directly.
-                </p>
-                <div className="flex gap-2 justify-center">
-                  <Button onClick={() => setShowDirectUpload(true)} size="sm" variant="outline" className="h-7 px-3 text-[11px] border-indigo-200 text-indigo-700 hover:bg-indigo-50">
-                    <Icon name="cloud_upload" size={13} className="mr-1" />
-                    Upload Drawings
-                  </Button>
-                  <Button onClick={() => setShowRequestForm(true)} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-7 px-3 text-[11px]">
-                    <Icon name="add" size={13} className="mr-1" />
-                    Request Drawing
-                  </Button>
-                </div>
-              </Card>
-            ) : (
-              Array.from(new Set(requests.map(r => r.project))).map(projectId => {
-                const project = projects.find(p => p.id === projectId)
-                const projectRequests = requests.filter(r => r.project === projectId)
-                return (
-                  <div key={projectId} className="mb-8 last:mb-0">
-                    <div className="flex items-center gap-3 mb-4 pb-2 border-b border-slate-200">
-                      <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
-                        <Icon name="building2" size={16} className="text-indigo-600" />
-                      </div>
-                      <h3 className="text-md font-bold text-slate-800">
-                        {project ? project.title : `Project #${projectId}`}
-                      </h3>
-                    </div>
-                    <div className="grid gap-4">
-                      {projectRequests.map(request => (
-                        <Card key={request.id} className="overflow-hidden">
-                          <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
-                          <Icon name={
-                            request.drawing_type === 'floor_plan' ? 'domain' :
-                            request.drawing_type === 'elevation' ? 'view_sidebar' :
-                            request.drawing_type === 'section' ? 'view_column' :
-                            request.drawing_type === '3d_render' ? 'view_in_ar' :
-                            'blueprint'
-                          } size={20} className="text-indigo-600" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <CardTitle className="text-base">{request.title}</CardTitle>
-                            <Badge className={getStatusColor(request.status)}>
-                              {request.status.replace('_', ' ').toUpperCase()}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-slate-500">{getDrawingTypeLabel(request.drawing_type)}</p>
-                          <p className="text-xs text-slate-400 mt-1">Requested: {new Date(request.created_at).toLocaleDateString()}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-[11px]"
-                          onClick={() => {
-                            setUploadingForRequest(request.id)
-                            setShowUploadModal(true)
-                          }}
-                        >
-                          <Icon name="cloud_upload" size={14} className="mr-1" />
-                          Upload
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => handleDeleteRequest(request.id)}
-                        >
-                          <Icon name="delete" size={14} />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  
-                  {request.files.length > 0 && (
-                    <CardContent className="pt-0">
-                      <div className="border-t pt-4">
-                        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                          <Icon name="attach_file" size={16} />
-                          Attached Files ({request.files.length})
-                        </h4>
-                        <div className="grid gap-2">
-                          {request.files.map(file => (
-                            <div 
-                              key={file.id} 
-                              className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-lg bg-white flex items-center justify-center border">
-                                  <Icon name={getFileIcon(file.file_type || file.original_name.split('.').pop() || '')} size={20} className="text-slate-600" />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium text-slate-900">{file.original_name}</p>
-                                  <p className="text-xs text-slate-500">
-                                    {(file.file_type || 'file').toUpperCase()} · {file.file_size} · {new Date(file.created_at).toLocaleDateString()}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0"
-                                  onClick={() => window.open(file.file, '_blank')}
-                                >
-                                  <Icon name="visibility" size={14} />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  onClick={() => handleDeleteFile(request.id, file.id)}
-                                >
-                                  <Icon name="delete" size={14} />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Architect bar ── */}
+          <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
+            {archDetails ? (
+              <>
+                <div className="h-9 w-9 rounded-full overflow-hidden shrink-0 ring-2 ring-white shadow-sm bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center">
+                  {archDetails.avatar ? (
+                    <img src={archDetails.avatar} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-sm font-bold text-white">{getInitials(archDetails.full_name)}</span>
                   )}
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">{archDetails.full_name}</p>
+                  <p className="text-[10px] text-slate-400 truncate">Architect · {archDetails.email}</p>
+                </div>
+                <Badge className="bg-emerald-100 text-emerald-700 text-[9px] border-none">Assigned</Badge>
+              </>
+            ) : (
+              <>
+                <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                  <Icon name="person_off" size={18} className="text-slate-400" />
+                </div>
+                <p className="text-sm text-slate-500 flex-1">No architect assigned</p>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowExploreModal(true)}>
+                  <Icon name="person_search" size={14} className="mr-1" />Assign
+                </Button>
+              </>
             )}
           </div>
 
-          {/* File Types Info */}
-          <Card className="bg-slate-50 border-slate-200">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <Icon name="info" size={16} />
-                <span>Supported file formats: All formats supported (max 50MB per file)</span>
+          {/* ── Request Form ── */}
+          {showRequestForm && (
+            <div className="rounded-xl border border-indigo-200 bg-white overflow-hidden">
+              <div className="px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Icon name="request_page" size={18} className="text-indigo-500" />Request New Drawing
+                </h3>
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setShowRequestForm(false)}><Icon name="close" size={16} /></Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </Main>
-
-      {/* Upload Modal */}
-      {showUploadModal && uploadingForRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Icon name="cloud_upload" size={20} />
-                Upload Drawing Files
-              </CardTitle>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => {
-                  setShowUploadModal(false)
-                  setUploadingForRequest(null)
-                }}
-                className="ml-auto"
-              >
-                <Icon name="close" size={20} />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Drawing Type</Label>
-                <Select 
-                  value={selectedDrawingType} 
-                  onValueChange={(v) => setSelectedDrawingType(v as DrawingRequest['drawing_type'])}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="floor_plan">Floor Plan</SelectItem>
-                    <SelectItem value="elevation">Elevation</SelectItem>
-                    <SelectItem value="section">Section View</SelectItem>
-                    <SelectItem value="3d_render">3D Render</SelectItem>
-                    <SelectItem value="blueprint">Blueprint</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Files</Label>
-                <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center">
-                  <Icon name="cloud_upload" size={40} className="text-slate-400 mx-auto mb-2" />
-                  <p className="text-sm text-slate-600 mb-2">
-                    Click to select files or drag and drop
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    All file formats supported (Max 50MB each)
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3 h-8 text-xs"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Icon name="folder_open" size={14} className="mr-1.5" />
-                    Select Files
+              <div className="p-4 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">Drawing Type</label>
+                    <Select value={form.drawingType} onValueChange={v => setForm(prev => ({ ...prev, drawingType: v as DrawingRequest['drawing_type'] }))}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {DRAWING_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">Title</label>
+                    <Input value={form.title} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} placeholder="e.g., Ground Floor Plan" className="h-9" />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowRequestForm(false)}>Cancel</Button>
+                  <Button onClick={handleSubmitRequest} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs" disabled={saving}>
+                    {saving ? <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" /> : <Icon name="send" size={14} className="mr-1.5" />}
+                    {saving ? 'Submitting…' : 'Submit'}
                   </Button>
                 </div>
               </div>
+            </div>
+          )}
 
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setShowUploadModal(false)
-                    setUploadingForRequest(null)
-                  }}
-                  className="flex-1 h-8 text-xs"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setShowUploadModal(false)
-                    fileInputRef.current?.click()
-                  }}
-                  className="flex-1 h-8 text-xs"
-                >
-                  <Icon name="cloud_upload" size={14} className="mr-1.5" />
-                  Upload
-                </Button>
+          {/* ── Direct Upload ── */}
+          {showDirectUpload && (
+            <div className="rounded-xl border border-emerald-200 bg-white overflow-hidden">
+              <div className="px-4 py-3 border-b border-emerald-100 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Icon name="cloud_upload" size={18} className="text-emerald-500" />Upload Your Drawings
+                </h3>
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setShowDirectUpload(false); setDirectFiles([]) }}><Icon name="close" size={16} /></Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Hidden file input */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        multiple
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          if (uploadingForRequest) {
-            handleFileUpload(uploadingForRequest, e.target.files)
-          }
-        }}
-      />
-
-      {/* Explore Professionals Modal */}
-      {showExploreModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-6xl max-h-[90vh] overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Icon name="verified_user" size={20} />
-                Explore Verified Building Professionals
-              </CardTitle>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => setShowExploreModal(false)}
-                className="h-8 w-8"
-              >
-                <Icon name="close" size={20} />
-              </Button>
-            </CardHeader>
-            <CardContent className="p-4 overflow-y-auto max-h-[70vh]">
-              {/* Search and Filters */}
-              <div className="grid gap-4 md:grid-cols-3 mb-4">
-                <div className="space-y-2">
-                  <Label>Search Professionals</Label>
-                  <div className="relative">
-                    <Icon name="search" size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                    <Input 
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search by name, company, or specialty..."
-                      className="pl-10"
-                    />
+              <div className="p-4 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">Drawing Type</label>
+                    <Select value={directUploadForm.drawingType} onValueChange={v => setDirectUploadForm(prev => ({ ...prev, drawingType: v as DrawingRequest['drawing_type'] }))}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {DRAWING_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">Title (optional)</label>
+                    <Input value={directUploadForm.title} onChange={e => setDirectUploadForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Auto-generated if blank" className="h-9" />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Filter by Role</Label>
-                  <Select 
-                    value={selectedRole} 
-                    onValueChange={(v) => setSelectedRole(v as any)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Roles</SelectItem>
-                      {PROFESSIONAL_ROLES.map(role => (
-                        <SelectItem key={role.value} value={role.value}>
-                          <div className="flex items-center gap-2">
-                            <Icon name={role.icon} size={16} />
-                            {role.label}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div
+                  className={cn(
+                    "border-2 border-dashed rounded-lg p-5 text-center transition-colors cursor-pointer",
+                    directFiles.length > 0 ? "border-emerald-300 bg-emerald-50/50" : "border-slate-300 hover:border-indigo-300 hover:bg-indigo-50/30"
+                  )}
+                  onClick={() => directUploadRef.current?.click()}
+                  onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
+                  onDrop={e => { e.preventDefault(); e.stopPropagation(); setDirectFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]) }}
+                >
+                  <Icon name="cloud_upload" size={28} className="text-slate-400 mx-auto mb-1" />
+                  <p className="text-xs text-slate-500">Click or drag files · PDF, PNG, JPG, DWG (max 50MB)</p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Availability</Label>
-                  <Select defaultValue="all">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="available">Available</SelectItem>
-                      <SelectItem value="busy">Busy</SelectItem>
-                      <SelectItem value="unavailable">Unavailable</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <input type="file" ref={directUploadRef} className="hidden" multiple onChange={e => { if (e.target.files) { setDirectFiles(prev => [...prev, ...Array.from(e.target.files!)]); e.target.value = '' } }} />
+                {directFiles.length > 0 && (
+                  <div className="space-y-1">
+                    {directFiles.map((file, i) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-1.5 bg-slate-50 rounded-lg text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Icon name={getFileIcon(file.name.split('.').pop() || '')} size={14} className="text-slate-500 shrink-0" />
+                          <span className="truncate text-slate-700">{file.name}</span>
+                          <span className="text-[10px] text-slate-400 shrink-0">{(file.size / (1024 * 1024)).toFixed(1)} MB</span>
+                        </div>
+                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400 hover:text-red-600" onClick={() => setDirectFiles(prev => prev.filter((_, idx) => idx !== i))}><Icon name="close" size={12} /></Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => { setShowDirectUpload(false); setDirectFiles([]) }}>Cancel</Button>
+                  <Button onClick={handleDirectUpload} size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs" disabled={uploadingDirect || !selectedProject || directFiles.length === 0}>
+                    {uploadingDirect ? <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" /> : <Icon name="cloud_upload" size={14} className="mr-1.5" />}
+                    {uploadingDirect ? 'Uploading…' : `Upload ${directFiles.length} File(s)`}
+                  </Button>
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Professionals List */}
-              <div className="grid gap-4">
-                {loadingPros ? (
-                  <div className="flex flex-col items-center justify-center py-8 space-y-3">
-                    <div className="h-10 w-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-                    <p className="text-slate-500 text-sm">Searching professionals...</p>
+          {/* Hidden file input */}
+          <input type="file" ref={fileInputRef} className="hidden" multiple onChange={e => uploadingForRequest && handleFileUpload(uploadingForRequest, e.target.files)} />
+
+          {/* ── Drawing Requests ── */}
+          <div className="rounded-xl border border-slate-200 bg-white">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Icon name="folder" size={18} className="text-indigo-500" />
+                Drawing Requests
+                <Badge variant="secondary" className="text-[10px] ml-1">{requests.length}</Badge>
+              </h2>
+            </div>
+
+            {loading ? (
+              <div className="divide-y divide-slate-50">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-slate-100 animate-pulse shrink-0" />
+                    <div className="flex-1 space-y-1.5"><div className="h-4 w-40 bg-slate-100 rounded animate-pulse" /><div className="h-3 w-24 bg-slate-50 rounded animate-pulse" /></div>
                   </div>
-                ) : professionals.length === 0 ? (
-                  <div className="text-center py-8 text-slate-500">
-                    <Icon name="search_off" size={32} className="mx-auto mb-2 opacity-50" />
-                    <p>No professionals found</p>
-                  </div>
-                ) : (
-                  professionals.map(professional => (
-                    <Card key={professional.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-3">
-                            <div className="h-12 w-12 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0 overflow-hidden">
-                              {professional.user_details?.avatar ? (
-                                <img src={professional.user_details.avatar} alt="" className="h-full w-full object-cover" />
-                              ) : (
-                                <Icon name={getRoleIcon(professional.role)} size={24} className="text-indigo-600" />
+                ))}
+              </div>
+            ) : requests.length === 0 ? (
+              <div className="px-4 py-12 text-center">
+                <Icon name="architecture" size={32} className="mx-auto mb-2 text-slate-300" />
+                <p className="text-sm text-slate-500 font-medium">No drawing requests yet</p>
+                <div className="flex gap-2 justify-center mt-3">
+                  <Button onClick={() => setShowDirectUpload(true)} size="sm" variant="outline" className="h-7 text-xs border-indigo-200 text-indigo-700">
+                    <Icon name="cloud_upload" size={13} className="mr-1" />Upload
+                  </Button>
+                  <Button onClick={() => setShowRequestForm(true)} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-7 text-xs">
+                    <Icon name="add" size={13} className="mr-1" />Request
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {Array.from(new Set(requests.map(r => r.project))).map(projectId => {
+                  const project = projects.find(p => p.id === projectId)
+                  const projectRequests = requests.filter(r => r.project === projectId)
+                  return (
+                    <div key={projectId}>
+                      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                        <Icon name="folder_special" size={14} className="text-indigo-500" />
+                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{project?.title || `Project #${projectId}`}</span>
+                        <Badge variant="secondary" className="text-[9px] ml-auto">{projectRequests.length}</Badge>
+                      </div>
+                      <div className="divide-y divide-slate-50">
+                        {projectRequests.map(request => {
+                          const dtCfg = DRAWING_TYPES.find(d => d.value === request.drawing_type)
+                          return (
+                            <div key={request.id}>
+                              <div className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50/50">
+                                <div className="h-9 w-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                                  <Icon name={dtCfg?.icon || 'description'} size={18} className="text-indigo-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-semibold text-slate-900 truncate">{request.title}</p>
+                                    <Badge className={`${STATUS_CLS[request.status] || 'bg-slate-100 text-slate-600'} text-[9px] px-1.5 py-0 border-none`}>
+                                      {request.status.replace('_', ' ')}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-[11px] text-slate-400">{dtCfg?.label || request.drawing_type} · {new Date(request.created_at).toLocaleDateString()}{request.files.length > 0 && ` · ${request.files.length} file${request.files.length > 1 ? 's' : ''}`}</p>
+                                </div>
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-indigo-600 hover:bg-indigo-50 shrink-0" onClick={() => { setUploadingForRequest(request.id); fileInputRef.current?.click() }}>
+                                  <Icon name="cloud_upload" size={14} className="mr-1" />Upload
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50 shrink-0" onClick={() => handleDeleteRequest(request.id)}>
+                                  <Icon name="delete" size={14} />
+                                </Button>
+                              </div>
+                              {request.files.length > 0 && (
+                                <div className="px-4 pb-3 pl-16">
+                                  <div className="space-y-1">
+                                    {request.files.map(file => {
+                                      const ext = file.file_type || file.original_name.split('.').pop() || ''
+                                      const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext.toLowerCase())
+                                      return (
+                                        <div key={file.id} className="flex items-center gap-2.5 py-1.5 px-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors group">
+                                          {isImage ? (
+                                            <img src={file.file} alt="" className="h-8 w-8 rounded object-cover shrink-0 border border-slate-200" />
+                                          ) : (
+                                            <div className="h-8 w-8 rounded bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                                              <Icon name={getFileIcon(ext)} size={16} className="text-slate-500" />
+                                            </div>
+                                          )}
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-medium text-slate-800 truncate">{file.original_name}</p>
+                                            <p className="text-[10px] text-slate-400">{ext.toUpperCase()} · {file.file_size}</p>
+                                          </div>
+                                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => window.open(file.file, '_blank')}>
+                                            <Icon name="open_in_new" size={13} />
+                                          </Button>
+                                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600" onClick={() => handleDeleteFile(request.id, file.id)}>
+                                            <Icon name="close" size={13} />
+                                          </Button>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
                               )}
                             </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-slate-900">{professional.user_details?.full_name}</h3>
-                                {professional.is_verified && (
-                                  <div className="flex items-center gap-1">
-                                    <Icon name="verified" size={14} className="text-emerald-600" />
-                                    <span className="text-xs font-semibold text-emerald-600">VERIFIED</span>
-                                  </div>
-                                )}
-                                <Badge className={getAvailabilityColor(professional.availability)}>
-                                  {professional.availability.toUpperCase()}
-                                </Badge>
-                              </div>
-                              <p className="text-slate-600 text-sm font-medium">{getRoleLabel(professional.role)} · {professional.company_name}</p>
-                              <p className="text-slate-500 text-xs mt-1">{professional.location} · {professional.experience_years} years experience</p>
-                              
-                              <div className="flex items-center gap-3 mt-2">
-                                <div className="flex items-center gap-1">
-                                  {renderStars(parseFloat(professional.average_rating))}
-                                  <span className="text-xs text-slate-600">({professional.average_rating})</span>
-                                </div>
-                                <span className="text-xs text-slate-500">
-                                  <span className="font-medium">{professional.completed_projects_count}</span> projects
-                                </span>
-                                <span className="text-xs font-medium text-slate-700">{professional.hourly_rate}</span>
-                              </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {professional.specialties.slice(0, 3).map((specialty: string, index: number) => (
-                                  <Badge key={index} variant="secondary" className="text-xs">
-                                    {specialty}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Button
-                              onClick={() => handleAddToTeam(professional)}
-                              className="bg-indigo-600 hover:bg-indigo-700 h-7 px-2.5 text-[11px] font-bold gap-1"
-                              size="sm"
-                            >
-                              <Icon name="person_add" size={13} className="-ml-0.5" />
-                              Add to Team
-                            </Button>
-                            <Button
-                              onClick={() => handleContact(professional)}
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2.5 text-[11px] font-bold gap-1 border-slate-200"
-                            >
-                              <Icon name="contact_phone" size={13} className="-ml-0.5" />
-                              Contact
-                            </Button>
-                          </div>
+        </div>
+      </Main>
+
+      {/* ── Explore Professionals Modal ── */}
+      {showExploreModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowExploreModal(false)}>
+          <Card className="w-full max-w-4xl max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Icon name="verified_user" size={20} />Verified Professionals
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setShowExploreModal(false)}><Icon name="close" size={20} /></Button>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 overflow-y-auto max-h-[70vh]">
+              <div className="flex gap-3 mb-4">
+                <div className="relative flex-1">
+                  <Icon name="search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search…" className="pl-9 h-9" />
+                </div>
+                <Select value={selectedRole} onValueChange={v => setSelectedRole(v)}>
+                  <SelectTrigger className="w-44 h-9"><SelectValue placeholder="Role" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Roles</SelectItem>
+                    {ARTISAN_ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                {loadingPros ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100">
+                      <div className="h-10 w-10 rounded-full bg-slate-100 animate-pulse shrink-0" />
+                      <div className="flex-1 space-y-1.5"><div className="h-4 w-36 bg-slate-100 rounded animate-pulse" /><div className="h-3 w-48 bg-slate-50 rounded animate-pulse" /></div>
+                    </div>
+                  ))
+                ) : professionals.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400 text-sm">No professionals found</div>
+                ) : (
+                  professionals.map((pro: any) => (
+                    <div key={pro.id} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
+                      <div className="h-10 w-10 rounded-full overflow-hidden shrink-0 bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center ring-2 ring-white shadow-sm">
+                        {pro.user_details?.avatar ? (
+                          <img src={pro.user_details.avatar} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-sm font-bold text-white">{getInitials(pro.user_details?.full_name)}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900 truncate">{pro.user_details?.full_name}</p>
+                          {pro.is_verified && <Icon name="verified" size={14} className="text-emerald-500 shrink-0" />}
+                          <Badge className={`${getAvailabilityColor(pro.availability)} text-[9px] px-1.5 py-0`}>{pro.availability}</Badge>
                         </div>
-                      </CardContent>
-                    </Card>
+                        <p className="text-xs text-slate-500 truncate">{getRoleLabel(pro.role)} · {pro.company_name} · {pro.experience_years}yr · ★{pro.average_rating}</p>
+                      </div>
+                      <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-7 px-3 text-xs shrink-0" onClick={() => handleAddToTeam(pro)}>
+                        <Icon name="person_add" size={14} className="mr-1" />Add
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 px-3 text-xs shrink-0" onClick={() => { handleContact(pro); setShowExploreModal(false) }}>
+                        <Icon name="call" size={14} />
+                      </Button>
+                    </div>
                   ))
                 )}
               </div>
@@ -1189,64 +727,44 @@ function RouteComponent() {
         </div>
       )}
 
-      {/* Contact Modal */}
+      {/* ── Contact Modal ── */}
       {showContactModal && selectedProfessional && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Icon name="contact_phone" size={20} />
-                Contact {selectedProfessional.user_details?.full_name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Icon name="phone" size={20} className="text-slate-400" />
-                  <div>
-                    <p className="text-sm text-slate-500">Phone</p>
-                    <p className="font-medium">{selectedProfessional.user_details?.phone_number || 'N/A'}</p>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowContactModal(false)}>
+          <Card className="w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <CardContent className="pt-6 pb-5 px-6 flex flex-col items-center text-center">
+              <div className="h-16 w-16 rounded-full overflow-hidden bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center ring-2 ring-white shadow-md">
+                {selectedProfessional.user_details?.avatar ? (
+                  <img src={selectedProfessional.user_details.avatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-xl font-bold text-white">{getInitials(selectedProfessional.user_details?.full_name)}</span>
+                )}
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mt-3">{selectedProfessional.user_details?.full_name}</h3>
+              <p className="text-sm text-slate-500">{getRoleLabel(selectedProfessional.role)} · {selectedProfessional.company_name}</p>
+              <div className="w-full mt-5 space-y-2.5 text-left">
+                <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+                  <Icon name="phone" size={18} className="text-indigo-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-slate-400 uppercase font-semibold">Phone</p>
+                    <p className="text-sm font-medium text-slate-800 truncate">{selectedProfessional.user_details?.phone_number || 'N/A'}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Icon name="email" size={20} className="text-slate-400" />
-                  <div>
-                    <p className="text-sm text-slate-500">Email</p>
-                    <p className="font-medium">{selectedProfessional.user_details?.email}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Icon name="business" size={20} className="text-slate-400" />
-                  <div>
-                    <p className="text-sm text-slate-500">Company</p>
-                    <p className="font-medium">{selectedProfessional.company_name}</p>
+                <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+                  <Icon name="email" size={18} className="text-indigo-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-slate-400 uppercase font-semibold">Email</p>
+                    <p className="text-sm font-medium text-slate-800 truncate">{selectedProfessional.user_details?.email}</p>
                   </div>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowContactModal(false)}
-                  className="flex-1 h-7 text-[11px] font-bold border-slate-200"
-                >
-                  Close
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    if (selectedProfessional.user_details?.phone_number) {
-                      navigator.clipboard.writeText(selectedProfessional.user_details.phone_number);
-                      toast.success('Phone number copied to clipboard');
-                    } else {
-                      toast.error('No phone number available');
-                    }
-                  }}
-                  className="flex-1 h-7 text-[11px] font-bold gap-1"
-                >
-                  <Icon name="content_copy" size={13} className="-ml-0.5" />
-                  Copy Phone
-                </Button>
+              <div className="flex gap-2 w-full mt-5">
+                <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => setShowContactModal(false)}>Close</Button>
+                <Button size="sm" className="flex-1 h-9 bg-indigo-600 hover:bg-indigo-700" onClick={() => {
+                  if (selectedProfessional.user_details?.phone_number) {
+                    navigator.clipboard.writeText(selectedProfessional.user_details.phone_number)
+                    toast.success('Phone number copied')
+                  } else { toast.error('No phone number') }
+                }}><Icon name="content_copy" size={14} className="mr-1" />Copy Phone</Button>
               </div>
             </CardContent>
           </Card>

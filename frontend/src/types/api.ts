@@ -163,7 +163,7 @@ export interface SiteCamera {
 }
 
 export interface BOQBuildingItem {
-    id: number; project: number; bill_no?: string; description: string; specification?: string; unit?: string; quantity: string; rate: string; amount: string; is_ai_generated: boolean; created_at: string; updated_at: string;
+    id: number; project: number; budget_version?: number; bill_no?: string; description: string; specification?: string; unit?: string; quantity: string; rate: string; amount: string; is_ai_generated: boolean; created_at: string; updated_at: string;
 }
 export interface BOQProfessionalFee {
     id: number; project: number; discipline?: string; role_scope?: string; basis?: string; rate?: string; estimated_fee: string; is_ai_generated: boolean; created_at: string; updated_at: string;
@@ -186,6 +186,20 @@ export interface BOQScheduleTask {
 export interface BOQScheduleMaterial {
     id: number; project: number; section: string; material_description: string; specification?: string; estimated_qty?: string; is_ai_generated: boolean; created_at: string; updated_at: string;
 }
+export interface BudgetMeta {
+    kind: string;
+    signed_at: string | null;
+    signed_by_id: number | null;
+    signed_by_name?: string;
+    author_signature: string;
+    /** Snapshot of profile signature (data URL) when signed. */
+    signature_image?: string | null;
+    is_locked: boolean;
+    version_id: number | null;
+    /** Sum of all line amounts (USD). */
+    gross_total?: string;
+}
+
 export interface BudgetSheets {
     building_items: BOQBuildingItem[];
     professional_fees: BOQProfessionalFee[];
@@ -195,6 +209,7 @@ export interface BudgetSheets {
     labour_breakdowns: BOQLabourBreakdown[];
     schedule_tasks: BOQScheduleTask[];
     schedule_materials: BOQScheduleMaterial[];
+    budget_meta?: BudgetMeta;
 }
 
 export interface ProjectDashboard {
@@ -369,6 +384,58 @@ export interface ProfessionalProfile {
     certifications: string[];
     average_rating: string;
     completed_projects_count: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ProjectMilestone {
+    id: number;
+    project: number;
+    name: string;
+    description?: string;
+    category: 'design' | 'budget' | 'procurement' | 'construction' | 'other';
+    target_date: string;
+    completed: boolean;
+    completed_date?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ProjectActivity {
+    id: number;
+    project: number;
+    user: number | null;
+    user_name: string;
+    type: 'team' | 'budget' | 'procurement' | 'design' | 'status' | 'document' | 'general';
+    action: string;
+    description: string;
+    metadata: Record<string, any>;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface UserNotification {
+    id: number;
+    user: number;
+    project?: number;
+    type: 'team' | 'budget' | 'procurement' | 'design' | 'status' | 'general';
+    title: string;
+    message: string;
+    read: boolean;
+    action_url?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ProjectDocument {
+    id: number;
+    project: number;
+    name: string;
+    type: 'contract' | 'permit' | 'invoice' | 'insurance' | 'warranty' | 'other';
+    file: string;
+    file_size: number;
+    uploaded_by: number | null;
+    uploaded_by_name: string;
     created_at: string;
     updated_at: string;
 }

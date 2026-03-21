@@ -4,11 +4,10 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { Icon } from '@/components/ui/material-icon'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
@@ -18,7 +17,6 @@ import type { ProfessionalProfile } from '@/types/api'
 export const Route = createFileRoute('/_authenticated/sqb-team')({
   component: RouteComponent,
 })
-
 
 type ProfessionalRole = 'architect' | 'structural_engineer' | 'contractor' | 'electrician' | 'plumber' | 'mason' | 'carpenter' | 'painter' | 'roofer' | 'tiler' | 'quantity_surveyor' | 'project_manager'
 
@@ -37,7 +35,32 @@ const PROFESSIONAL_ROLES: { value: ProfessionalRole; label: string; icon: string
   { value: 'tiler', label: 'Tiler', icon: 'grid_on' },
 ]
 
+const AVAIL_CLS: Record<string, { dot: string; badge: string }> = {
+  available:   { dot: 'bg-green-500',  badge: 'bg-green-100 text-green-700' },
+  busy:        { dot: 'bg-amber-500',  badge: 'bg-amber-100 text-amber-700' },
+  unavailable: { dot: 'bg-red-400',    badge: 'bg-red-100 text-red-600' },
+}
 
+function getInitials(name?: string) {
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/)
+  return parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase()
+}
+
+function Avatar({ src, name, size = 'lg' }: { src?: string; name?: string; size?: 'md' | 'lg' }) {
+  const dim = size === 'lg' ? 'h-24 w-24' : 'h-14 w-14'
+  const textSz = size === 'lg' ? 'text-2xl' : 'text-base'
+  if (src) {
+    return <img src={src} alt={name ?? ''} className={`${dim} rounded-full object-cover ring-2 ring-white shadow-md`} />
+  }
+  return (
+    <div className={`${dim} rounded-full bg-gradient-to-br from-green-700 to-green-900 flex items-center justify-center ring-2 ring-white shadow-md`}>
+      <span className={`${textSz} font-bold text-white`}>{getInitials(name)}</span>
+    </div>
+  )
+}
 
 function RouteComponent() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -49,17 +72,13 @@ function RouteComponent() {
   const [loading, setLoading] = useState(true)
   const [totalCount, setTotalCount] = useState(0)
 
-  const ITEMS_PER_PAGE = 10
+  const ITEMS_PER_PAGE = 12
 
   const fetchProfessionals = async () => {
     setLoading(true)
     try {
-      const params: any = {
-        page: currentPage,
-        search: searchTerm || undefined,
-      }
+      const params: any = { page: currentPage, search: searchTerm || undefined }
       if (selectedRole !== 'all') params.role = selectedRole
-
       const res = await builderApi.getProfessionals(params)
       setProfessionals(res.data.results)
       setTotalCount(res.data.count)
@@ -71,43 +90,11 @@ function RouteComponent() {
     }
   }
 
-  useEffect(() => {
-    fetchProfessionals()
-  }, [currentPage, selectedRole, searchTerm])
+  useEffect(() => { fetchProfessionals() }, [currentPage, selectedRole, searchTerm])
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
 
-  const handleContact = (professional: ProfessionalProfile) => {
-    setSelectedProfessional(professional)
-    setShowContactModal(true)
-  }
-
-  const getRoleIcon = (role: string) => {
-    return PROFESSIONAL_ROLES.find(r => r.value === role)?.icon || 'person'
-  }
-
-  const getRoleLabel = (role: string) => {
-    return PROFESSIONAL_ROLES.find(r => r.value === role)?.label || role
-  }
-
-  const getAvailabilityColor = (availability: ProfessionalProfile['availability']) => {
-    switch (availability) {
-      case 'available': return 'bg-green-100 text-green-700 border-green-200'
-      case 'busy': return 'bg-amber-100 text-amber-700 border-amber-200'
-      case 'unavailable': return 'bg-red-100 text-red-700 border-red-200'
-    }
-  }
-
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Icon 
-        key={i} 
-        name={i < Math.floor(rating) ? 'star' : 'star_border'} 
-        size={16} 
-        className={i < Math.floor(rating) ? 'text-amber-400' : 'text-slate-300'}
-      />
-    ))
-  }
+  const getRoleLabel = (role: string) => PROFESSIONAL_ROLES.find(r => r.value === role)?.label || role
 
   return (
     <>
@@ -117,328 +104,233 @@ function RouteComponent() {
           <ProfileDropdown />
         </div>
       </Header>
-      <Main>
-        <div className="max-w-7xl mx-auto space-y-6">
-          {/* Header */}
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-              <Icon name="verified_user" size={20} className="text-white" />
-            </div>
+      <Main className="bg-slate-50 min-h-[calc(100vh-theme(spacing.16))]">
+        <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
+
+          {/* ── Header ── */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold font-display">SQB Building Team</h1>
-              <p className="text-xs text-muted-foreground">
-                Connect with Zimbabwe's most trusted and verified construction professionals
-              </p>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">SQB Building Team</h1>
+              <p className="text-sm text-slate-500 mt-0.5">Verified construction professionals you can trust</p>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-500">
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-green-500" />Available</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-500" />Busy</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-400" />Unavailable</span>
             </div>
           </div>
 
-          {/* Stats Cards - Compact */}
-          <div className="grid gap-2 md:grid-cols-4">
-            <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-200">
-              <CardContent className="p-2 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-md bg-emerald-100 flex items-center justify-center shrink-0">
-                  <Icon name="group" size={16} className="text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold text-emerald-600 uppercase">Total Pros</p>
-                  <span className="text-base font-bold text-emerald-700">{totalCount}</span>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-green-50 to-white border-green-200">
-              <CardContent className="p-2 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-md bg-green-100 flex items-center justify-center shrink-0">
-                  <Icon name="check_circle" size={16} className="text-green-600" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold text-green-600 uppercase">Available</p>
-                  <span className="text-base font-bold text-green-700">{professionals.filter(p => p.availability === 'available').length}</span>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-amber-50 to-white border-amber-200">
-              <CardContent className="p-2 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-md bg-amber-100 flex items-center justify-center shrink-0">
-                  <Icon name="star" size={16} className="text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold text-amber-600 uppercase">Avg Rating</p>
-                  <span className="text-base font-bold text-amber-700">
-                    {(professionals.reduce((sum, p) => sum + parseFloat(p.average_rating), 0) / (professionals.length || 1)).toFixed(1)}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200">
-              <CardContent className="p-2 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-md bg-blue-100 flex items-center justify-center shrink-0">
-                  <Icon name="checklist" size={16} className="text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold text-blue-600 uppercase">Projects</p>
-                  <span className="text-base font-bold text-blue-700">{professionals.reduce((sum, p) => sum + p.completed_projects_count, 0)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Search and Filters */}
-          <Card className="border-emerald-200">
-            <CardContent className="p-4">
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Search Professionals</Label>
-                  <div className="relative">
-                    <Icon name="search" size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                    <Input 
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search by name, company, or specialty..."
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Filter by Role</Label>
-                  <Select 
-                    value={selectedRole} 
-                    onValueChange={(v) => setSelectedRole(v as ProfessionalRole | 'all')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Roles</SelectItem>
-                      {PROFESSIONAL_ROLES.map(role => (
-                        <SelectItem key={role.value} value={role.value}>
-                          <div className="flex items-center gap-2">
-                            <Icon name={role.icon} size={16} />
-                            {role.label}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Availability</Label>
-                  <Select defaultValue="all">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="available">Available</SelectItem>
-                      <SelectItem value="busy">Busy</SelectItem>
-                      <SelectItem value="unavailable">Unavailable</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Verified Professionals List */}
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <Icon name="verified_user" size={24} />
-              Verified Building Professionals
-            </h2>
-            
-            <div className="grid gap-4">
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                  <div className="h-12 w-12 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
-                  <p className="text-slate-500 font-medium">Loading professionals...</p>
-                </div>
-              ) : professionals.length === 0 ? (
-                <Card className="p-12 text-center border-emerald-100">
-                  <div className="h-20 w-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Icon name="search_off" size={40} className="text-slate-400" />
-                  </div>
-                  <h3 className="text-lg font-medium text-slate-900 mb-2">No professionals found</h3>
-                  <p className="text-sm text-slate-500 max-w-md mx-auto">
-                    We couldn't find any professionals matching your search criteria. Try adjusting your filters.
-                  </p>
-                </Card>
-              ) : (
-                professionals.map(professional => (
-                  <Card key={professional.id} className="overflow-hidden hover:shadow-lg transition-shadow border-emerald-100">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4">
-                          <div className="h-16 w-16 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center shrink-0">
-                            {professional.user_details?.avatar ? (
-                              <img src={professional.user_details.avatar} alt="" className="h-full w-full object-cover rounded-lg" />
-                            ) : (
-                              <Icon name={getRoleIcon(professional.role)} size={32} className="text-emerald-600" />
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-lg font-semibold text-slate-900">{professional.user_details?.full_name}</h3>
-                              {professional.is_verified && (
-                                <div className="flex items-center gap-1">
-                                  <Icon name="verified" size={16} className="text-emerald-600" />
-                                  <span className="text-xs font-semibold text-emerald-600">VERIFIED</span>
-                                </div>
-                              )}
-                              <Badge className={getAvailabilityColor(professional.availability)}>
-                                {professional.availability.toUpperCase()}
-                              </Badge>
-                            </div>
-                            <p className="text-slate-600 font-medium">{getRoleLabel(professional.role)} · {professional.company_name}</p>
-                            <p className="text-sm text-slate-500 mt-1">{professional.location} · {professional.experience_years} years experience</p>
-                            
-                            <div className="flex items-center gap-4 mt-2">
-                              <div className="flex items-center gap-1">
-                                {renderStars(parseFloat(professional.average_rating))}
-                                <span className="text-sm text-slate-600">({professional.average_rating})</span>
-                              </div>
-                              <span className="text-sm text-slate-500">
-                                <span className="font-medium">{professional.completed_projects_count}</span> projects completed
-                              </span>
-                              <span className="text-sm font-medium text-emerald-700">{professional.hourly_rate}</span>
-                            </div>
-
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {professional.specialties.map((specialty, index) => (
-                                <Badge key={index} variant="secondary" className="text-xs">
-                                  {specialty}
-                                </Badge>
-                              ))}
-                            </div>
-
-                            <p className="text-sm text-slate-600 mt-3 line-clamp-2">{professional.bio}</p>
-
-                            {professional.certifications.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {professional.certifications.slice(0, 2).map((cert, index) => (
-                                  <span key={index} className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded">
-                                    {cert}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <Button 
-                            onClick={() => handleContact(professional)}
-                            className="bg-emerald-600 hover:bg-emerald-700"
-                          >
-                            <Icon name="contact_phone" size={16} className="mr-2" />
-                            Contact
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Icon name="visibility" size={16} className="mr-2" />
-                            View Profile
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
+          {/* ── Search / Filters ── */}
+          <div className="flex flex-col sm:flex-row gap-3 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="relative flex-1">
+              <Icon name="search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={searchTerm}
+                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }}
+                placeholder="Search by name, company, specialty…"
+                className="pl-9 h-10 border-slate-200"
+              />
             </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 pt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <Icon name="chevron_left" size={16} />
-                </Button>
-                
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setCurrentPage(page)}
-                    className={currentPage === page ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
-                  >
-                    {page}
-                  </Button>
-                ))}
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  <Icon name="chevron_right" size={16} />
-                </Button>
-              </div>
-            )}
+            <Select value={selectedRole} onValueChange={v => { setSelectedRole(v as ProfessionalRole | 'all'); setCurrentPage(1) }}>
+              <SelectTrigger className="h-10 w-full sm:w-48 border-slate-200"><SelectValue placeholder="All Roles" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                {PROFESSIONAL_ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Contact Modal */}
-          {showContactModal && selectedProfessional && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-              <Card className="w-full max-w-md">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Icon name="contact_phone" size={20} />
-                    Contact {selectedProfessional.user_details?.full_name}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <Icon name="phone" size={20} className="text-slate-400" />
-                      <div>
-                        <p className="text-sm text-slate-500">Phone</p>
-                        <p className="font-medium">{selectedProfessional.user_details?.phone_number || 'N/A'}</p>
+          {/* ── Results count ── */}
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+            {loading ? 'Loading…' : `${totalCount} professional${totalCount !== 1 ? 's' : ''} found`}
+          </p>
+
+          {/* ── Grid ── */}
+          {loading ? (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-slate-200 bg-white p-6 flex flex-col items-center gap-4">
+                  <div className="h-24 w-24 rounded-full bg-slate-100 animate-pulse" />
+                  <div className="w-32 h-4 bg-slate-100 rounded animate-pulse" />
+                  <div className="w-24 h-3 bg-slate-50 rounded animate-pulse" />
+                  <div className="w-full h-8 bg-slate-50 rounded animate-pulse mt-2" />
+                </div>
+              ))}
+            </div>
+          ) : professionals.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-white py-16 text-center">
+              <Icon name="search_off" size={40} className="mx-auto mb-3 text-slate-300" />
+              <p className="text-slate-500 font-medium">No professionals match your search</p>
+              <p className="text-sm text-slate-400 mt-1">Try adjusting your filters</p>
+            </div>
+          ) : (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {professionals.map(pro => {
+                const avail = AVAIL_CLS[pro.availability] ?? AVAIL_CLS.unavailable
+                return (
+                  <div
+                    key={pro.id}
+                    className="group rounded-xl border border-slate-200 bg-white hover:shadow-lg hover:border-green-300 transition-all duration-200 overflow-hidden"
+                  >
+                    {/* Top accent */}
+                    <div className="h-16 bg-gradient-to-r from-green-700 to-green-900 relative">
+                      {pro.is_verified && (
+                        <span className="absolute top-2 right-2 flex items-center gap-1 bg-white/90 backdrop-blur rounded-full px-2 py-0.5">
+                          <Icon name="verified" size={12} className="text-green-700" />
+                          <span className="text-[9px] font-bold text-green-800 uppercase">Verified</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Avatar overlapping accent */}
+                    <div className="flex justify-center -mt-12">
+                      <div className="relative">
+                        <Avatar src={pro.user_details?.avatar} name={pro.user_details?.full_name} size="lg" />
+                        <span className={`absolute bottom-1 right-1 h-4 w-4 rounded-full ${avail.dot} ring-2 ring-white`} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Icon name="email" size={20} className="text-slate-400" />
-                      <div>
-                        <p className="text-sm text-slate-500">Email</p>
-                        <p className="font-medium">{selectedProfessional.user_details?.email}</p>
+
+                    {/* Info */}
+                    <div className="px-5 pt-3 pb-5 text-center">
+                      <h3 className="text-base font-bold text-slate-900 truncate">{pro.user_details?.full_name}</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">{getRoleLabel(pro.role)}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">{pro.company_name} · {pro.location}</p>
+
+                      {/* Stats row */}
+                      <div className="flex items-center justify-center gap-4 mt-3 text-xs text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <Icon name="star" size={14} className="text-amber-400" />
+                          <span className="font-bold text-slate-700">{pro.average_rating}</span>
+                        </span>
+                        <span className="h-3 w-px bg-slate-200" />
+                        <span>
+                          <span className="font-bold text-slate-700">{pro.completed_projects_count}</span> projects
+                        </span>
+                        <span className="h-3 w-px bg-slate-200" />
+                        <span>
+                          <span className="font-bold text-slate-700">{pro.experience_years}</span>yr
+                        </span>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Icon name="business" size={20} className="text-slate-400" />
-                      <div>
-                        <p className="text-sm text-slate-500">Company</p>
-                        <p className="font-medium">{selectedProfessional.company_name}</p>
+
+                      {/* Specialties */}
+                      {pro.specialties.length > 0 && (
+                        <div className="flex flex-wrap justify-center gap-1 mt-3">
+                          {pro.specialties.slice(0, 3).map((s, i) => (
+                            <span key={i} className="text-[10px] font-medium bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">{s}</span>
+                          ))}
+                          {pro.specialties.length > 3 && (
+                            <span className="text-[10px] font-medium text-slate-400">+{pro.specialties.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Rate + availability */}
+                      <div className="flex items-center justify-center gap-2 mt-3">
+                        {pro.hourly_rate && (
+                          <span className="text-xs font-bold text-green-800 bg-green-50 rounded-full px-2.5 py-0.5">{pro.hourly_rate}</span>
+                        )}
+                        <Badge className={`${avail.badge} text-[10px] px-2 py-0 border-none`}>{pro.availability}</Badge>
                       </div>
+
+                      {/* Action */}
+                      <Button
+                        size="sm"
+                        className="w-full mt-4 bg-green-700 hover:bg-green-800 text-white h-9"
+                        onClick={() => { setSelectedProfessional(pro); setShowContactModal(true) }}
+                      >
+                        <Icon name="call" size={16} className="mr-1.5" />
+                        Contact
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setShowContactModal(false)}
-                      className="flex-1"
+                )
+              })}
+            </div>
+          )}
+
+          {/* ── Pagination ── */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-1.5 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-8 w-8 p-0">
+                <Icon name="chevron_left" size={16} />
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                .reduce<(number | 'dots')[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('dots')
+                  acc.push(p)
+                  return acc
+                }, [])
+                .map((item, idx) =>
+                  item === 'dots' ? (
+                    <span key={`d${idx}`} className="text-slate-400 text-xs px-1">…</span>
+                  ) : (
+                    <Button
+                      key={item}
+                      variant={currentPage === item ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setCurrentPage(item as number)}
+                      className={`h-8 w-8 p-0 ${currentPage === item ? 'bg-green-700 hover:bg-green-800' : ''}`}
                     >
-                      Close
+                      {item}
                     </Button>
-                    <Button 
-                      onClick={() => {
-                        if (selectedProfessional.user_details?.phone_number) {
-                          navigator.clipboard.writeText(selectedProfessional.user_details.phone_number);
-                          toast.success('Phone number copied to clipboard');
-                        } else {
-                          toast.error('No phone number available');
-                        }
-                      }}
-                      className="flex-1"
-                    >
-                      <Icon name="content_copy" size={16} className="mr-2" />
-                      Copy Phone
+                  )
+                )}
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="h-8 w-8 p-0">
+                <Icon name="chevron_right" size={16} />
+              </Button>
+            </div>
+          )}
+
+          {/* ── Contact Modal ── */}
+          {showContactModal && selectedProfessional && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowContactModal(false)}>
+              <Card className="w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                <CardContent className="pt-6 pb-5 px-6 flex flex-col items-center text-center">
+                  <Avatar src={selectedProfessional.user_details?.avatar} name={selectedProfessional.user_details?.full_name} size="lg" />
+                  <h3 className="text-lg font-bold text-slate-900 mt-3">{selectedProfessional.user_details?.full_name}</h3>
+                  <p className="text-sm text-slate-500">{getRoleLabel(selectedProfessional.role)} · {selectedProfessional.company_name}</p>
+
+                  <div className="w-full mt-5 space-y-2.5 text-left">
+                    <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+                      <Icon name="phone" size={18} className="text-green-700 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-slate-400 uppercase font-semibold">Phone</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">{selectedProfessional.user_details?.phone_number || 'N/A'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+                      <Icon name="email" size={18} className="text-green-700 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-slate-400 uppercase font-semibold">Email</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">{selectedProfessional.user_details?.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+                      <Icon name="location_on" size={18} className="text-green-700 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-slate-400 uppercase font-semibold">Location</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">{selectedProfessional.location}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 w-full mt-5">
+                    <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => setShowContactModal(false)}>Close</Button>
+                    <Button size="sm" className="flex-1 h-9 bg-green-700 hover:bg-green-800" onClick={() => {
+                      if (selectedProfessional.user_details?.phone_number) {
+                        navigator.clipboard.writeText(selectedProfessional.user_details.phone_number)
+                        toast.success('Phone number copied')
+                      } else { toast.error('No phone number') }
+                    }}>
+                      <Icon name="content_copy" size={14} className="mr-1" />Copy Phone
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             </div>
           )}
+
         </div>
       </Main>
     </>

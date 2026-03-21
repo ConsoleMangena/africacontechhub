@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type InternalAxiosRequestConfig } from 'axios';
 import {
     ContractorProfile, Bid, WIPAA,
     SupplierProfile, Product, MaterialOrder, Delivery,
@@ -7,7 +7,8 @@ import {
     MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera,
     BOQBuildingItem, BOQProfessionalFee, BOQAdminExpense, BOQLabourCost,
     BOQMachinePlant, BOQLabourBreakdown, BOQScheduleTask, BOQScheduleMaterial, BudgetSheets,
-    DrawingRequest, DrawingFile, MaterialRequest, ProjectTeam, ProfessionalProfile
+    DrawingRequest, DrawingFile, MaterialRequest, ProjectTeam, ProfessionalProfile,
+    ProjectMilestone, ProjectActivity, UserNotification, ProjectDocument,
 } from '../types/api';
 const api = axios.create({
     baseURL: `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1`,
@@ -18,39 +19,116 @@ const api = axios.create({
 
 import { supabase } from '../lib/supabase';
 
-// Cache the session to avoid repeated async calls
+/** Cached Supabase access token (JWT for Django `Authorization: Bearer …`). */
 let cachedSession: string | null = null;
+
+function setAuthorizationHeader(config: InternalAxiosRequestConfig, token: string) {
+    const h = config.headers;
+    if (!h) return;
+    // axios v1 uses AxiosHeaders — plain assignment can fail to attach the header
+    if (typeof (h as { set?: (k: string, v: string) => void }).set === 'function') {
+        (h as { set: (k: string, v: string) => void }).set('Authorization', `Bearer ${token}`);
+    } else {
+        (h as Record<string, string>).Authorization = `Bearer ${token}`;
+    }
+}
+
+let sessionReadPromise: Promise<string | null> | null = null;
+
+async function getAccessToken(): Promise<string | null> {
+    if (cachedSession) return cachedSession;
+    if (sessionReadPromise) return sessionReadPromise;
+    sessionReadPromise = (async () => {
+        try {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            if (error) { cachedSession = null; return null; }
+            cachedSession = session?.access_token ?? null;
+            return cachedSession;
+        } catch {
+            cachedSession = null;
+            return null;
+        } finally {
+            sessionReadPromise = null;
+        }
+    })();
+    return sessionReadPromise;
+}
 
 // Update cached session when auth state changes
 supabase.auth.onAuthStateChange((_event, session) => {
     cachedSession = session?.access_token || null;
+    if (cachedSession) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${cachedSession}`;
+    } else {
+        delete api.defaults.headers.common['Authorization'];
+    }
 });
 
 // Initialize cached session (ignore errors so app loads without backend/Supabase)
 supabase.auth.getSession().then(
     ({ data: { session } }) => {
         cachedSession = session?.access_token || null;
+        if (cachedSession) {
+            api.defaults.headers.common['Authorization'] = `Bearer ${cachedSession}`;
+        }
     },
     () => {
         cachedSession = null;
     }
 );
 
-// Add a request interceptor to inject the Supabase token
+// Inject Supabase JWT on every request (required for builder_dashboard BOQ, projects, etc.)
 api.interceptors.request.use(
-    async (config) => {
-        // Fallback to getting session directly if cache isn't ready
-        if (!cachedSession) {
-            const { data: { session } } = await supabase.auth.getSession();
-            cachedSession = session?.access_token || null;
-        }
-
-        if (cachedSession) {
-            config.headers.Authorization = `Bearer ${cachedSession}`;
+    async (config: InternalAxiosRequestConfig) => {
+        const token = await getAccessToken();
+        if (token) {
+            if (!config.headers) config.headers = {};
+            setAuthorizationHeader(config, token);
         }
         return config;
     },
-    (error) => {
+    (error) => Promise.reject(error)
+);
+
+// Shared refresh promise — concurrent 401 retries share one refreshSession() call
+let refreshPromise: Promise<string | null> | null = null;
+
+function refreshAccessToken(): Promise<string | null> {
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = (async () => {
+        try {
+            const { data, error: err } = await supabase.auth.refreshSession();
+            if (!err && data.session?.access_token) {
+                cachedSession = data.session.access_token;
+                return cachedSession;
+            }
+        } catch { /* fall through */ }
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            cachedSession = session?.access_token ?? null;
+            return cachedSession;
+        } catch { /* ignore */ }
+        cachedSession = null;
+        return null;
+    })().finally(() => { refreshPromise = null; });
+    return refreshPromise;
+}
+
+// Retry once on 401: refresh Supabase session, then replay the request with a new token
+api.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const original = error.config as InternalAxiosRequestConfig & { _retried?: boolean };
+        if (!original || error.response?.status !== 401 || original._retried) {
+            return Promise.reject(error);
+        }
+        original._retried = true;
+
+        const token = await refreshAccessToken();
+        if (token) {
+            setAuthorizationHeader(original, token);
+            return api(original);
+        }
         return Promise.reject(error);
     }
 );
@@ -227,49 +305,80 @@ export const builderApi = {
     updateSiteCamera: (id: number, data: Partial<SiteCamera>) => api.patch<SiteCamera>(`/site-cameras/${id}/`, data),
     deleteSiteCamera: (id: number) => api.delete(`/site-cameras/${id}/`),
 
-    // --- 7-SHEET BUDGET CRUD ---
-    getProjectBudgetSheets: (projectId: number) => api.get<BudgetSheets>(`/projects/${projectId}/budget-sheets/`),
-    
-    getProjectBOQBuildingItems:  (projectId: number) => api.get<BOQBuildingItem[]>(`/boq-building-items/?project=${projectId}`),
-    getProjectBOQProfessionalFees: (projectId: number) => api.get<BOQProfessionalFee[]>(`/boq-professional-fees/?project=${projectId}`),
-    getProjectBOQAdminExpenses:  (projectId: number) => api.get<BOQAdminExpense[]>(`/boq-admin-expenses/?project=${projectId}`),
-    getProjectBOQLabourCosts:    (projectId: number) => api.get<BOQLabourCost[]>(`/boq-labour-costs/?project=${projectId}`),
-    getProjectBOQMachinePlants:  (projectId: number) => api.get<BOQMachinePlant[]>(`/boq-machine-plants/?project=${projectId}`),
-    getProjectBOQLabourBreakdowns: (projectId: number) => api.get<BOQLabourBreakdown[]>(`/boq-labour-breakdowns/?project=${projectId}`),
-    getProjectBOQScheduleTasks:  (projectId: number) => api.get<BOQScheduleTask[]>(`/boq-schedule-tasks/?project=${projectId}`),
+    // --- 7-SHEET BUDGET CRUD (preliminary = working; final = signed-off snapshot) ---
+    getProjectBudgetSheets: (projectId: number, budget: 'preliminary' | 'final' = 'preliminary') =>
+        api.get<BudgetSheets>(`/projects/${projectId}/budget-sheets/`, { params: { budget } }),
+
+    promoteBudgetToFinal: (projectId: number) =>
+        api.post<BudgetSheets>(`/projects/${projectId}/budget/promote-to-final/`),
+
+    signFinalBudget: (projectId: number) =>
+        api.post<BudgetSheets>(`/projects/${projectId}/budget/sign-final/`, {}),
+
+    /** Use `final` for procurement (signed budget lines). Default `preliminary` for editing working budget. */
+    getProjectBOQBuildingItems:  (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.get<BOQBuildingItem[]>(`/boq-building-items/`, { params: { project: projectId, budget_kind: budgetKind } }),
+    getProjectBOQProfessionalFees: (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.get<BOQProfessionalFee[]>(`/boq-professional-fees/`, { params: { project: projectId, budget_kind: budgetKind } }),
+    getProjectBOQAdminExpenses:  (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.get<BOQAdminExpense[]>(`/boq-admin-expenses/`, { params: { project: projectId, budget_kind: budgetKind } }),
+    getProjectBOQLabourCosts:    (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.get<BOQLabourCost[]>(`/boq-labour-costs/`, { params: { project: projectId, budget_kind: budgetKind } }),
+    getProjectBOQMachinePlants:  (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.get<BOQMachinePlant[]>(`/boq-machine-plants/`, { params: { project: projectId, budget_kind: budgetKind } }),
+    getProjectBOQLabourBreakdowns: (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.get<BOQLabourBreakdown[]>(`/boq-labour-breakdowns/`, { params: { project: projectId, budget_kind: budgetKind } }),
+    getProjectBOQScheduleTasks:  (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.get<BOQScheduleTask[]>(`/boq-schedule-tasks/`, { params: { project: projectId, budget_kind: budgetKind } }),
 
     createBOQBuildingItem: (data: Partial<BOQBuildingItem>) => api.post<BOQBuildingItem>('/boq-building-items/', data),
 
-    updateBOQBuildingItem: (id: number, data: Partial<BOQBuildingItem>) => api.patch<BOQBuildingItem>(`/boq-building-items/${id}/`, data),
-    deleteBOQBuildingItem: (id: number) => api.delete(`/boq-building-items/${id}/`),
+    updateBOQBuildingItem: (id: number, data: Partial<BOQBuildingItem>, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.patch<BOQBuildingItem>(`/boq-building-items/${id}/`, data, { params: { budget_kind: budgetKind } }),
+    deleteBOQBuildingItem: (id: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.delete(`/boq-building-items/${id}/`, { params: { budget_kind: budgetKind } }),
 
     createBOQProfessionalFee: (data: Partial<BOQProfessionalFee>) => api.post<BOQProfessionalFee>('/boq-professional-fees/', data),
-    updateBOQProfessionalFee: (id: number, data: Partial<BOQProfessionalFee>) => api.patch<BOQProfessionalFee>(`/boq-professional-fees/${id}/`, data),
-    deleteBOQProfessionalFee: (id: number) => api.delete(`/boq-professional-fees/${id}/`),
+    updateBOQProfessionalFee: (id: number, data: Partial<BOQProfessionalFee>, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.patch<BOQProfessionalFee>(`/boq-professional-fees/${id}/`, data, { params: { budget_kind: budgetKind } }),
+    deleteBOQProfessionalFee: (id: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.delete(`/boq-professional-fees/${id}/`, { params: { budget_kind: budgetKind } }),
 
     createBOQAdminExpense: (data: Partial<BOQAdminExpense>) => api.post<BOQAdminExpense>('/boq-admin-expenses/', data),
-    updateBOQAdminExpense: (id: number, data: Partial<BOQAdminExpense>) => api.patch<BOQAdminExpense>(`/boq-admin-expenses/${id}/`, data),
-    deleteBOQAdminExpense: (id: number) => api.delete(`/boq-admin-expenses/${id}/`),
+    updateBOQAdminExpense: (id: number, data: Partial<BOQAdminExpense>, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.patch<BOQAdminExpense>(`/boq-admin-expenses/${id}/`, data, { params: { budget_kind: budgetKind } }),
+    deleteBOQAdminExpense: (id: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.delete(`/boq-admin-expenses/${id}/`, { params: { budget_kind: budgetKind } }),
 
     createBOQLabourCost: (data: Partial<BOQLabourCost>) => api.post<BOQLabourCost>('/boq-labour-costs/', data),
-    updateBOQLabourCost: (id: number, data: Partial<BOQLabourCost>) => api.patch<BOQLabourCost>(`/boq-labour-costs/${id}/`, data),
-    deleteBOQLabourCost: (id: number) => api.delete(`/boq-labour-costs/${id}/`),
+    updateBOQLabourCost: (id: number, data: Partial<BOQLabourCost>, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.patch<BOQLabourCost>(`/boq-labour-costs/${id}/`, data, { params: { budget_kind: budgetKind } }),
+    deleteBOQLabourCost: (id: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.delete(`/boq-labour-costs/${id}/`, { params: { budget_kind: budgetKind } }),
 
     createBOQMachinePlant: (data: Partial<BOQMachinePlant>) => api.post<BOQMachinePlant>('/boq-machine-plants/', data),
-    updateBOQMachinePlant: (id: number, data: Partial<BOQMachinePlant>) => api.patch<BOQMachinePlant>(`/boq-machine-plants/${id}/`, data),
-    deleteBOQMachinePlant: (id: number) => api.delete(`/boq-machine-plants/${id}/`),
+    updateBOQMachinePlant: (id: number, data: Partial<BOQMachinePlant>, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.patch<BOQMachinePlant>(`/boq-machine-plants/${id}/`, data, { params: { budget_kind: budgetKind } }),
+    deleteBOQMachinePlant: (id: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.delete(`/boq-machine-plants/${id}/`, { params: { budget_kind: budgetKind } }),
 
     createBOQLabourBreakdown: (data: Partial<BOQLabourBreakdown>) => api.post<BOQLabourBreakdown>('/boq-labour-breakdowns/', data),
-    updateBOQLabourBreakdown: (id: number, data: Partial<BOQLabourBreakdown>) => api.patch<BOQLabourBreakdown>(`/boq-labour-breakdowns/${id}/`, data),
-    deleteBOQLabourBreakdown: (id: number) => api.delete(`/boq-labour-breakdowns/${id}/`),
+    updateBOQLabourBreakdown: (id: number, data: Partial<BOQLabourBreakdown>, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.patch<BOQLabourBreakdown>(`/boq-labour-breakdowns/${id}/`, data, { params: { budget_kind: budgetKind } }),
+    deleteBOQLabourBreakdown: (id: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.delete(`/boq-labour-breakdowns/${id}/`, { params: { budget_kind: budgetKind } }),
 
     createBOQScheduleTask: (data: Partial<BOQScheduleTask>) => api.post<BOQScheduleTask>('/boq-schedule-tasks/', data),
-    updateBOQScheduleTask: (id: number, data: Partial<BOQScheduleTask>) => api.patch<BOQScheduleTask>(`/boq-schedule-tasks/${id}/`, data),
-    deleteBOQScheduleTask: (id: number) => api.delete(`/boq-schedule-tasks/${id}/`),
+    updateBOQScheduleTask: (id: number, data: Partial<BOQScheduleTask>, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.patch<BOQScheduleTask>(`/boq-schedule-tasks/${id}/`, data, { params: { budget_kind: budgetKind } }),
+    deleteBOQScheduleTask: (id: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.delete(`/boq-schedule-tasks/${id}/`, { params: { budget_kind: budgetKind } }),
 
     createScheduleMaterial: (data: Partial<BOQScheduleMaterial>) => api.post<BOQScheduleMaterial>('/schedule-materials/', data),
-    updateScheduleMaterial: (id: number, data: Partial<BOQScheduleMaterial>) => api.patch<BOQScheduleMaterial>(`/schedule-materials/${id}/`, data),
-    deleteScheduleMaterial: (id: number) => api.delete(`/schedule-materials/${id}/`),
+    updateScheduleMaterial: (id: number, data: Partial<BOQScheduleMaterial>, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.patch<BOQScheduleMaterial>(`/schedule-materials/${id}/`, data, { params: { budget_kind: budgetKind } }),
+    deleteScheduleMaterial: (id: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+        api.delete(`/schedule-materials/${id}/`, { params: { budget_kind: budgetKind } }),
 
     // Material Requests
     getProjectMaterialRequests: (projectId: number) => api.get<PaginatedResponse<MaterialRequest>>(`/material-requests/?project=${projectId}`),
@@ -293,9 +402,33 @@ export const builderApi = {
     updateTeamMember: (id: number, data: Partial<ProjectTeam>) => api.patch<ProjectTeam>(`/project-team/${id}/`, data),
     removeFromTeam: (id: number) => api.delete(`/project-team/${id}/`),
     
-    // Professional Directory
-    getProfessionals: (params?: any) => api.get<PaginatedResponse<ProfessionalProfile>>('/professionals/', { params }),
-    getProfessional: (id: number) => api.get<ProfessionalProfile>(`/professionals/${id}/`),
+    // Professional Profiles
+    getProfessionalProfiles: () => api.get<PaginatedResponse<ProfessionalProfile>>('/professional-profiles/'),
+
+    // Milestones
+    getProjectMilestones: (projectId: number) => api.get<PaginatedResponse<ProjectMilestone>>(`/project-milestones/?project=${projectId}`),
+    createMilestone: (data: Partial<ProjectMilestone>) => api.post<ProjectMilestone>('/project-milestones/', data),
+    updateMilestone: (id: number, data: Partial<ProjectMilestone>) => api.patch<ProjectMilestone>(`/project-milestones/${id}/`, data),
+    deleteMilestone: (id: number) => api.delete(`/project-milestones/${id}/`),
+    toggleMilestone: (id: number) => api.post<ProjectMilestone>(`/project-milestones/${id}/toggle_complete/`),
+
+    // Activities
+    getProjectActivities: (projectId: number) => api.get<PaginatedResponse<ProjectActivity>>(`/project-activities/?project=${projectId}`),
+    createActivity: (data: Partial<ProjectActivity>) => api.post<ProjectActivity>('/project-activities/', data),
+
+    // Notifications
+    getNotifications: () => api.get<PaginatedResponse<UserNotification>>('/notifications/'),
+    markNotificationRead: (id: number) => api.post(`/notifications/${id}/mark_read/`),
+    markAllNotificationsRead: () => api.post('/notifications/mark_all_read/'),
+    deleteNotification: (id: number) => api.delete(`/notifications/${id}/`),
+
+    // Documents
+    getProjectDocuments: (projectId: number) => api.get<PaginatedResponse<ProjectDocument>>(`/project-documents/?project=${projectId}`),
+    uploadDocument: (formData: FormData) => api.post<ProjectDocument>('/project-documents/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+    deleteDocument: (id: number) => api.delete(`/project-documents/${id}/`),
+    downloadDocument: (id: number) => api.get(`/project-documents/${id}/`, { responseType: 'blob' }),
 };
 
 export const aiApi = {
@@ -445,5 +578,11 @@ export const supplierApi = {
     getDeliveries: () => api.get<PaginatedResponse<Delivery>>('/deliveries/'),
     createDelivery: (data: FormData) => api.post<Delivery>('/deliveries/', data),
 };
+
+// Helper to extract results from paginated response
+export function extractResults<T>(response: { data: PaginatedResponse<T> | T[] }): T[] {
+    if (Array.isArray(response.data)) return response.data;
+    return response.data.results || [];
+}
 
 export default api;

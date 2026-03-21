@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
     Project, SiteUpdate, EscrowMilestone, CapitalSchedule,
-    MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera
+    MaterialAudit, WeatherEvent, ESignatureRequest, SiteCamera,
+    ProjectMilestone, ProjectActivity, UserNotification, ProjectDocument,
 )
 
 @admin.register(Project)
@@ -50,3 +51,33 @@ class SiteCameraAdmin(admin.ModelAdmin):
     list_display = ('name', 'project', 'active', 'recording')
     list_filter = ('active', 'recording')
     search_fields = ('name', 'project__title')
+
+@admin.register(ProjectMilestone)
+class ProjectMilestoneAdmin(admin.ModelAdmin):
+    list_display = ('name', 'project', 'category', 'target_date', 'completed', 'completed_date')
+    list_filter = ('category', 'completed', 'target_date')
+    search_fields = ('name', 'project__title', 'description')
+    date_hierarchy = 'target_date'
+
+@admin.register(ProjectActivity)
+class ProjectActivityAdmin(admin.ModelAdmin):
+    list_display = ('project', 'user', 'type', 'action', 'created_at')
+    list_filter = ('type', 'created_at')
+    search_fields = ('project__title', 'user__username', 'action', 'description')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_at', 'updated_at')
+
+@admin.register(UserNotification)
+class UserNotificationAdmin(admin.ModelAdmin):
+    list_display = ('user', 'title', 'type', 'read', 'project', 'created_at')
+    list_filter = ('type', 'read', 'created_at')
+    search_fields = ('user__username', 'title', 'message')
+    date_hierarchy = 'created_at'
+
+@admin.register(ProjectDocument)
+class ProjectDocumentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'project', 'type', 'uploaded_by', 'file_size', 'created_at')
+    list_filter = ('type', 'created_at')
+    search_fields = ('name', 'project__title', 'uploaded_by__username')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('file_size', 'created_at', 'updated_at')

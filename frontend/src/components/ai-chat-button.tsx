@@ -1,25 +1,13 @@
 import { Icon } from '@/components/ui/material-icon'
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { aiApi, builderApi } from '@/services/api'
 import type { Project, BOQBuildingItem, BOQProfessionalFee, BOQAdminExpense, BOQLabourCost, BOQMachinePlant, BOQLabourBreakdown, BOQScheduleTask, BOQScheduleMaterial } from '@/types/api'
 import ReactMarkdown from 'react-markdown'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-
-interface AnalyseItem {
-  category: string;
-  item_name: string;
-  description: string;
-  unit: string;
-  quantity: number;
-  rate: number;
-  total_amount: number;
-  labour_rate?: number | null;
-  measurement_formula?: string | null;
-}
 
 interface AnalyseResult {
   summary: string;
@@ -69,9 +57,10 @@ type SiteIntelRow = {
 
 type AiChatButtonProps = {
   project?: Project
+  projectId?: number
 }
 
-export function AiChatButton({ project }: AiChatButtonProps) {
+export function AiChatButton({ project, projectId: propProjectId }: AiChatButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
@@ -87,29 +76,24 @@ export function AiChatButton({ project }: AiChatButtonProps) {
   
   const [toolStatus, setToolStatus] = useState<string | null>(null)
   
-  // Session sidebar
   const [showSessions, setShowSessions] = useState(false)
   const [sessions, setSessions] = useState<{id: number; title: string; updated_at: string}[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
 
-  // Analyse multi-step progress
-  const [analyseStep, setAnalyseStep] = useState<'idle' | 'uploading' | 'analysing' | 'extracting' | 'done'>('idle')
-
-  // Site intel quick action
+  const [analyseStep, setAnalyseStep] = useState<'idle' | 'uploading' | 'reading' | 'measuring' | 'costing' | 'labour' | 'schedule' | 'materials' | 'compliance' | 'finalising' | 'done'>('idle')
+  const [analyseReasoningLog, setAnalyseReasoningLog] = useState<string[]>([])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const siteIntelRef = useRef<() => void>(() => {})
 
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-  // Fetch chat history on open
   useEffect(() => {
     if (isOpen && !sessionId && messages.length === 0) {
        loadLatestSession()
     }
   }, [isOpen, sessionId, messages.length])
 
-  // Fetch projects for BOQ saving
   const [projects, setProjects] = useState<{id: number, title: string}[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<number | ''>('')
   const [isSavingBOQ, setIsSavingBOQ] = useState(false)
@@ -117,9 +101,10 @@ export function AiChatButton({ project }: AiChatButtonProps) {
 
   const resolvedProjectId = useMemo(() => {
     if (project?.id) return project.id
+    if (propProjectId) return propProjectId
     if (typeof selectedProjectId === 'number') return selectedProjectId
     return undefined
-  }, [project?.id, selectedProjectId])
+  }, [project?.id, propProjectId, selectedProjectId])
 
   useEffect(() => {
     if (isOpen && projects.length === 0 && !project) {
@@ -130,7 +115,6 @@ export function AiChatButton({ project }: AiChatButtonProps) {
     }
   }, [isOpen, projects.length, project])
 
-  // Seed context when a specific project is provided (project pages only)
   const lastProjectIdRef = useRef<number | undefined>(undefined)
   useEffect(() => {
     if (!project) return
@@ -171,7 +155,6 @@ export function AiChatButton({ project }: AiChatButtonProps) {
               }))
               
               if (history.length > 0) {
-                  // Prepend a commands hint so users always know available commands
                   const commandsHint: ChatMessage = {
                     id: 'commands-hint',
                     role: 'assistant',
@@ -221,185 +204,92 @@ export function AiChatButton({ project }: AiChatButtonProps) {
     }
   }
 
-  // ── BOQ Export helpers ──
-  const exportBOQToCSV = (analyse: AnalyseResult) => { toast.info('Exporting 7 sheets to CSV is coming soon!') }
-/*
-const oldExport = () => {
-    const hasLabour = analyse.items.some(i => i.labour_rate != null)
-    const hasFormula = analyse.items.some(i => i.measurement_formula != null)
-    const headers = ['Category', 'Item', 'Description', 'Unit', 'Quantity', 'Rate', 'Total']
-    if (hasLabour) headers.push('Labour Rate')
-    if (hasFormula) headers.push('Measurement Formula')
-    const rows = analyse.items.map(i => {
-      const row = [
-        i.category, i.item_name, `"${i.description}"`, i.unit,
-        i.quantity.toString(), i.rate.toString(), i.total_amount.toString()
-      ]
-      if (hasLabour) row.push(i.labour_rate != null ? i.labour_rate.toString() : '')
-      if (hasFormula) row.push(i.measurement_formula ?? '')
-      return row
-    })
-    const grandTotal = analyse.items.reduce((s, i) => s + (i.total_amount || 0), 0)
-    const totalRow = ['', '', '', '', '', 'Grand Total', grandTotal.toString()]
-    if (hasLabour) totalRow.push('')
-    if (hasFormula) totalRow.push('')
-    rows.push(totalRow)
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `BOQ_Analysis_${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const exportBOQToPrint = (analyse: AnalyseResult) => { toast.info('Printing 7 sheets is coming soon!') }
-/*
-const oldPrint = () => {
-    const grandTotal = analyse.items.reduce((s, i) => s + (i.total_amount || 0), 0)
-    const hasLabour = analyse.items.some(i => i.labour_rate != null)
-    const hasFormula = analyse.items.some(i => i.measurement_formula != null)
-    const colCount = 7 + (hasLabour ? 1 : 0) + (hasFormula ? 1 : 0)
-    const html = `
-      <html><head><title>BOQ Analysis — Dzenhare SQB</title>
-      <style>
-        body { font-family: 'Inter', sans-serif; padding: 2rem; }
-        h1 { font-size: 1.3rem; }
-        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.85rem; }
-        th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
-        th { background: #f0fdf4; color: #15803d; }
-        .total { font-weight: bold; background: #f0fdf4; }
-        .notes { margin-top: 1rem; font-size: 0.8rem; color: #b45309; }
-        .recs { margin-top: 0.5rem; font-size: 0.8rem; color: #1d4ed8; }
-      </style></head><body>
-      <h1>BOQ Analysis — Dzenhare SQB</h1>
-      <p>${analyse.summary}</p>
-      <table>
-        <thead><tr><th>Category</th><th>Item</th><th>Description</th><th>Unit</th><th>Qty</th><th>Rate</th><th>Total</th>${hasLabour ? '<th>Labour</th>' : ''}${hasFormula ? '<th>Formula</th>' : ''}</tr></thead>
-        <tbody>
-          ${analyse.items.map(i => `<tr><td>${i.category}</td><td>${i.item_name}</td><td>${i.description}</td><td>${i.unit}</td><td>${i.quantity}</td><td>${i.rate.toLocaleString()}</td><td>${i.total_amount.toLocaleString()}</td>${hasLabour ? `<td>${i.labour_rate != null ? i.labour_rate.toLocaleString() : '-'}</td>` : ''}${hasFormula ? `<td>${i.measurement_formula ?? '-'}</td>` : ''}</tr>`).join('')}
-          <tr class="total"><td colspan="${colCount - 1}" style="text-align:right">Grand Total</td><td>${grandTotal.toLocaleString()}</td></tr>
-        </tbody>
-      </table>
-      ${analyse.compliance_notes?.length ? `\u003cdiv class=\"notes\"\u003e\u003cstrong\u003eCompliance Notes:\u003c/strong\u003e\u003cul\u003e${analyse.compliance_notes.map(n =\u003e `\u003cli\u003e${n}\u003c/li\u003e`).join('')}\u003c/ul\u003e\u003c/div\u003e` : ''}
-      ${analyse.recommendations?.length ? `<div class="recs"><strong>Recommendations:</strong><ul>${analyse.recommendations.map(r => `<li>${r}</li>`).join('')}</ul></div>` : ''}
-      </body></html>`
-    const win = window.open('', '_blank')
-    if (win) {
-      win.document.write(html)
-      win.document.close()
-      win.print()
-    }
-  }
-
-*/
-  // Map AI-generated category strings to exact ZIQS category values the backend accepts
-  const ZIQS_CATEGORIES = [
-    '1. Preliminaries & General',
-    '2. Earthworks & Excavation',
-    '3. Concrete, Formwork & Reinforcement',
-    '4. Brickwork & Blockwork',
-    '5. Waterproofing',
-    '6. Carpentry, Joinery & Ironmongery',
-    '7. Roof Coverings',
-    '8. Plumbing & Drainage',
-    '9. Electrical Installations',
-    '10. Floor, Wall & Ceiling Finishes',
-    '11. Glazing & Painting',
-    '12. External Works',
-    '13. Provisional & Prime Cost Sums',
-  ]
-
-  const mapToZIQSCategory = (aiCategory: string): string => {
-    const lower = aiCategory.toLowerCase()
-    // Try exact match first
-    const exact = ZIQS_CATEGORIES.find(c => c.toLowerCase() === lower)
-    if (exact) return exact
-    // Keyword-based fuzzy match
-    if (lower.includes('prelim') || lower.includes('general')) return ZIQS_CATEGORIES[0]
-    if (lower.includes('earth') || lower.includes('excavat') || lower.includes('substructure')) return ZIQS_CATEGORIES[1]
-    if (lower.includes('concrete') || lower.includes('formwork') || lower.includes('reinforc') || lower.includes('foundation')) return ZIQS_CATEGORIES[2]
-    if (lower.includes('brick') || lower.includes('block') || lower.includes('masonry') || lower.includes('superstructure') || lower.includes('wall')) return ZIQS_CATEGORIES[3]
-    if (lower.includes('waterproof') || lower.includes('damp')) return ZIQS_CATEGORIES[4]
-    if (lower.includes('carpent') || lower.includes('joiner') || lower.includes('ironmong') || lower.includes('door') || lower.includes('window') || lower.includes('timber')) return ZIQS_CATEGORIES[5]
-    if (lower.includes('roof')) return ZIQS_CATEGORIES[6]
-    if (lower.includes('plumb') || lower.includes('drain') || lower.includes('pipe') || lower.includes('sanit')) return ZIQS_CATEGORIES[7]
-    if (lower.includes('electr') || lower.includes('wiring') || lower.includes('light')) return ZIQS_CATEGORIES[8]
-    if (lower.includes('floor') || lower.includes('finish') || lower.includes('ceiling') || lower.includes('tile') || lower.includes('plaster') || lower.includes('screed')) return ZIQS_CATEGORIES[9]
-    if (lower.includes('glaz') || lower.includes('paint') || lower.includes('glass')) return ZIQS_CATEGORIES[10]
-    if (lower.includes('external') || lower.includes('landscap') || lower.includes('fence') || lower.includes('pav')) return ZIQS_CATEGORIES[11]
-    if (lower.includes('provisional') || lower.includes('prime cost') || lower.includes('pc sum') || lower.includes('contingenc')) return ZIQS_CATEGORIES[12]
-    // Default fallback
-    return ZIQS_CATEGORIES[0]
-  }
-
+  const exportBOQToCSV = (analyse: AnalyseResult) => { toast.info('Exporting 8 budget sheets to CSV is coming soon!') }
+  const exportBOQToPrint = (analyse: AnalyseResult) => { toast.info('Printing 8 budget sheets is coming soon!') }
 
   const handleSaveToBOQ = async (analyse: AnalyseResult) => {
-    if (!selectedProjectId) return
+    const targetProjectId = resolvedProjectId
+    if (!targetProjectId) {
+      setBoqSaveSuccessMsg('Select a project before saving BOQ data.')
+      return
+    }
     setIsSavingBOQ(true)
     setBoqSaveSuccessMsg(null)
     try {
-      const existingRes = await builderApi.getProjectBudgetSheets(Number(selectedProjectId));
+      const existingRes = await builderApi.getProjectBudgetSheets(Number(targetProjectId));
       const ext = existingRes.data;
 
       if (analyse.building_items) {
-        for (const item of analyse.building_items) {
-          if (!ext.building_items.some(e => e.description === item.description && e.bill_no === item.bill_no)) {
-            await builderApi.createBOQBuildingItem({ ...item, project: Number(selectedProjectId) });
+        for (let idx = 0; idx < analyse.building_items.length; idx++) {
+          const item = analyse.building_items[idx]
+          const description = (item.description || '').trim()
+          const billNo = item.bill_no || `${idx + 1}`
+          const specification = (item.specification || '').trim() || undefined
+          if (!description) continue
+          if (!ext.building_items.some(e => e.description === description && e.bill_no === billNo)) {
+            await builderApi.createBOQBuildingItem({
+              project: Number(targetProjectId),
+              bill_no: billNo,
+              description,
+              specification,
+              unit: item.unit || 'item',
+              quantity: item.quantity,
+              rate: item.rate,
+              is_ai_generated: true,
+            });
           }
         }
       }
       if (analyse.professional_fees) {
         for (const item of analyse.professional_fees) {
           if (!ext.professional_fees.some(e => e.discipline === item.discipline && e.role_scope === item.role_scope)) {
-            await builderApi.createBOQProfessionalFee({ ...item, project: Number(selectedProjectId) });
+            await builderApi.createBOQProfessionalFee({ ...item, project: Number(targetProjectId), is_ai_generated: true });
           }
         }
       }
       if (analyse.admin_expenses) {
         for (const item of analyse.admin_expenses) {
           if (!ext.admin_expenses.some(e => e.item_role === item.item_role && e.description === item.description)) {
-            await builderApi.createBOQAdminExpense({ ...item, project: Number(selectedProjectId) });
+            await builderApi.createBOQAdminExpense({ ...item, project: Number(targetProjectId), is_ai_generated: true });
           }
         }
       }
       if (analyse.labour_costs) {
         for (const item of analyse.labour_costs) {
           if (!ext.labour_costs.some(e => e.phase === item.phase && e.trade_role === item.trade_role)) {
-            await builderApi.createBOQLabourCost({ ...item, project: Number(selectedProjectId) });
+            await builderApi.createBOQLabourCost({ ...item, project: Number(targetProjectId), is_ai_generated: true });
           }
         }
       }
       if (analyse.machine_plants) {
         for (const item of analyse.machine_plants) {
           if (!ext.machine_plants.some(e => e.machine_item === item.machine_item && e.category === item.category)) {
-            await builderApi.createBOQMachinePlant({ ...item, project: Number(selectedProjectId) });
+            await builderApi.createBOQMachinePlant({ ...item, project: Number(targetProjectId), is_ai_generated: true });
           }
         }
       }
       if (analyse.labour_breakdowns) {
         for (const item of analyse.labour_breakdowns) {
           if (!ext.labour_breakdowns.some(e => e.phase === item.phase && e.trade_role === item.trade_role)) {
-            await builderApi.createBOQLabourBreakdown({ ...item, project: Number(selectedProjectId) });
+            await builderApi.createBOQLabourBreakdown({ ...item, project: Number(targetProjectId), is_ai_generated: true });
           }
         }
       }
       if (analyse.schedule_tasks) {
         for (const item of analyse.schedule_tasks) {
           if (!ext.schedule_tasks.some(e => e.wbs === item.wbs && e.task_description === item.task_description)) {
-            await builderApi.createBOQScheduleTask({ ...item, project: Number(selectedProjectId) });
+            await builderApi.createBOQScheduleTask({ ...item, project: Number(targetProjectId), is_ai_generated: true });
           }
         }
       }
       if (analyse.schedule_materials) {
         for (const item of analyse.schedule_materials) {
           if (!ext.schedule_materials?.some(e => e.section === item.section && e.material_description === item.material_description)) {
-            await builderApi.createScheduleMaterial({ ...item, project: Number(selectedProjectId) });
+            await builderApi.createScheduleMaterial({ ...item, project: Number(targetProjectId), is_ai_generated: true });
           }
         }
       }
-      setBoqSaveSuccessMsg(`Successfully saved BOQ sheets including materials!`)
+      setBoqSaveSuccessMsg(`All 8 budget sheets saved successfully!`)
     } catch (err) {
       console.error(err);
       setBoqSaveSuccessMsg("Error saving some items.")
@@ -407,7 +297,6 @@ const oldPrint = () => {
       setIsSavingBOQ(false)
     }
   }
-  // Auto-scroll to bottom of chat when messages change
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [messages, isTyping])
@@ -418,7 +307,6 @@ const oldPrint = () => {
     const content = overrideContent || inputValue.trim()
     if (!content) return
 
-    // Handle /clear command
     if (content.toLowerCase().trim() === '/clear') {
       if (sessionId) {
         try { await aiApi.deleteSession(sessionId) } catch (_) { toast.error('Failed to clear session on server') }
@@ -465,11 +353,11 @@ const oldPrint = () => {
     if (isScan) setIsScanningPlan(true)
     if (isAnalyse) {
       setIsAnalysing(true)
+      setAnalyseReasoningLog([])
       setAnalyseStep('uploading')
     }
 
     try {
-      // For /analyse, auto-fetch project drawing files and pass the first image/PDF URL
       let autoImage: string | undefined
       let autoPdf: string | undefined
       
@@ -477,7 +365,6 @@ const oldPrint = () => {
       let targetProjectTitle = project?.title || projects.find(p => p.id === selectedProjectId)?.title || 'current project'
 
       if (isCommand) {
-        // Shared Project Lookup Logic for all commands
         const parts = content.split(' ')
         if (parts.length > 1) {
           const searchName = parts.slice(1).join(' ').toLowerCase().trim()
@@ -504,7 +391,6 @@ const oldPrint = () => {
         }
 
         if (!targetProjectId) {
-          const cmdName = parts[0].toLowerCase()
           setMessages(prev => [...prev, {
             id: (Date.now() + 1).toString(),
             role: 'assistant' as const,
@@ -527,7 +413,6 @@ const oldPrint = () => {
         try {
           const drawingsRes = await builderApi.getProjectDrawingRequests(targetProjectId)
           const allRequests = Array.isArray(drawingsRes.data) ? drawingsRes.data : (drawingsRes.data as any).results || []
-          // Collect all files from all drawing requests
           const allFiles = allRequests.flatMap((r: any) => r.files || [])
           if (allFiles.length === 0) {
             setMessages(prev => [...prev, {
@@ -541,12 +426,10 @@ const oldPrint = () => {
             setAnalyseStep('idle')
             return
           }
-          // Pick best file: prefer images, then PDFs
           const imageFile = allFiles.find((f: any) => ['png', 'jpg', 'jpeg', 'webp'].includes(f.file_type?.toLowerCase()))
           const pdfFile = allFiles.find((f: any) => f.file_type?.toLowerCase() === 'pdf')
           const chosenFile = imageFile || pdfFile || allFiles[0]
 
-          // Fetch the file and convert to base64 for the AI API
           const fileUrl = chosenFile.file.startsWith('http') ? chosenFile.file : `${apiBase}${chosenFile.file}`
           const fileRes = await fetch(fileUrl)
           const blob = await fileRes.blob()
@@ -562,7 +445,6 @@ const oldPrint = () => {
             autoImage = base64
           }
 
-          // Show which file is being analysed
           setMessages(prev => [...prev, {
             id: (Date.now() + 0.5).toString(),
             role: 'assistant' as const,
@@ -585,12 +467,26 @@ const oldPrint = () => {
       }
 
       if (isCommand) {
-        // Multi-step progress for /analyse
         if (isAnalyse) {
-          setAnalyseStep('analysing')
-          setTimeout(() => setAnalyseStep('extracting'), 2000)
+          const steps: { step: typeof analyseStep; msg: string; delay: number }[] = [
+            { step: 'reading',    msg: 'Reading drawing & identifying building elements...', delay: 800 },
+            { step: 'measuring',  msg: 'Measuring dimensions — walls, openings, floor areas...', delay: 3500 },
+            { step: 'costing',    msg: 'Calculating quantities & applying rates (USD)...', delay: 7000 },
+            { step: 'labour',     msg: 'Estimating labour gangs, durations & wage bills...', delay: 11000 },
+            { step: 'schedule',   msg: 'Building project schedule & task timeline...', delay: 15000 },
+            { step: 'materials',  msg: 'Compiling schedule of materials by section...', delay: 19000 },
+            { step: 'compliance', msg: 'Checking SI-56 compliance & room schedule...', delay: 23000 },
+            { step: 'finalising', msg: 'Finalising 8-sheet budget & recommendations...', delay: 27000 },
+          ]
+          const timers: ReturnType<typeof setTimeout>[] = []
+          for (const { step, msg, delay } of steps) {
+            timers.push(setTimeout(() => {
+              setAnalyseStep(step)
+              setAnalyseReasoningLog(prev => [...prev, msg])
+            }, delay))
+          }
+          ;(window as any).__analyseTimers = timers
         }
-        // Commands use the synchronous endpoint (they return structured data)
         const response = await aiApi.sendMessage(
           chatHistory,
           sessionId,
@@ -598,7 +494,12 @@ const oldPrint = () => {
           autoPdf || undefined,
           targetProjectId,
         )
-        if (isAnalyse) setAnalyseStep('done')
+        if (isAnalyse) {
+          const timers = (window as any).__analyseTimers as ReturnType<typeof setTimeout>[] | undefined
+          if (timers) timers.forEach(clearTimeout)
+          setAnalyseStep('done')
+          setAnalyseReasoningLog(prev => [...prev, 'Budget generation complete — 8 sheets ready!'])
+        }
 
         if (response.data.session_id && !sessionIdRef.current) {
             setSessionId(response.data.session_id)
@@ -618,7 +519,6 @@ const oldPrint = () => {
         }
         setMessages(prev => [...prev, replyMessage])
       } else {
-        // Enforce command-only mode instead of freeform conversation
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -642,6 +542,7 @@ const oldPrint = () => {
       setIsAnalysing(false)
       setIsScanningPlan(false)
       setAnalyseStep('idle')
+      setAnalyseReasoningLog([])
       setToolStatus(null)
     }
   }
@@ -650,10 +551,8 @@ const oldPrint = () => {
     const message = messages.find(m => m.id === messageId)
     if (!message) return
 
-    // Guard: only submit feedback for messages with valid numeric DB IDs
     const numericId = parseInt(messageId)
     if (isNaN(numericId)) {
-      // Client-generated ID (e.g. 'welcome', 'commands-hint') — skip API call
       setMessages(prev => prev.map(m =>
         m.id === messageId ? { ...m, feedbackGiven: rating } : m
       ))
@@ -742,16 +641,13 @@ const oldPrint = () => {
     }
   }
 
-  // Keep latest site intel handler in a ref for stable event listener
   useEffect(() => {
     siteIntelRef.current = () => {
       setIsOpen(true)
-      // Slight delay ensures the panel is visible before message appears
       setTimeout(() => handleSiteIntel(), 120)
     }
   }, [handleSiteIntel])
 
-  // Global event listener once, using ref to avoid stale closures
   useEffect(() => {
     const listener = () => siteIntelRef.current()
     window.addEventListener('ai:site-intel', listener)
@@ -926,7 +822,6 @@ const oldPrint = () => {
                           <button
                             key={p.id}
                             onClick={() => {
-                              // Find the command that preceded this suggestion
                               const lastUserMsg = [...messages].reverse().find(m => m.role === 'user' && m.content.startsWith('/'))
                               if (lastUserMsg) {
                                 const cmd = lastUserMsg.content.split(' ')[0]
@@ -1084,86 +979,133 @@ const oldPrint = () => {
                       </div>
                     )}
 
-                    {/* Analyse / BOQ results */}
-                                        {message.analyse && message.analyse.building_items && message.analyse.building_items.length > 0 && (
+                    {/* Analyse / BOQ results — all 8 sections */}
+                    {message.analyse && (message.analyse.building_items?.length > 0 || message.analyse.professional_fees?.length > 0 || message.analyse.schedule_materials?.length > 0) && (() => {
+                      const a = message.analyse!
+                      const sections = [
+                        { key: 'building_items', label: '1. Building Items', count: a.building_items?.length || 0, icon: 'foundation', color: 'emerald' },
+                        { key: 'professional_fees', label: '2. Professional Fees', count: a.professional_fees?.length || 0, icon: 'gavel', color: 'blue' },
+                        { key: 'admin_expenses', label: '3. Admin & Expenses', count: a.admin_expenses?.length || 0, icon: 'receipt', color: 'amber' },
+                        { key: 'labour_costs', label: '4. Labour Costs', count: a.labour_costs?.length || 0, icon: 'engineering', color: 'orange' },
+                        { key: 'machine_plants', label: '5. Machine & Plant', count: a.machine_plants?.length || 0, icon: 'precision_manufacturing', color: 'sky' },
+                        { key: 'labour_breakdowns', label: '6. Labour Breakdown', count: a.labour_breakdowns?.length || 0, icon: 'groups', color: 'violet' },
+                        { key: 'schedule_tasks', label: '7. Schedule Tasks', count: a.schedule_tasks?.length || 0, icon: 'calendar_month', color: 'indigo' },
+                        { key: 'schedule_materials', label: '8. Materials', count: a.schedule_materials?.length || 0, icon: 'inventory_2', color: 'teal' },
+                      ]
+                      const totalItems = sections.reduce((s, sec) => s + sec.count, 0)
+                      const buildTotal = (a.building_items || []).reduce((s: number, i: any) => s + (Number(i.quantity || 0) * Number(i.rate || 0)), 0)
+
+                      return (
                       <div className="mt-3">
                         <div className="flex items-center gap-1.5 mb-2">
                           <Icon name="assignment" className="h-3 w-3 text-emerald-500" />
                           <span className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">
-                            BOQ Analysis — 7 Sheets Generated ({message.analyse.building_items.length} Building Items)
+                            Project Budget — 8 Sheets Generated ({totalItems} total items)
                           </span>
                         </div>
+
+                        {/* Section summary grid */}
+                        <div className="grid grid-cols-4 gap-1 mb-2">
+                          {sections.map(sec => (
+                            <div key={sec.key} className={`flex items-center gap-1 px-1.5 py-1 rounded text-[9px] ${sec.count > 0 ? `bg-${sec.color}-50 text-${sec.color}-700` : 'bg-gray-50 text-gray-400'}`}>
+                              <Icon name={sec.icon} className="h-2.5 w-2.5" />
+                              <span className="font-medium truncate">{sec.label}</span>
+                              <span className={`ml-auto font-bold ${sec.count > 0 ? '' : 'text-gray-300'}`}>{sec.count}</span>
+                            </div>
+                          ))}
+                        </div>
                         
+                        {/* Building items preview table */}
+                        {a.building_items && a.building_items.length > 0 && (
                         <div className="overflow-x-auto -mx-1 px-1">
                           <table className="w-full text-[10px] border-collapse">
                             <thead>
                               <tr className="bg-emerald-50 text-emerald-700">
-                                <th className="text-left px-2 py-1.5 font-semibold border-b border-emerald-200">Bill No</th>
+                                <th className="text-left px-2 py-1.5 font-semibold border-b border-emerald-200">#</th>
                                 <th className="text-left px-2 py-1.5 font-semibold border-b border-emerald-200">Description</th>
-                                <th className="text-right px-2 py-1.5 font-semibold border-b border-emerald-200">Qty</th>
+                                <th className="text-left px-2 py-1.5 font-semibold border-b border-emerald-200">Spec</th>
                                 <th className="text-center px-2 py-1.5 font-semibold border-b border-emerald-200">Unit</th>
+                                <th className="text-right px-2 py-1.5 font-semibold border-b border-emerald-200">Qty</th>
                                 <th className="text-right px-2 py-1.5 font-semibold border-b border-emerald-200">Rate</th>
                                 <th className="text-right px-2 py-1.5 font-semibold border-b border-emerald-200">Amount</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {message.analyse.building_items.slice(0, 5).map((item, idx) => (
+                              {a.building_items.slice(0, 8).map((item: any, idx: number) => {
+                                const amt = Number(item.quantity || 0) * Number(item.rate || 0)
+                                return (
                                 <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                  <td className="px-2 py-1 text-gray-600 border-b border-gray-100">{item.bill_no || '-'}</td>
-                                  <td className="px-2 py-1 text-gray-800 font-medium border-b border-gray-100" title={item.description}>{item.description}</td>
-                                  <td className="px-2 py-1 text-right text-gray-700 border-b border-gray-100">{item.quantity}</td>
+                                  <td className="px-2 py-1 text-gray-500 border-b border-gray-100">{item.bill_no || idx + 1}</td>
+                                  <td className="px-2 py-1 text-gray-800 font-medium border-b border-gray-100 max-w-[120px] truncate" title={item.description}>{item.description}</td>
+                                  <td className="px-2 py-1 text-gray-500 border-b border-gray-100 max-w-[80px] truncate" title={item.specification || ''}>{item.specification || '-'}</td>
                                   <td className="px-2 py-1 text-center text-gray-500 border-b border-gray-100">{item.unit || '-'}</td>
-                                  <td className="px-2 py-1 text-right text-gray-700 border-b border-gray-100">{typeof item.rate === 'number' ? item.rate.toLocaleString() : item.rate}</td>
-                                  <td className="px-2 py-1 text-right text-gray-800 font-medium border-b border-gray-100">{typeof item.amount === 'number' ? item.amount.toLocaleString() : item.amount}</td>
+                                  <td className="px-2 py-1 text-right text-gray-700 border-b border-gray-100">{Number(item.quantity || 0).toLocaleString()}</td>
+                                  <td className="px-2 py-1 text-right text-gray-700 border-b border-gray-100">${Number(item.rate || 0).toLocaleString()}</td>
+                                  <td className="px-2 py-1 text-right text-gray-800 font-medium border-b border-gray-100">${amt.toLocaleString()}</td>
                                 </tr>
-                              ))}
-                              {message.analyse.building_items.length > 5 && (
+                              )})}
+                              {a.building_items.length > 8 && (
                                 <tr className="bg-white">
-                                  <td colSpan={6} className="px-2 py-1.5 text-center text-gray-500 italic border-b border-gray-100">
-                                    ... and {message.analyse.building_items.length - 5} more building items.<br/>
-                                    Plus items in Professional Fees, Expenses, Labour, Schedule, etc.
+                                  <td colSpan={7} className="px-2 py-1.5 text-center text-gray-500 italic border-b border-gray-100">
+                                    ... and {a.building_items.length - 8} more building items
                                   </td>
                                 </tr>
                               )}
                             </tbody>
+                            <tfoot className="bg-emerald-50 border-t border-emerald-200">
+                              <tr>
+                                <td colSpan={6} className="px-2 py-1.5 text-right text-emerald-700 font-semibold text-[10px]">Building Items Subtotal</td>
+                                <td className="px-2 py-1.5 text-right text-emerald-800 font-bold text-[10px]">${buildTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              </tr>
+                            </tfoot>
                           </table>
                         </div>
+                        )}
 
-                        {/* Save to Project BOQ feature */}
-                        <div className="mt-3 p-2 bg-indigo-50/50 rounded-lg border border-indigo-100 flex flex-col gap-2">
-                          <p className="text-[10px] font-semibold text-indigo-700">Auto-populate Bill of Quantities</p>
-                          <div className="flex gap-2">
+                        {/* Save to Budget — prominent CTA */}
+                        <div className="mt-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Icon name="save" className="h-4 w-4 text-emerald-600" />
+                            <p className="text-xs font-bold text-emerald-800">Save to Project Budget</p>
+                          </div>
+                          <p className="text-[10px] text-emerald-700 mb-2">
+                            This will populate all 8 budget sheets ({totalItems} items) directly into the Construction Budget page.
+                          </p>
+                          <div className="flex gap-2 items-center">
+                            {!project && (
                             <select 
                               value={selectedProjectId} 
                               onChange={(e) => setSelectedProjectId(Number(e.target.value))}
-                              className="flex-1 text-[10px] px-2 py-1.5 rounded-md border border-indigo-200 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              className="flex-1 text-[10px] px-2 py-2 rounded-md border border-emerald-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                             >
                               <option value="" disabled>Select a project...</option>
                               {projects.map(p => (
                                 <option key={p.id} value={p.id}>{p.title}</option>
                               ))}
                             </select>
+                            )}
                             <button
                               onClick={() => handleSaveToBOQ(message.analyse!)}
-                              disabled={isSavingBOQ || !selectedProjectId}
-                              className="px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 text-[10px] font-semibold rounded-md shadow-sm transition-colors whitespace-nowrap"
+                              disabled={isSavingBOQ || !resolvedProjectId}
+                              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 text-xs font-bold rounded-lg shadow-md transition-all whitespace-nowrap"
                             >
-                              {isSavingBOQ ? 'Saving...' : 'Save to BOQ'}
+                              <Icon name="save" className="h-3.5 w-3.5" />
+                              {isSavingBOQ ? 'Saving all sheets...' : 'Save to Budget'}
                             </button>
                           </div>
                           {boqSaveSuccessMsg && (
-                            <p className={`text-[10px] font-medium mt-0.5 ${boqSaveSuccessMsg.includes('Error') ? 'text-red-600' : 'text-emerald-600'}`}>
+                            <p className={`text-[10px] font-medium mt-2 ${boqSaveSuccessMsg.includes('Error') || boqSaveSuccessMsg.includes('Select') ? 'text-red-600' : 'text-emerald-700'}`}>
                               {boqSaveSuccessMsg}
-                              {!boqSaveSuccessMsg.includes('Error') && (
-                                <a href="/builder/measurements" className="ml-2 underline text-emerald-700 hover:text-emerald-800">
-                                  View BOQ →
+                              {!boqSaveSuccessMsg.includes('Error') && !boqSaveSuccessMsg.includes('Select') && (
+                                <a href="/builder/measurements" className="ml-2 underline text-emerald-800 hover:text-emerald-900 font-semibold">
+                                  Open Budget Page →
                                 </a>
                               )}
                             </p>
                           )}
                         </div>
 
-                        {/* BOQ Export buttons */}
+                        {/* Export buttons */}
                         <div className="mt-2.5 flex items-center gap-2">
                           <button
                             onClick={() => exportBOQToCSV(message.analyse!)}
@@ -1181,7 +1123,7 @@ const oldPrint = () => {
                           </button>
                         </div>
                       </div>
-                    )}
+                    )})()}
                   </div>
                   
                   {/* Timestamp */}
@@ -1227,19 +1169,60 @@ const oldPrint = () => {
                       <span>Searching floor plan library...</span>
                     </div>
                   ) : isAnalysing ? (
-                    <div className="flex flex-col gap-1.5 text-xs text-gray-500">
+                    <div className="flex flex-col gap-2 text-xs text-gray-600 min-w-[260px] max-w-[340px]">
                       <div className="flex items-center gap-2">
-                        <Icon name="analytics" className="h-3.5 w-3.5 animate-pulse text-emerald-500" />
-                        <span>Analysing image &amp; extracting BOQ...</span>
+                        <Icon name="analytics" className="h-4 w-4 animate-pulse text-emerald-500" />
+                        <span className="font-semibold text-emerald-700">Budget Engineer — Analysing Drawing</span>
                       </div>
-                      <div className="flex gap-1 items-center ml-5">
-                        {(['uploading', 'analysing', 'extracting', 'done'] as const).map((step, i) => {
-                          const labels = ['Uploading', 'Analysing', 'Extracting', 'Done']
-                          const active = analyseStep === step
-                          const completed = ['uploading', 'analysing', 'extracting', 'done'].indexOf(analyseStep) > i
+
+                      {/* Reasoning log */}
+                      <div className="ml-6 border-l-2 border-emerald-200 pl-3 space-y-1 max-h-[180px] overflow-y-auto">
+                        {analyseReasoningLog.length === 0 && (
+                          <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
+                            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
+                            Uploading drawing to Gemini Pro...
+                          </div>
+                        )}
+                        {analyseReasoningLog.map((msg, i) => {
+                          const isLatest = i === analyseReasoningLog.length - 1
                           return (
-                            <span key={step} className={`text-[9px] px-1.5 py-0.5 rounded-full transition-all ${active ? 'bg-emerald-100 text-emerald-700 font-semibold' : completed ? 'bg-emerald-50 text-emerald-500' : 'bg-gray-100 text-gray-400'}`}>
-                              {labels[i]}
+                            <div key={i} className={`flex items-start gap-1.5 text-[10px] transition-all ${isLatest ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>
+                              {isLatest ? (
+                                <span className="w-1.5 h-1.5 mt-1 bg-emerald-500 rounded-full animate-pulse shrink-0" />
+                              ) : (
+                                <Icon name="check_circle" className="h-3 w-3 text-emerald-400 shrink-0 mt-0.5" />
+                              )}
+                              <span>{msg}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* Step pills */}
+                      <div className="flex flex-wrap gap-1 ml-6 mt-1">
+                        {([
+                          { key: 'uploading', label: 'Upload' },
+                          { key: 'reading', label: 'Read' },
+                          { key: 'measuring', label: 'Measure' },
+                          { key: 'costing', label: 'Cost' },
+                          { key: 'labour', label: 'Labour' },
+                          { key: 'schedule', label: 'Schedule' },
+                          { key: 'materials', label: 'Materials' },
+                          { key: 'compliance', label: 'SI-56' },
+                          { key: 'finalising', label: 'Finalise' },
+                        ] as const).map((s, i) => {
+                          const allSteps = ['idle','uploading','reading','measuring','costing','labour','schedule','materials','compliance','finalising','done']
+                          const currentIdx = allSteps.indexOf(analyseStep)
+                          const stepIdx = allSteps.indexOf(s.key)
+                          const isActive = analyseStep === s.key
+                          const isComplete = currentIdx > stepIdx
+                          return (
+                            <span key={s.key} className={`text-[8px] px-1.5 py-0.5 rounded-full transition-all ${
+                              isActive ? 'bg-emerald-100 text-emerald-700 font-bold ring-1 ring-emerald-300' :
+                              isComplete ? 'bg-emerald-50 text-emerald-500' :
+                              'bg-gray-100 text-gray-300'
+                            }`}>
+                              {isComplete ? '\u2713 ' : ''}{s.label}
                             </span>
                           )
                         })}
@@ -1301,6 +1284,8 @@ const oldPrint = () => {
       {/* Image Preview Dialog */}
       <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
         <DialogContent className="max-w-5xl w-full p-1 bg-transparent border-0 shadow-none overflow-hidden [&>button]:text-white [&>button]:bg-black/50 [&>button]:rounded-full [&>button]:p-2 [&>button]:hover:bg-black/80 z-[100]">
+          <DialogTitle className="sr-only">Image preview</DialogTitle>
+          <DialogDescription className="sr-only">Enlarged view of the chat attachment.</DialogDescription>
           <div className="relative w-full h-[85vh] flex items-center justify-center bg-black/60 rounded-xl backdrop-blur-md">
             {previewImage && (
               <img 

@@ -15,7 +15,6 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
-import traceback
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from .models import (
@@ -29,32 +28,15 @@ from .mcp_manager import sync_get_mcp_tools, sync_execute_mcp_tool
 logger = logging.getLogger(__name__)
 
 
-def _log_token_usage(user, session, endpoint, response_metadata):
-    """
-    Best-effort token usage logging. response_metadata comes from
-    langchain's AIMessage.response_metadata which includes usage info.
-    """
-    try:
-        usage = response_metadata.get('usage', {}) if response_metadata else {}
-        if not usage:
-            return
-        TokenUsage.objects.create(
-            user=user,
-            session=session,
-            endpoint=endpoint,
-            model_name=response_metadata.get('model', settings.CLAUDE_MODEL),
-            input_tokens=usage.get('input_tokens', 0),
-            output_tokens=usage.get('output_tokens', 0),
-        )
-    except Exception as e:
-        logger.debug("Token usage logging failed: %s", e)
-
-
-# ── Pydantic schemas for structured output ───────────────────────────
+# ── Pydantic schemas ─────────────────────────────────────────────────
 
 class BOQBuildingItem(BaseModel):
     bill_no: str = Field(description="e.g. 1, 1.1, 2.A")
     description: str = Field(description="Detailed description of the item")
+    specification: Optional[str] = Field(
+        default=None,
+        description="Trade/element or specification notes (e.g. Substructure, RC grade, measurement basis)",
+    )
     unit: str = Field(description="m² / m³ / m / nr / item")
     quantity: float = Field(description="Measured quantity")
     rate: float = Field(description="Unit rate in local currency, estimate if unknown")
@@ -125,7 +107,7 @@ class BOQScheduleMaterial(BaseModel):
     estimated_qty: Optional[str] = Field(default=None, description="Estimated quantity as text, e.g. '50 bags'")
 
 class BOQAnalysis(BaseModel):
-    """Structured BOQ analysis result from Claude vision."""
+    """Structured BOQ analysis result from Gemini vision."""
     summary: str = Field(description="Brief overall description of the project budget")
     building_items: List[BOQBuildingItem] = Field(default_factory=list, description="Bill of Quantities items")
     professional_fees: List[BOQProfessionalFee] = Field(default_factory=list, description="Professional fees")
@@ -139,11 +121,10 @@ class BOQAnalysis(BaseModel):
     recommendations: List[str] = Field(default_factory=list, description="Suggested next steps for the builder")
 
 
-# ── Tool definitions for Claude function-calling ─────────────────────
+# ── Tool definitions for Gemini function-calling ─────────────────────
 
 def _get_material_prices(material: str, region: str = "Zimbabwe") -> dict:
     """Look up current material prices for a given region."""
-    # ── Try database first ──
     key = material.lower().strip()
     db_results = MaterialPrice.objects.filter(
         material__icontains=key,
@@ -165,7 +146,6 @@ def _get_material_prices(material: str, region: str = "Zimbabwe") -> dict:
         ]
         return {"material": key, "region": region, "found": True, "prices": prices}
 
-    # ── Fallback static price list ──
     _PRICE_DB = {
         "cement": {"unit": "50kg bag", "price": 12.50, "currency": "USD"},
         "river sand": {"unit": "m³", "price": 35.00, "currency": "USD"},
@@ -248,7 +228,7 @@ _TOOL_MAP = {
     "calculate_area": _calculate_area,
 }
 
-# Shared tool definitions for Claude function-calling (used by both sync and streaming)
+# Shared tool definitions for Gemini function-calling (used by both sync and streaming)
 _TOOL_DEFINITIONS = [
     {
         "name": "get_material_prices",
@@ -341,6 +321,19 @@ def _extract_scan_description(text: str) -> str:
     return stripped
 
 
+def _to_bool(value, default: bool = False) -> bool:
+    """Normalize booleans from JSON/form payloads."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return bool(value)
+
+
 # ── Site intelligence helpers ──────────────────────────────────────
 
 _SITE_INTEL_KEYWORDS = ['site intel', 'site intelligence', 'site analysis', 'site conditions']
@@ -382,7 +375,7 @@ def _build_site_intel_prompt(project: Project) -> str:
 
 
 def _parse_site_intel_response(raw_text: str) -> dict:
-    """Best-effort parse of Claude JSON for site intel."""
+    """Best-effort parse of Gemini JSON for site intel."""
     try:
         return json.loads(raw_text)
     except Exception:
@@ -409,7 +402,6 @@ def _search_floor_plans(query: str, limit: int = 6) -> list:
         # No search terms — return the latest plans
         plans = FloorPlanDataset.objects.select_related('category').order_by('-created_at')[:limit]
     else:
-        # Build search filter across title, description, and category name
         terms = query.split()
         q_filter = Q()
         for term in terms:
@@ -455,10 +447,9 @@ def _match_style_preset(text: str):
 def _get_top_rated_prompts(preset, limit=3):
     """
     Fetch the highest-rated prompts from ImageFeedback for a given preset.
-    These serve as few-shot examples for Claude's prompt engineering.
+    These serve as few-shot examples for Gemini's prompt engineering.
     """
     if not preset:
-        # Fall back to globally top-rated prompts
         feedback = ImageFeedback.objects.filter(
             rating__gte=4
         ).order_by('-rating', '-created_at')[:limit]
@@ -473,13 +464,7 @@ def _get_top_rated_prompts(preset, limit=3):
 # ── Image generation ─────────────────────────────────────────────────
 
 def _generate_image_from_gemini(prompt: str, negative_prompt: str = "", guidance_scale: float = 7.5, model_override: str | None = None) -> tuple[str | None, str | None]:
-    """
-    Call Google Gemini API to generate an architectural image.
-    Returns (image_url, error_message).
-    image_url is the media-relative URL to the saved image, or None on error.
-    error_message is a user-friendly string when generation fails, or None on success.
-    If model_override is provided, it is used instead of settings.GEMINI_IMAGE_MODEL.
-    """
+    """Returns (image_url, error_message). One will always be None."""
     from PIL import Image
 
     api_key = settings.GEMINI_API_KEY
@@ -493,7 +478,6 @@ def _generate_image_from_gemini(prompt: str, negative_prompt: str = "", guidance
     model_name = model_override or settings.GEMINI_IMAGE_MODEL
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
 
-    # Build the prompt with negative prompt instructions appended
     enhanced_prompt = prompt
     if negative_prompt:
         enhanced_prompt += f" (Do NOT include: {negative_prompt})"
@@ -524,7 +508,6 @@ def _generate_image_from_gemini(prompt: str, negative_prompt: str = "", guidance
 
         data = response.json()
 
-        # Check for blocked / safety filtered responses
         if data.get("promptFeedback", {}).get("blockReason"):
             reason = data["promptFeedback"]["blockReason"]
             logger.warning("Gemini Image blocked: %s", reason)
@@ -567,7 +550,6 @@ def _generate_image_from_gemini(prompt: str, negative_prompt: str = "", guidance
         img_bytes = base64.b64decode(b64_data)
         image = Image.open(io.BytesIO(img_bytes))
 
-        # Save the image
         media_dir = os.path.join(settings.MEDIA_ROOT, 'ai_generated')
         os.makedirs(media_dir, exist_ok=True)
         ext = "png" if "png" in mime_type else "jpeg"
@@ -587,124 +569,203 @@ def _generate_image_from_gemini(prompt: str, negative_prompt: str = "", guidance
         return None, f"⚠️ Image generation failed: {e}"
 
 
-# ── Claude AI helpers ─────────────────────────────────────────────────
+# ── Gemini AI helpers ────────────────────────────────────────────────
 
-def _build_lc_messages(messages: list, system: str = "", images: list | None = None):
-    """
-    Convert raw message dicts into langchain message objects.
-    Returns a list of langchain messages (with optional SystemMessage first).
-    """
-    from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-
-    lc_messages = []
-    if system:
-        # Enable Anthropic prompt caching for the (often-repeated) system prompt.
-        # The cache_control header tells Claude to cache this block across requests.
-        lc_messages.append(SystemMessage(
-            content=system,
-            additional_kwargs={"cache_control": {"type": "ephemeral"}},
-        ))
-
-    for i, m in enumerate(messages):
-        role = m.get('role', 'user')
-        content = m.get('content', '')
-
-        # Last user message may carry images
-        if i == len(messages) - 1 and role == 'user' and images:
-            content_parts = [{"type": "text", "text": content}]
-            for img_data in images:
-                # Accept raw base64 or data-URL
-                if img_data.startswith('data:'):
-                    media_type = img_data.split(';')[0].split(':')[1]
-                    b64 = img_data.split(',', 1)[1]
-                else:
-                    media_type = 'image/png'
-                    b64 = img_data
-                content_parts.append({
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": media_type,
-                        "data": b64,
-                    }
-                })
-            lc_messages.append(HumanMessage(content=content_parts))
-        elif role == 'user':
-            lc_messages.append(HumanMessage(content=content))
-        elif role == 'assistant':
-            lc_messages.append(AIMessage(content=content))
-        elif role == 'system':
-            lc_messages.append(SystemMessage(content=content))
-
-    return lc_messages
+def _get_gemini_chat_model() -> str:
+    """Return the Gemini model name used for general chat / tool calls."""
+    return (getattr(settings, "GEMINI_CHAT_MODEL", "") or "gemini-2.5-flash").strip()
 
 
-def _get_claude_llm(temperature: float = 0.7, max_tokens: int = 8192, model: str | None = None):
-    """Return a ChatAnthropic instance with retry resilience."""
-    from langchain_anthropic import ChatAnthropic
-    model_name = model or settings.CLAUDE_MODEL
-    return ChatAnthropic(
-        model=model_name,
-        anthropic_api_key=settings.ANTHROPIC_API_KEY,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        timeout=120.0,
-        max_retries=3,            # retry on 5xx / transient errors
-        default_headers={
-            "anthropic-beta": "prompt-caching-2024-07-31",
-        },
+def _call_gemini(messages: list, system: str = "", max_tokens: int = 8192,
+                 temperature: float = 0.7, images: list | None = None) -> str:
+    """Call Gemini for chat/text completion. Returns assistant text."""
+    api_key = settings.GEMINI_API_KEY
+    if not api_key or len(api_key) < 10:
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
+
+    model_name = _get_gemini_chat_model()
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}"
+        f":generateContent?key={api_key}"
     )
 
+    contents = []
+    full_system = system.strip()
 
-def _call_claude(messages: list, system: str = "", max_tokens: int = 8192,
-                 temperature: float = 0.7, images: list | None = None, model: str | None = None) -> str:
-    """
-    Call Anthropic Claude API via langchain-anthropic.
-    *messages* is a list of dicts with 'role' and 'content'.
-    *images* is an optional list of base64 data-URL strings to attach to the
-    last user message (for vision / multimodal analysis).
-    Returns the assistant text response.
-    """
-    llm = _get_claude_llm(temperature=temperature, max_tokens=max_tokens, model=model)
-    lc_messages = _build_lc_messages(messages, system=system, images=images)
-    response = llm.invoke(lc_messages)
-    return response.content
+    for i, m in enumerate(messages):
+        role = "user" if m.get("role", "user") == "user" else "model"
+        parts: list[dict] = []
+
+        if i == 0 and full_system:
+            parts.append({"text": f"{full_system}\n\n{m.get('content', '')}"})
+        else:
+            parts.append({"text": m.get("content", "")})
+
+        if i == len(messages) - 1 and role == "user" and images:
+            for img_data in images:
+                if img_data.startswith("data:"):
+                    media_type = img_data.split(";")[0].split(":")[1]
+                    b64 = img_data.split(",", 1)[1]
+                else:
+                    media_type = "image/png"
+                    b64 = img_data
+                parts.append({"inlineData": {"mimeType": media_type, "data": b64}})
+
+        contents.append({"role": role, "parts": parts})
+
+    payload = {
+        "contents": contents,
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        },
+    }
+
+    logger.info("[Gemini Chat] Calling %s", model_name)
+    resp = http_requests.post(url, json=payload, timeout=120.0)
+
+    if resp.status_code != 200:
+        body = resp.text[:600]
+        logger.error("Gemini Chat HTTP %s: %s", resp.status_code, body)
+        raise RuntimeError(f"Gemini API error (HTTP {resp.status_code}): {body}")
+
+    data = resp.json()
+    candidates = data.get("candidates", [])
+    if not candidates:
+        raise RuntimeError("Gemini returned no candidates.")
+
+    content_parts = candidates[0].get("content", {}).get("parts", [])
+    text_parts = [p["text"] for p in content_parts if "text" in p]
+    return "\n".join(text_parts)
 
 
-def _call_claude_with_tools(messages: list, system: str = "", max_tokens: int = 8192,
-                            temperature: float = 0.7, images: list | None = None, model: str | None = None) -> str:
+def _repair_truncated_json(text: str) -> dict:
+    """Attempt to salvage truncated JSON by progressively closing brackets/braces.
     """
-    Call Claude with tool-use (function-calling) support.
-    Runs a tool-loop: if Claude emits tool_calls we execute them locally and
-    feed results back until Claude returns a final text response.
-    """
-    from langchain_anthropic import ChatAnthropic
-    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    for trim in range(min(200, len(text))):
+        candidate = text[:len(text) - trim] if trim else text
+        # Try closing with various bracket combos
+        for suffix in ["", "]}", "]}]}", '"]}'  , '"]}]}', '"}]}', "]", "}", '"}'  ]:
+            try:
+                return json.loads(candidate + suffix)
+            except json.JSONDecodeError:
+                continue
+    raise ValueError("Could not repair truncated JSON from Gemini response.")
+
+
+_GEMINI_UNSUPPORTED_SCHEMA_KEYS = {
+    "$schema", "additionalProperties", "$id", "$ref", "$comment",
+    "examples", "default", "title", "$defs", "definitions",
+}
+
+
+def _sanitize_schema_for_gemini(schema: dict) -> dict:
+    """Strip JSON Schema fields the Gemini API rejects."""
+    if not isinstance(schema, dict):
+        return schema
+    cleaned: dict = {}
+    for k, v in schema.items():
+        if k in _GEMINI_UNSUPPORTED_SCHEMA_KEYS:
+            continue
+        if isinstance(v, dict):
+            cleaned[k] = _sanitize_schema_for_gemini(v)
+        elif isinstance(v, list):
+            cleaned[k] = [
+                _sanitize_schema_for_gemini(item) if isinstance(item, dict) else item
+                for item in v
+            ]
+        else:
+            cleaned[k] = v
+    return cleaned
+
+
+def _call_gemini_with_tools(messages: list, system: str = "", max_tokens: int = 8192,
+                            temperature: float = 0.7, images: list | None = None) -> str:
+    """Call Gemini with function-calling. Loops until a final text response."""
+    api_key = settings.GEMINI_API_KEY
+    if not api_key or len(api_key) < 10:
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
+
+    model_name = _get_gemini_chat_model()
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}"
+        f":generateContent?key={api_key}"
+    )
 
     mcp_tools = sync_get_mcp_tools()
     all_tool_defs = _TOOL_DEFINITIONS + mcp_tools
-    llm = _get_claude_llm(temperature=temperature, max_tokens=max_tokens, model=model)
-    llm_with_tools = llm.bind_tools(all_tool_defs)
-    lc_messages = _build_lc_messages(messages, system=system, images=images)
 
-    # Tool loop — max 5 rounds to prevent infinite loops
+    gemini_tools = []
+    for td in all_tool_defs:
+        fn_decl = {
+            "name": td["name"],
+            "description": td.get("description", ""),
+        }
+        schema = td.get("input_schema")
+        if schema:
+            fn_decl["parameters"] = _sanitize_schema_for_gemini(schema)
+        gemini_tools.append(fn_decl)
+
+    tool_config = {"functionDeclarations": gemini_tools} if gemini_tools else None
+
+    contents = []
+    full_system = system.strip()
+
+    for i, m in enumerate(messages):
+        role = "user" if m.get("role", "user") == "user" else "model"
+        parts: list[dict] = []
+        if i == 0 and full_system:
+            parts.append({"text": f"{full_system}\n\n{m.get('content', '')}"})
+        else:
+            parts.append({"text": m.get("content", "")})
+
+        if i == len(messages) - 1 and role == "user" and images:
+            for img_data in images:
+                if img_data.startswith("data:"):
+                    media_type = img_data.split(";")[0].split(":")[1]
+                    b64 = img_data.split(",", 1)[1]
+                else:
+                    media_type = "image/png"
+                    b64 = img_data
+                parts.append({"inlineData": {"mimeType": media_type, "data": b64}})
+
+        contents.append({"role": role, "parts": parts})
+
     for _round in range(5):
-        response = llm_with_tools.invoke(lc_messages)
+        payload: dict = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens,
+            },
+        }
+        if tool_config:
+            payload["tools"] = [tool_config]
 
-        if not response.tool_calls:
-            # Final answer — return text
-            content = response.content
-            if isinstance(content, list):
-                text_parts = [b.get('text', '') for b in content if isinstance(b, dict) and b.get('type') == 'text']
-                return "\n".join(text_parts) if text_parts else str(content)
-            return str(content)
+        resp = http_requests.post(url, json=payload, timeout=120.0)
+        if resp.status_code != 200:
+            body = resp.text[:600]
+            raise RuntimeError(f"Gemini API error (HTTP {resp.status_code}): {body}")
 
-        # Execute each tool call
-        lc_messages.append(response)  # Add AIMessage with tool_calls
-        for tool_call in response.tool_calls:
-            fn_name = tool_call["name"]
-            fn_args = tool_call["args"]
-            
+        data = resp.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
+            raise RuntimeError("Gemini returned no candidates.")
+
+        parts = candidates[0].get("content", {}).get("parts", [])
+
+        fn_calls = [p for p in parts if "functionCall" in p]
+        if not fn_calls:
+            text_parts = [p.get("text", "") for p in parts if "text" in p]
+            return "\n".join(text_parts)
+
+        contents.append({"role": "model", "parts": parts})
+        fn_response_parts = []
+        for fc_part in fn_calls:
+            fc = fc_part["functionCall"]
+            fn_name = fc["name"]
+            fn_args = fc.get("args", {})
+
             tool_fn = _TOOL_MAP.get(fn_name)
             if tool_fn:
                 try:
@@ -712,78 +773,297 @@ def _call_claude_with_tools(messages: list, system: str = "", max_tokens: int = 
                 except Exception as e:
                     result = {"error": str(e)}
             else:
-                # Try MCP execution as fallback
                 result = sync_execute_mcp_tool(fn_name, fn_args)
 
-            lc_messages.append(ToolMessage(
-                content=json.dumps(result),
-                tool_call_id=tool_call["id"],
-            ))
+            fn_response_parts.append({
+                "functionResponse": {
+                    "name": fn_name,
+                    "response": result if isinstance(result, dict) else {"result": str(result)},
+                }
+            })
 
-    # If we exhausted the loop, return whatever we have
-    content = response.content if hasattr(response, 'content') else "I was unable to complete the request."
-    if isinstance(content, list):
-        text_parts = [b.get('text', '') for b in content if isinstance(b, dict) and b.get('type') == 'text']
-        return "\n".join(text_parts) if text_parts else str(content)
-    return str(content)
+        contents.append({"role": "user", "parts": fn_response_parts})
+
+    text_parts = [p.get("text", "") for p in parts if "text" in p]
+    return "\n".join(text_parts) if text_parts else "I was unable to complete the request."
 
 
-def _stream_claude_with_tools(messages: list, system: str = "", max_tokens: int = 8192,
-                               temperature: float = 0.7, images: list | None = None):
-    """
-    Stream Claude response with tool-use support, yielding SSE-formatted chunks.
-    Yields str chunks suitable for StreamingHttpResponse.
-    """
-    from langchain_anthropic import ChatAnthropic
-    from langchain_core.messages import ToolMessage
+def _get_analyse_model_name() -> str:
+    """Resolve the Gemini model used by `/analyse`."""
+    return (getattr(settings, "GEMINI_ANALYSE_MODEL", "") or "gemini-2.5-pro").strip()
 
-    mcp_tools = sync_get_mcp_tools()
-    all_tool_defs = _TOOL_DEFINITIONS + mcp_tools
-    llm = _get_claude_llm(temperature=temperature, max_tokens=max_tokens)
-    llm_with_tools = llm.bind_tools(all_tool_defs)
-    lc_messages = _build_lc_messages(messages, system=system, images=images)
 
-    # Tool loop — max 5 rounds
-    for _round in range(5):
-        # First, invoke non-streaming to check for tool calls
-        response = llm_with_tools.invoke(lc_messages)
+def _call_gemini_analyse(system: str, user_content: str, images: list | None = None,
+                         max_tokens: int = 16384, temperature: float = 0.3) -> str:
+    """Call Gemini vision for /analyse. Returns raw text."""
+    api_key = settings.GEMINI_API_KEY
+    if not api_key or len(api_key) < 10:
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
 
-        if not response.tool_calls:
-            break
+    model_name = _get_analyse_model_name()
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}"
+        f":generateContent?key={api_key}"
+    )
 
-        # Execute tools silently (no streaming during tool execution)
-        lc_messages.append(response)
-        for tool_call in response.tool_calls:
-            fn_name = tool_call["name"]
-            fn_args = tool_call["args"]
-            
-            tool_fn = _TOOL_MAP.get(fn_name)
-            if tool_fn:
-                try:
-                    result = tool_fn(**fn_args)
-                except Exception as e:
-                    result = {"error": str(e)}
+    parts: list[dict] = [{"text": f"{system}\n\n{user_content}"}]
+
+    if images:
+        for img_data in images:
+            if img_data.startswith("data:"):
+                media_type = img_data.split(";")[0].split(":")[1]
+                b64 = img_data.split(",", 1)[1]
             else:
-                # Try MCP execution
-                result = sync_execute_mcp_tool(fn_name, fn_args)
+                media_type = "image/png"
+                b64 = img_data
+            parts.append({"inlineData": {"mimeType": media_type, "data": b64}})
 
-            lc_messages.append(ToolMessage(
-                content=json.dumps(result),
-                tool_call_id=tool_call["id"],
-            ))
-            # Yield a status event so the frontend knows tools are being called
-            yield f"data: {json.dumps({'type': 'tool_status', 'tool': fn_name})}\n\n"
-    else:
-        # If we never broke out, just yield the last response content
-        yield f"data: {json.dumps({'type': 'token', 'content': response.content})}\n\n"
+    payload = {
+        "contents": [{"parts": parts}],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+            "responseMimeType": "application/json",
+        },
+    }
+
+    logger.info("[Analyse] Calling Gemini %s (max_tokens=%d)", model_name, max_tokens)
+    resp = http_requests.post(url, json=payload, timeout=180.0)
+
+    if resp.status_code != 200:
+        body = resp.text[:600]
+        logger.error("Gemini Analyse HTTP %s: %s", resp.status_code, body)
+        raise RuntimeError(f"Gemini API error (HTTP {resp.status_code}): {body}")
+
+    data = resp.json()
+    candidates = data.get("candidates", [])
+    if not candidates:
+        raise RuntimeError("Gemini returned no candidates.")
+
+    content_parts = candidates[0].get("content", {}).get("parts", [])
+    text_parts = [p["text"] for p in content_parts if "text" in p]
+    return "\n".join(text_parts)
+
+
+def _coerce_float(value, default: float = 0.0) -> float:
+    """Best-effort numeric coercion for AI payloads."""
+    if value is None:
+        return default
+    try:
+        if isinstance(value, str):
+            cleaned = value.replace(",", "").replace("$", "").strip()
+            return float(cleaned) if cleaned else default
+        return float(value)
+    except Exception:
+        return default
+
+
+def _normalize_analyse_payload(payload: dict) -> dict:
+    """
+    Normalize /analyse payload so frontend budget upload always works.
+
+    Normalizes ALL 8 sections so field names/types match the Django models.
+    """
+    _empty = {
+        "summary": "", "building_items": [], "professional_fees": [],
+        "admin_expenses": [], "labour_costs": [], "machine_plants": [],
+        "labour_breakdowns": [], "schedule_tasks": [], "schedule_materials": [],
+        "compliance_notes": [], "recommendations": [],
+    }
+    if not isinstance(payload, dict):
+        _empty["summary"] = "Analysis returned an invalid payload."
+        return _empty
+
+    def _safe_list(key, alt_key=None):
+        v = payload.get(key)
+        if isinstance(v, list):
+            return v
+        if alt_key:
+            v2 = payload.get(alt_key)
+            return v2 if isinstance(v2, list) else []
+        return []
+
+    # ── 1. Building Items ──
+    raw_building = _safe_list("building_items", "items")
+    building_items = []
+    for idx, raw in enumerate(raw_building, start=1):
+        if not isinstance(raw, dict):
+            continue
+        category = str(raw.get("category") or raw.get("trade_element") or "").strip()
+        item_name = str(raw.get("item_name") or raw.get("name") or "").strip()
+        description = str(raw.get("description") or "").strip()
+        if not description:
+            description = item_name or f"BOQ Item {idx}"
+        if category and category.lower() not in description.lower():
+            description = f"{category} - {description}"
+        quantity = _coerce_float(raw.get("quantity"))
+        rate = _coerce_float(raw.get("rate"))
+        total_amount = _coerce_float(raw.get("total_amount"))
+        if rate <= 0 and quantity > 0 and total_amount > 0:
+            rate = total_amount / quantity
+        building_items.append({
+            "bill_no": str(raw.get("bill_no") or idx),
+            "description": description,
+            "specification": raw.get("specification") or raw.get("measurement_formula") or (f"Trade/Element: {category}" if category else None),
+            "unit": str(raw.get("unit") or "item"),
+            "quantity": quantity,
+            "rate": rate,
+        })
+
+    # ── 2. Professional Fees ──
+    prof_fees = []
+    for raw in _safe_list("professional_fees"):
+        if not isinstance(raw, dict):
+            continue
+        prof_fees.append({
+            "discipline": str(raw.get("discipline") or "").strip(),
+            "role_scope": str(raw.get("role_scope") or "").strip(),
+            "basis": str(raw.get("basis") or "").strip(),
+            "rate": str(raw.get("rate") or ""),
+            "estimated_fee": _coerce_float(raw.get("estimated_fee")),
+        })
+
+    # ── 3. Admin Expenses ──
+    admin_exp = []
+    for raw in _safe_list("admin_expenses"):
+        if not isinstance(raw, dict):
+            continue
+        admin_exp.append({
+            "item_role": str(raw.get("item_role") or "").strip(),
+            "description": str(raw.get("description") or "").strip(),
+            "trips_per_week": _coerce_float(raw.get("trips_per_week")) or None,
+            "total_trips": _coerce_float(raw.get("total_trips")) or None,
+            "distance": _coerce_float(raw.get("distance")) or None,
+            "rate": _coerce_float(raw.get("rate")),
+            "total_cost": _coerce_float(raw.get("total_cost")),
+        })
+
+    # ── 4. Labour Costs ──
+    labour_costs = []
+    for raw in _safe_list("labour_costs"):
+        if not isinstance(raw, dict):
+            continue
+        labour_costs.append({
+            "phase": str(raw.get("phase") or "").strip(),
+            "trade_role": str(raw.get("trade_role") or "").strip(),
+            "skill_level": str(raw.get("skill_level") or "").strip(),
+            "gang_size": _coerce_float(raw.get("gang_size")),
+            "duration_weeks": _coerce_float(raw.get("duration_weeks")),
+            "total_man_days": _coerce_float(raw.get("total_man_days")),
+            "daily_rate": _coerce_float(raw.get("daily_rate")),
+            "total_cost": _coerce_float(raw.get("total_cost")),
+        })
+
+    # ── 5. Machine & Plant ──
+    machine_plants = []
+    for raw in _safe_list("machine_plants"):
+        if not isinstance(raw, dict):
+            continue
+        machine_plants.append({
+            "category": str(raw.get("category") or "").strip(),
+            "machine_item": str(raw.get("machine_item") or "").strip(),
+            "qty": _coerce_float(raw.get("qty"), default=1),
+            "dry_hire_rate": _coerce_float(raw.get("dry_hire_rate")) or None,
+            "fuel_l_hr": _coerce_float(raw.get("fuel_l_hr")) or None,
+            "hrs_day": _coerce_float(raw.get("hrs_day")) or None,
+            "fuel_cost": _coerce_float(raw.get("fuel_cost")) or None,
+            "operator_rate": str(raw.get("operator_rate") or "") or None,
+            "daily_wet_rate": _coerce_float(raw.get("daily_wet_rate")),
+            "days_rqd": _coerce_float(raw.get("days_rqd")),
+            "total_cost": _coerce_float(raw.get("total_cost")),
+        })
+
+    # ── 6. Labour Breakdowns ──
+    labour_breakdowns = []
+    for raw in _safe_list("labour_breakdowns"):
+        if not isinstance(raw, dict):
+            continue
+        labour_breakdowns.append({
+            "phase": str(raw.get("phase") or "").strip(),
+            "trade_role": str(raw.get("trade_role") or "").strip(),
+            "skill_level": str(raw.get("skill_level") or "").strip(),
+            "gang_size": _coerce_float(raw.get("gang_size")),
+            "duration_weeks": _coerce_float(raw.get("duration_weeks")),
+            "total_man_days": _coerce_float(raw.get("total_man_days")),
+            "daily_rate": _coerce_float(raw.get("daily_rate")),
+            "total_cost": _coerce_float(raw.get("total_cost")),
+        })
+
+    # ── 7. Schedule Tasks ──
+    schedule_tasks = []
+    for raw in _safe_list("schedule_tasks"):
+        if not isinstance(raw, dict):
+            continue
+        schedule_tasks.append({
+            "wbs": str(raw.get("wbs") or "").strip(),
+            "task_description": str(raw.get("task_description") or "").strip(),
+            "start_date": str(raw.get("start_date") or "").strip(),
+            "end_date": str(raw.get("end_date") or "").strip(),
+            "days": str(raw.get("days") or "").strip(),
+            "predecessor": raw.get("predecessor") or None,
+            "est_cost": _coerce_float(raw.get("est_cost")),
+        })
+
+    # ── 8. Schedule of Materials ──
+    VALID_SECTIONS = {"SUBSTRUCTURE", "SUPERSTRUCTURE", "ROOFING_CEILINGS", "FINISHES", "DOORS_WINDOWS", "PLUMBING", "ELECTRICAL_SOLAR"}
+    schedule_materials = []
+    for raw in _safe_list("schedule_materials"):
+        if not isinstance(raw, dict):
+            continue
+        section = str(raw.get("section") or "").strip().upper().replace(" ", "_").replace("&", "").replace("__", "_")
+        if section not in VALID_SECTIONS:
+            section = "SUBSTRUCTURE"
+        est_qty = (
+            raw.get("estimated_qty")
+            or raw.get("estimated_quantity")
+            or raw.get("quantity")
+            or raw.get("qty")
+            or ""
+        )
+        schedule_materials.append({
+            "section": section,
+            "material_description": str(raw.get("material_description") or raw.get("description") or raw.get("material") or "").strip(),
+            "specification": str(raw.get("specification") or raw.get("spec") or "") or None,
+            "estimated_qty": str(est_qty).strip() or None,
+        })
+
+    return {
+        "summary": str(payload.get("summary") or "").strip(),
+        "building_items": building_items,
+        "professional_fees": prof_fees,
+        "admin_expenses": admin_exp,
+        "labour_costs": labour_costs,
+        "machine_plants": machine_plants,
+        "labour_breakdowns": labour_breakdowns,
+        "schedule_tasks": schedule_tasks,
+        "schedule_materials": schedule_materials,
+        "compliance_notes": _safe_list("compliance_notes"),
+        "recommendations": _safe_list("recommendations"),
+    }
+
+
+def _stream_gemini_with_tools(messages: list, system: str = "", max_tokens: int = 8192,
+                              temperature: float = 0.7, images: list | None = None):
+    """
+    Gemini equivalent of streaming with tool-use.
+    Gemini REST API does not support true SSE streaming in the same way,
+    so we perform a full call and then yield the response in chunks
+    to preserve the SSE contract with the frontend.
+    """
+    try:
+        full_text = _call_gemini_with_tools(
+            messages=messages, system=system,
+            max_tokens=max_tokens, temperature=temperature,
+            images=images,
+        )
+    except Exception as exc:
+        yield f"data: {json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
         yield "data: [DONE]\n\n"
         return
 
-    # Now stream the final answer (after all tools resolved)
-    llm_plain = _get_claude_llm(temperature=temperature, max_tokens=max_tokens)
-    for chunk in llm_plain.stream(lc_messages):
-        if chunk.content:
-            yield f"data: {json.dumps({'type': 'token', 'content': chunk.content})}\n\n"
+    CHUNK_SIZE = 80
+    for i in range(0, len(full_text), CHUNK_SIZE):
+        yield f"data: {json.dumps({'type': 'token', 'content': full_text[i:i+CHUNK_SIZE]})}\n\n"
 
     yield "data: [DONE]\n\n"
 
@@ -839,9 +1119,12 @@ def _get_project_context(project) -> str:
 
     # Fully explore the database for related BOQ information 
     try:
-        from apps.builder_dashboard.models import BOQBuildingItem, BOQCorrection
-        
-        existing_items = BOQBuildingItem.objects.filter(project=project)
+        from apps.builder_dashboard.models import BOQBuildingItem, BOQCorrection, ProjectBudgetVersion
+
+        existing_items = BOQBuildingItem.objects.filter(
+            budget_version__project=project,
+            budget_version__kind=ProjectBudgetVersion.Kind.PRELIMINARY,
+        )
         if existing_items.exists():
             lines.append("\n--- EXISTING BOQ ITEMS ALREADY ON PROJECT ---")
             for item in existing_items:
@@ -866,10 +1149,70 @@ def _get_project_context(project) -> str:
     return "\n".join(lines)
 
 
+def _build_active_boq_template_prompt() -> str:
+    """
+    Build prompt instructions from the active BOQ template.
+
+    Returns an empty string if there is no active template or if retrieval fails.
+    """
+    try:
+        template = BOQTemplate.objects.filter(is_active=True).order_by('-updated_at', '-id').first()
+        if not template:
+            return ""
+
+        lines = [
+            "\n\n--- ACTIVE BOQ TEMPLATE (STRICTLY FOLLOW) ---",
+            f"Template Name: {template.name}",
+        ]
+
+        if template.category_order:
+            lines.extend([
+                "Category Order (preserve this sequence):",
+                template.category_order.strip(),
+            ])
+
+        if template.extraction_rules:
+            lines.extend([
+                "Template Extraction Rules:",
+                template.extraction_rules.strip(),
+            ])
+
+        example_items = template.get_example_items()
+        if example_items:
+            lines.extend([
+                "Few-shot Example Items (mirror this naming/detail style):",
+                json.dumps(example_items, ensure_ascii=True, indent=2),
+            ])
+
+        # Keep these explicit so the model includes expected optional fields.
+        if template.include_labour_rate:
+            lines.append(
+                "For each building item, include `labour_rate` where reasonably derivable."
+            )
+        if template.include_measurement_formula:
+            lines.append(
+                "For each measurable item, include `measurement_formula` showing how quantity was computed."
+            )
+
+        if template.header_text:
+            lines.append(
+                f"Use this BOQ export header intent/context when writing summary: {template.header_text.strip()}"
+            )
+        if template.footer_text:
+            lines.append(
+                f"Consider this BOQ footer intent/context for notes or recommendations: {template.footer_text.strip()}"
+            )
+
+        return "\n".join(lines)
+    except Exception as e:
+        logger.warning("Failed to load active BOQ template for /analyse: %s", e)
+        return ""
+
+
 def _get_project_vision_images(project: Project) -> list:
     """
     Fetch all drawings associated with a project and convert them to base64
-    for Claude vision analysis.
+    for Gemini vision analysis.
     """
     from .models import DrawingFile
     images = []
@@ -894,12 +1237,12 @@ def _get_project_vision_images(project: Project) -> list:
 
 class ChatCompletionView(APIView):
     """
-    Main AI chat endpoint.
-    • Chat / reasoning → Claude AI (Anthropic)
-    • Image generation prompt engineering → Claude AI
+    Main AI chat endpoint — all powered by Gemini.
+    • Chat / reasoning → Gemini Flash
+    • Image generation prompt engineering → Gemini Flash
     • Image generation → Gemini 3.1 Flash Image
-    • Vision / multimodal analysis → Claude AI
-    • /analyse command → Claude AI vision for BOQ extraction
+    • Vision / multimodal analysis → Gemini Flash
+    • /analyse command → Gemini Pro for BOQ extraction
     """
     permission_classes = [IsAuthenticated]
     throttle_classes = [ScopedRateThrottle]
@@ -926,7 +1269,6 @@ class ChatCompletionView(APIView):
             if not (user.is_staff or project.owner_id == user.id):
                 return Response({'error': 'Not authorized for this project'}, status=403)
 
-        # Get or create session
         if session_id:
             try:
                 session = ChatSession.objects.get(id=session_id, user=user)
@@ -937,7 +1279,6 @@ class ChatCompletionView(APIView):
             title = first_msg[:50] + "..." if len(first_msg) > 50 else first_msg
             session = ChatSession.objects.create(user=user, title=title)
 
-        # Save the new user message to db
         if messages:
             latest_user_msg = messages[-1]
             if isinstance(latest_user_msg, dict) and latest_user_msg.get('role') == 'user':
@@ -954,7 +1295,6 @@ class ChatCompletionView(APIView):
                 user_image_data = f"data:image/png;base64,{user_image_data}"
             vision_images.append(user_image_data)
 
-        # PDF → page images for Claude vision
         if user_pdf_data:
             pdf_images = _extract_pdf_pages_as_images(user_pdf_data, max_pages=5)
             vision_images.extend(pdf_images)
@@ -966,29 +1306,35 @@ class ChatCompletionView(APIView):
         analyse_results = None
         draw_error = None
 
-        # If it's a scan or analyse request and no images were uploaded, 
-        # try to fetch from project database
         if not vision_images and project and (_is_scan_request(user_query) or _is_analyse_request(user_query)):
             vision_images = _get_project_vision_images(project)
 
-        # ── /analyse — BOQ / floor plan analysis via Claude vision ──
         if _is_analyse_request(user_query):
             analyse_results = self._handle_analyse(user_query, vision_images, project)
+            summary = analyse_results.get("summary", "Analysis complete.")
+            ChatMessage.objects.create(
+                session=session,
+                role='assistant',
+                content=summary,
+                image_url=None,
+            )
+            return Response({
+                'message': summary,
+                'role': 'assistant',
+                'analyse': analyse_results,
+                'session_id': session.id,
+            })
 
-        # ── /plans — search existing floor plans ──
         elif _is_floor_plan_search(user_query):
             search_terms = _extract_search_terms(user_query)
-            # If no search terms, use project context
             if not search_terms and project:
                 search_terms = f"{project.preferred_style or ''} {project.building_type or ''} {project.bedrooms or ''} bedroom".strip()
             
             floor_plan_results = _search_floor_plans(search_terms, limit=6)
 
-        # ── /draw — image generation via Gemini (prompt eng by Claude) ──
         elif _is_drawing_request(user_query):
             image_url, final_image_prompt, matched_preset, draw_error = self._handle_draw(user_query, project)
 
-        # ── /scan — hand-drawn plan → professional drawing via Gemini ──
         elif _is_scan_request(user_query):
             logger.info("[Scan] Command detected. user_image_data present: %s, vision_images count: %d",
                         bool(user_image_data), len(vision_images))
@@ -1003,7 +1349,6 @@ class ChatCompletionView(APIView):
                     vision_images, scan_desc
                 )
 
-        # ── RAG retrieval ──
         context_text = ""
         try:
             from langchain_huggingface import HuggingFaceEmbeddings
@@ -1021,7 +1366,6 @@ class ChatCompletionView(APIView):
         except Exception as e:
             logger.error("RAG Retrieval error: %s", e)
 
-        # ── Build system prompt ──
         instruction_obj = AIInstruction.objects.filter(is_active=True).first()
         base_instruction = instruction_obj.instruction_text if instruction_obj else (
             "You are the DzeNhare Architecture AI, a helpful, professional AI assistant "
@@ -1109,20 +1453,13 @@ class ChatCompletionView(APIView):
                 f"Do NOT attempt any visual representation as a substitute."
             )
 
-        # ── Call Claude for final response ──
         try:
-            # Prepare conversation for Claude
-            llm_messages = []
-            for msg in messages:
-                llm_messages.append({"role": msg['role'], "content": msg['content']})
-
-            # For /scan, Gemini already analysed the image — don't re-send
-            # to Claude (avoids hitting the 5 MB image size limit).
+            llm_messages = [{"role": msg['role'], "content": msg['content']} for msg in messages]
             final_images = None if _is_scan_request(user_query) else (
                 vision_images if vision_images else None
             )
 
-            response_content = _call_claude_with_tools(
+            response_content = _call_gemini_with_tools(
                 messages=llm_messages,
                 system=system_content,
                 images=final_images,
@@ -1144,7 +1481,6 @@ class ChatCompletionView(APIView):
             if analyse_results is not None:
                 result['analyse'] = analyse_results
 
-            # Save assistant message to db
             ChatMessage.objects.create(
                 session=session,
                 role='assistant',
@@ -1159,7 +1495,6 @@ class ChatCompletionView(APIView):
             logger.exception("ChatCompletionView error")
             error_str = str(e)
 
-            # Detect transient Anthropic errors and return a user-friendly message
             is_transient = any(kw in error_str.lower() for kw in [
                 '502', '503', 'bad gateway', 'service unavailable',
                 'overloaded', 'internal server error',
@@ -1168,14 +1503,14 @@ class ChatCompletionView(APIView):
 
             if is_transient:
                 user_msg = (
-                    "⚠️ The AI service (Anthropic) is temporarily unavailable. "
+                    "⚠️ The AI service (Gemini) is temporarily unavailable. "
                     "This is usually resolved within a few minutes — please try again shortly."
                 )
                 http_status = 503
             elif is_auth:
                 user_msg = (
                     "⚠️ The AI service returned an authentication error. "
-                    "Please ask the admin to check the Anthropic API key."
+                    "Please ask the admin to check the Gemini API key."
                 )
                 http_status = 502
             else:
@@ -1194,12 +1529,11 @@ class ChatCompletionView(APIView):
     # ── /draw handler ────────────────────────────────────────────────
     def _handle_draw(self, user_query: str, project=None):
         """
-        Prompt engineering via Claude → image generation via Gemini.
+        Prompt engineering via Gemini → image generation via Gemini.
         Returns (image_url, final_prompt, matched_preset).
         """
         matched_preset = _match_style_preset(user_query)
         if not matched_preset and project:
-            # Try matching based on project preferred style if user query is generic
             matched_preset = _match_style_preset(project.preferred_style or "")
         
         top_prompts = _get_top_rated_prompts(matched_preset, limit=3)
@@ -1224,7 +1558,6 @@ class ChatCompletionView(APIView):
             for i, p in enumerate(top_prompts, 1):
                 examples_block += f"Example {i}: {p}\n"
 
-        # Inject project context if available
         project_context = ""
         if project:
             project_context = (
@@ -1285,14 +1618,14 @@ class ChatCompletionView(APIView):
                     f"Brief: {project.ai_brief or ''}"
                 )
 
-            image_prompt = _call_claude(
+            image_prompt = _call_gemini(
                 messages=[{"role": "user", "content": f"User Request: {effective_query}\n\nStrictly prioritize the project requirements if the user request is generic or conflicting."}],
                 system=prompt_system,
                 max_tokens=400,
                 temperature=0.7,
             )
         except Exception as e:
-            logger.error("Claude prompt generation error: %s", e)
+            logger.error("Gemini prompt generation error: %s", e)
             image_prompt = user_query
 
         # Append style tokens
@@ -1321,7 +1654,6 @@ class ChatCompletionView(APIView):
         architectural drawing from the analysis.
         Returns (image_url, final_prompt, error_message).
         """
-        # ── Step 1: Analyse the hand-drawn plan using Gemini vision ──
         api_key = settings.GEMINI_API_KEY
         vision_model = 'gemini-2.5-flash'  # Use flash for fast vision analysis
         vision_url = (
@@ -1329,7 +1661,6 @@ class ChatCompletionView(APIView):
             f":generateContent?key={api_key}"
         )
 
-        # Build the image part from the first vision image
         img_data = vision_images[0]
         if img_data.startswith('data:'):
             media_type = img_data.split(';')[0].split(':')[1]
@@ -1399,8 +1730,6 @@ class ChatCompletionView(APIView):
             logger.error("Scan vision error: %s", e)
             return None, None, f"⚠️ Failed to analyse the hand-drawn plan: {e}"
 
-        # ── Step 2: Use Claude to craft an image-generation prompt ──
-        # Inject project context if available
         project_context = ""
         if project:
             project_context = (
@@ -1435,15 +1764,15 @@ class ChatCompletionView(APIView):
             user_context += f"\n\nUser's additional notes: {user_description}"
 
         try:
-            logger.info("[Scan] Step 2: Crafting image prompt via Claude...")
-            image_prompt = _call_claude(
+            logger.info("[Scan] Step 2: Crafting image prompt via Gemini...")
+            image_prompt = _call_gemini(
                 messages=[{"role": "user", "content": user_context}],
                 system=prompt_system,
                 max_tokens=400,
                 temperature=0.7,
             )
         except Exception as e:
-            logger.error("Claude prompt generation error for /scan: %s", e)
+            logger.error("Gemini prompt generation error for /scan: %s", e)
             # Fallback: use the raw analysis as prompt
             image_prompt = (
                 f"Professional 2D architectural floor plan, CAD blueprint style, "
@@ -1454,7 +1783,6 @@ class ChatCompletionView(APIView):
         final_prompt = image_prompt
         logger.info("[Scan] Step 2 complete. Prompt: %.200s...", final_prompt)
 
-        # ── Step 3: Generate the professional drawing via Gemini ──
         logger.info("[Scan] Step 3: Generating professional drawing via Gemini...")
         image_url, gen_error = _generate_image_from_gemini(
             prompt=image_prompt + " Ensure it is a STRICT 2D top-down floor plan only, with extremely high architectural accuracy.",
@@ -1470,40 +1798,68 @@ class ChatCompletionView(APIView):
     # ── /analyse handler ─────────────────────────────────────────────
     def _handle_analyse(self, user_query: str, vision_images: list, project=None) -> dict:
         """
-        Use Claude AI vision with structured output + extended thinking to analyse
-        an uploaded image (floor plan, BOQ, site photo) and return structured
-        BOQ / measurement data via Pydantic schema.
+        Use Gemini Pro vision to analyse an uploaded image (floor plan, BOQ,
+        site photo) and return structured BOQ / measurement data as JSON.
 
-        If an active BOQTemplate exists, its category ordering, extraction rules,
-        example items, and optional columns are injected into the system prompt so
-        the AI mirrors the admin's preferred format.
+        If an active BOQTemplate exists, its category ordering, extraction
+        rules, example items, and optional columns are injected into the
+        system prompt so the AI mirrors the admin's preferred format.
         """
-        # Strip the command prefix from the query
         analyse_text = user_query.strip()
         for kw in _ANALYSE_KEYWORDS:
             if analyse_text.lower().startswith(kw):
                 analyse_text = analyse_text[len(kw):].strip()
                 break
 
-        # ── Base system prompt ────────────────────────────────────────
         analyse_system = (
             "You are a professional Quantity Surveyor and Construction Analyst AI for the DzeNhare "
             "Smart Quality Builder platform.\n\n"
             "You are required to create a FULL, EXHAUSTIVE, AND COMPREHENSIVE Project Budget based on the provided drawing "
-            "following the exact 7-sheet format. "
+            "following the exact 8-sheet format. "
             "CRITICAL INSTRUCTION: DO NOT provide a summarized, brief, or abbreviated Budget. You MUST generate a complete "
-            "line-by-line breakdown across all 7 budget categories. A typical residential/commercial project has at least 20-40 line items "
+            "line-by-line breakdown across all 8 budget categories. A typical residential/commercial project has at least 20-40 line items "
             "in the Building Items alone.\n\n"
-            "Follow these steps to populate the 7 arrays:\n"
-            "1. building_items: Meticulously identify ALL distinct components (structural elements, finishes, services). Provide bill_no, description, unit, quantity, rate. Use SI units.\n"
-            "2. professional_fees: Detail Architectural, Engineering, QS, and Council fees. Include discipline, role_scope, basis, rate (string like '5%'), and estimated_fee.\n"
-            "3. admin_expenses: List site management costs (e.g. Project Manager, Site Agent, Security). Include item_role, trips/distance if applicable, rate, and total_cost.\n"
-            "4. labour_costs: Provide labor estimates by construction phase (e.g. Substructure, Roof). Detail trade_role, skill_level, gang_size, duration_weeks, total_man_days, daily_rate, and total_cost.\n"
-            "5. machine_plants: Note any heavy machinery needed (TLB, Excavator, Crane). Specify category, machine_item, qty, dry/wet rates, fuel costs, operator_rate, days_rqd, and total_cost.\n"
-            "6. labour_breakdowns: Provide granular manpower tasks for complex phases (phase, trade_role, skill_level, gang_size, duration_weeks, total_man_days, daily_rate, total_cost).\n"
-            "7. schedule_tasks: Output a high-level Gantt chart / Timeline outlining wbs, task_description, start_date/end_date (Format: YYYY-MM-DD), days, predecessor, and est_cost.\n\n"
-            "If no image is attached, set summary to explain that you need an image and leave items empty."
+            "Follow these steps to populate the 8 arrays:\n"
+            "1. building_items: Meticulously identify ALL distinct components (structural elements, finishes, services). "
+            "Each item MUST have: bill_no (string), description (string), specification (string or null), unit (string), quantity (number), rate (number).\n"
+            "2. professional_fees: Detail Architectural, Engineering, QS, and Council fees. "
+            "Each: discipline (string), role_scope (string), basis (string), rate (string like '5%'), estimated_fee (number).\n"
+            "3. admin_expenses: List site management costs. "
+            "Each: item_role (string), description (string), trips_per_week (number or null), total_trips (number or null), distance (number or null), rate (number), total_cost (number).\n"
+            "4. labour_costs: Labour estimates by phase. "
+            "Each: phase (string), trade_role (string), skill_level (string), gang_size (number), duration_weeks (number), total_man_days (number), daily_rate (number), total_cost (number).\n"
+            "5. machine_plants: Heavy machinery needed. "
+            "Each: category (string), machine_item (string), qty (number), dry_hire_rate (number or null), fuel_l_hr (number or null), hrs_day (number or null), fuel_cost (number or null), operator_rate (string or null), daily_wet_rate (number), days_rqd (number), total_cost (number).\n"
+            "6. labour_breakdowns: Granular manpower tasks. "
+            "Each: phase (string), trade_role (string), skill_level (string), gang_size (number), duration_weeks (number), total_man_days (number), daily_rate (number), total_cost (number).\n"
+            "7. schedule_tasks: High-level Gantt chart / Timeline. "
+            "Each: wbs (string), task_description (string), start_date (YYYY-MM-DD string), end_date (YYYY-MM-DD string), days (string), predecessor (string or null), est_cost (number).\n"
+            "8. schedule_materials: ALL materials grouped by section (SUBSTRUCTURE, SUPERSTRUCTURE, ROOFING_CEILINGS, FINISHES, DOORS_WINDOWS, PLUMBING, ELECTRICAL_SOLAR). "
+            "Each item MUST have: section (string — one of the above), material_description (string, e.g. 'Portland Cement 42.5N'), "
+            "specification (string, e.g. 'PPC / Lafarge 50kg bag, CEM II'), "
+            "estimated_qty (string with amount AND unit, e.g. '120 bags', '2,500 units', '15 m³', '48 sheets'). "
+            "IMPORTANT: estimated_qty must NEVER be null or empty — always calculate a realistic quantity from the drawings.\n\n"
+            "CRITICAL: You MUST populate ALL 8 arrays exhaustively. Do NOT leave any section empty. "
+            "A typical residential project should have 20-40 building items, 3-5 professional fees, 3-6 admin expenses, "
+            "5-12 labour cost entries, 2-5 machine/plant items, 5-10 labour breakdowns, 8-15 schedule tasks, and 20-40 materials.\n\n"
+            "The `summary` field must be a clean markdown report suitable for direct display/export and should include:\n"
+            "• Title line with project/location context\n"
+            "• Drawing metadata line (drawing ref, scale, GFA, client) if visible\n"
+            "• BOQ summary table with totals (subtotal, contingency, grand total)\n"
+            "• Room schedule table with compliance status where inferable\n"
+            "• Key findings/compliance section with severity labels\n"
+            "• Recommended next steps section\n\n"
+            "If no image is attached, set summary to explain that you need an image and leave items empty.\n\n"
+            "RESPOND WITH a single JSON OBJECT with these exact top-level keys:\n"
+            "summary, building_items, professional_fees, admin_expenses, labour_costs, "
+            "machine_plants, labour_breakdowns, schedule_tasks, schedule_materials, "
+            "compliance_notes (list of strings), recommendations (list of strings).\n"
+            "Output ONLY valid JSON. No markdown fences, no extra text."
         )
+
+        template_prompt = _build_active_boq_template_prompt()
+        if template_prompt:
+            analyse_system += template_prompt
 
         if project:
             analyse_system += (
@@ -1514,55 +1870,47 @@ class ChatCompletionView(APIView):
                 f"{_get_project_context(project)}"
             )
 
-        user_content = analyse_text if analyse_text else "Please analyse this image."
+        user_content = analyse_text if analyse_text else "Please analyse this image and generate a full project budget."
+        analyse_model = _get_analyse_model_name()
+        logger.info("/analyse using Gemini model: %s", analyse_model)
 
         try:
-            # Use structured output with Pydantic schema (OPUS for technical analysis)
-            llm = _get_claude_llm(temperature=0.3, max_tokens=8192, model=settings.CLAUDE_OPUS_MODEL)
-            structured_llm = llm.with_structured_output(BOQAnalysis)
-
-            lc_messages = _build_lc_messages(
-                messages=[{"role": "user", "content": user_content}],
+            raw = _call_gemini_analyse(
                 system=analyse_system,
+                user_content=user_content,
                 images=vision_images if vision_images else None,
+                max_tokens=65536,
+                temperature=0.3,
             )
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
 
-            result: BOQAnalysis = structured_llm.invoke(lc_messages)
-            return result.model_dump()
+            try:
+                parsed = json.loads(cleaned)
+            except json.JSONDecodeError:
+                parsed = _repair_truncated_json(cleaned)
+
+            return _normalize_analyse_payload(parsed)
 
         except Exception as e:
-            logger.error("Structured analyse error: %s", e, exc_info=True)
-            # Fall back to raw Claude call + JSON parse
-            try:
-                fallback_system = analyse_system + (
-                    "\n\nRESPOND WITH a JSON OBJECT with keys: summary (str), "
-                    "building_items (list), professional_fees (list), admin_expenses (list), "
-                    "labour_costs (list), machine_plants (list), labour_breakdowns (list), "
-                    "schedule_tasks (list), schedule_materials (list), compliance_notes (list of str), recommendations (list of str). "
-                    "Output ONLY valid JSON, no markdown fences."
-                )
-                raw = _call_claude(
-                    messages=[{"role": "user", "content": user_content}],
-                    system=fallback_system,
-                    max_tokens=4096,
-                    temperature=0.3,
-                    images=vision_images if vision_images else None,
-                    model=settings.CLAUDE_OPUS_MODEL,
-                )
-                cleaned = raw.strip()
-                if cleaned.startswith('```'):
-                    cleaned = cleaned.split('\n', 1)[1] if '\n' in cleaned else cleaned[3:]
-                if cleaned.endswith('```'):
-                    cleaned = cleaned[:-3]
-                return json.loads(cleaned.strip())
-            except Exception as e2:
-                logger.error("Fallback analyse error: %s", e2, exc_info=True)
-                return {
-                    "summary": f"Analysis failed: {str(e)}",
-                    "items": [],
-                    "compliance_notes": [],
-                    "recommendations": [],
-                }
+            logger.error("Gemini analyse error: %s", e, exc_info=True)
+            return {
+                "summary": f"Analysis failed: {str(e)}",
+                "building_items": [],
+                "professional_fees": [],
+                "admin_expenses": [],
+                "labour_costs": [],
+                "machine_plants": [],
+                "labour_breakdowns": [],
+                "schedule_tasks": [],
+                "schedule_materials": [],
+                "compliance_notes": [],
+                "recommendations": [],
+            }
 
 
 class ImageGenerationView(APIView):
@@ -1624,7 +1972,7 @@ from apps.authentication.permissions import IsApproved
 class ChatStreamView(APIView):
     """
     SSE streaming chat endpoint.
-    Streams Claude's response token-by-token, with tool-use support.
+    Streams Gemini's response token-by-token, with tool-use support.
     Falls back to non-streaming endpoints for /draw, /plans, /analyse.
     
     POST /ai/chat/stream/
@@ -1651,19 +1999,16 @@ class ChatStreamView(APIView):
                 from apps.builder_dashboard.models import Project
                 project = Project.objects.get(pk=project_id)
             except Exception:
-                pass # Silently proceed if project doesn't exist for streaming context
+                pass
 
         user_query = messages[-1]['content'] if messages else ""
 
-        # For /draw, /plans, /analyse, /scan — redirect to the sync endpoint
         if (_is_drawing_request(user_query) or _is_floor_plan_search(user_query)
                 or _is_analyse_request(user_query) or _is_scan_request(user_query)):
-            # Delegate to ChatCompletionView
             view = ChatCompletionView()
             view.request = request
             return view.post(request)
 
-        # ── Session handling ──
         if session_id:
             try:
                 session = ChatSession.objects.get(id=session_id, user=user)
@@ -1674,7 +2019,6 @@ class ChatStreamView(APIView):
             title = first_msg[:50] + "..." if len(first_msg) > 50 else first_msg
             session = ChatSession.objects.create(user=user, title=title)
 
-        # Save user message
         if messages:
             latest_user_msg = messages[-1]
             if isinstance(latest_user_msg, dict) and latest_user_msg.get('role') == 'user':
@@ -1684,19 +2028,16 @@ class ChatStreamView(APIView):
                     content=latest_user_msg.get('content', '')
                 )
 
-        # Collect vision images
         vision_images = []
         if user_image_data:
             if not user_image_data.startswith('data:image/'):
                 user_image_data = f"data:image/png;base64,{user_image_data}"
             vision_images.append(user_image_data)
 
-        # PDF → page images for Claude vision
         if user_pdf_data:
             pdf_images = _extract_pdf_pages_as_images(user_pdf_data, max_pages=5)
             vision_images.extend(pdf_images)
 
-        # ── RAG context ──
         context_text = ""
         try:
             from langchain_huggingface import HuggingFaceEmbeddings
@@ -1746,7 +2087,7 @@ class ChatStreamView(APIView):
         def event_stream():
             collected = []
             try:
-                for chunk in _stream_claude_with_tools(
+                for chunk in _stream_gemini_with_tools(
                     messages=llm_messages,
                     system=system_content,
                     images=vision_images if vision_images else None,
@@ -1761,7 +2102,6 @@ class ChatStreamView(APIView):
                     except Exception:
                         pass
 
-                # Send session_id as a final metadata event
                 yield f"data: {json.dumps({'type': 'meta', 'session_id': session_id_value})}\n\n"
                 yield "data: [DONE]\n\n"
 
@@ -1770,7 +2110,6 @@ class ChatStreamView(APIView):
                 yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
                 yield "data: [DONE]\n\n"
             finally:
-                # Persist assistant message
                 full_text = "".join(collected)
                 if full_text:
                     ChatMessage.objects.create(
@@ -1799,7 +2138,6 @@ class KnowledgeDocumentView(APIView):
 
     def get(self, request, pk=None):
         if pk:
-            # Return individual document with its text content
             try:
                 doc = KnowledgeDocument.objects.get(pk=pk)
                 content = self._extract_text(doc)
@@ -2157,14 +2495,19 @@ class BOQTemplateView(APIView):
         return Response([self._serialize(t) for t in templates])
 
     def post(self, request):
+        # Keep BOQ templates singleton-like: if this one is active, deactivate all others.
+        is_active = _to_bool(request.data.get('is_active', True), default=True)
+        if is_active:
+            BOQTemplate.objects.filter(is_active=True).update(is_active=False)
+
         t = BOQTemplate.objects.create(
             name=request.data.get('name', 'New BOQ Template'),
-            is_active=request.data.get('is_active', True),
+            is_active=is_active,
             category_order=request.data.get('category_order', ''),
             extraction_rules=request.data.get('extraction_rules', ''),
             example_items_json=request.data.get('example_items_json', '[]'),
-            include_labour_rate=request.data.get('include_labour_rate', False),
-            include_measurement_formula=request.data.get('include_measurement_formula', False),
+            include_labour_rate=_to_bool(request.data.get('include_labour_rate', False), default=False),
+            include_measurement_formula=_to_bool(request.data.get('include_measurement_formula', False), default=False),
             header_text=request.data.get('header_text', ''),
             footer_text=request.data.get('footer_text', ''),
         )
@@ -2175,11 +2518,17 @@ class BOQTemplateView(APIView):
             return Response({'error': 'Template ID required'}, status=400)
         try:
             t = BOQTemplate.objects.get(pk=pk)
+            activate_requested = ('is_active' in request.data) and _to_bool(request.data.get('is_active'))
+            if activate_requested:
+                BOQTemplate.objects.filter(is_active=True).exclude(pk=t.pk).update(is_active=False)
             for field in ['name', 'is_active', 'category_order', 'extraction_rules',
                           'example_items_json', 'include_labour_rate',
                           'include_measurement_formula', 'header_text', 'footer_text']:
                 if field in request.data:
-                    setattr(t, field, request.data[field])
+                    if field in {'is_active', 'include_labour_rate', 'include_measurement_formula'}:
+                        setattr(t, field, _to_bool(request.data[field]))
+                    else:
+                        setattr(t, field, request.data[field])
             t.save()
             return Response({'success': True})
         except BOQTemplate.DoesNotExist:
@@ -2362,11 +2711,10 @@ class SiteIntelView(APIView):
         prompt = prompt_override or _build_site_intel_prompt(project)
 
         try:
-            # Use call_claude_with_tools to allow the LLM to research
-            response_content = _call_claude_with_tools(
+            response_content = _call_gemini_with_tools(
                 messages=[{"role": "user", "content": prompt}],
                 system=system_content,
-                temperature=0.3, # Lower temperature for factual reporting
+                temperature=0.3,
             )
         except Exception as e:
             logger.exception("Site intel generation failed")

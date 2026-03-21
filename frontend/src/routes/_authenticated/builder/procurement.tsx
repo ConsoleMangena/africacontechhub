@@ -12,29 +12,44 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { ProjectModeBadge } from '@/components/project-mode-badge'
+
+type ProcurementCategory = 'MATERIAL' | 'LABOUR' | 'PLANT' | 'PROFESSIONAL' | 'ADMIN'
+
+const PROC_CATS: ProcurementCategory[] = ['MATERIAL', 'LABOUR', 'PLANT', 'PROFESSIONAL', 'ADMIN']
 
 export const Route = createFileRoute(
   '/_authenticated/builder/procurement',
 )({
   validateSearch: (search: Record<string, unknown>) => {
+    const raw = search.category as string | undefined
+    const category = raw && PROC_CATS.includes(raw as ProcurementCategory) ? (raw as ProcurementCategory) : undefined
+    const toBool = (v: unknown) =>
+      v === true || v === 'true' || v === 1 || v === '1'
+    const boqRaw = search.boqId
+    const boqId =
+      boqRaw !== undefined && boqRaw !== null && boqRaw !== ''
+        ? Number(boqRaw)
+        : undefined
     return {
       projectId: search.projectId ? Number(search.projectId) : undefined,
+      category,
+      prefill: toBool(search.prefill) ? true : undefined,
+      bulkPrefill: toBool(search.bulkPrefill) ? true : undefined,
+      boqId: boqId != null && !Number.isNaN(boqId) ? boqId : undefined,
     }
   },
   component: ProcurementPage,
 })
 
-type ProcurementCategory = 'MATERIAL' | 'LABOUR' | 'PLANT' | 'PROFESSIONAL' | 'ADMIN'
-
-const CATEGORIES: { key: ProcurementCategory; label: string; icon: string; color: string }[] = [
-  { key: 'MATERIAL', label: 'Building Materials', icon: 'construction', color: 'emerald' },
-  { key: 'LABOUR',   label: 'Labour',             icon: 'engineering',   color: 'blue' },
-  { key: 'PLANT',    label: 'Plant & Equipment',   icon: 'precision_manufacturing', color: 'amber' },
-  { key: 'PROFESSIONAL', label: 'Professional Fees', icon: 'badge',      color: 'purple' },
-  { key: 'ADMIN',    label: 'Admin & Expenses',    icon: 'receipt_long', color: 'slate' },
+const CATEGORIES: { key: ProcurementCategory; label: string; icon: string; activeCls: string }[] = [
+  { key: 'MATERIAL', label: 'Building Materials', icon: 'construction', activeCls: 'bg-emerald-600 text-white border-emerald-600 shadow-sm' },
+  { key: 'LABOUR', label: 'Labour', icon: 'engineering', activeCls: 'bg-blue-600 text-white border-blue-600 shadow-sm' },
+  { key: 'PLANT', label: 'Plant & Equipment', icon: 'precision_manufacturing', activeCls: 'bg-amber-600 text-white border-amber-600 shadow-sm' },
+  { key: 'PROFESSIONAL', label: 'Professional Fees', icon: 'badge', activeCls: 'bg-purple-600 text-white border-purple-600 shadow-sm' },
+  { key: 'ADMIN', label: 'Admin & Expenses', icon: 'receipt_long', activeCls: 'bg-slate-600 text-white border-slate-600 shadow-sm' },
 ]
 
 const STATUS_COLORS: Record<string, string> = {
@@ -54,27 +69,133 @@ function LoadingBar() {
   )
 }
 
-function SkeletonRows() {
-  return (
-    <>
-      {Array.from({ length: 4 }).map((_, i) => (
-        <tr key={i} className="border-b border-slate-50">
-          <td className="px-4 py-3"><div className="h-4 w-40 bg-slate-100 rounded animate-pulse" /></td>
-          <td className="px-4 py-3"><div className="h-4 w-16 bg-slate-100 rounded animate-pulse" /></td>
-          <td className="px-4 py-3 text-right"><div className="h-4 w-16 bg-slate-100 rounded animate-pulse ml-auto" /></td>
-          <td className="px-4 py-3 text-center"><div className="h-6 w-24 bg-slate-100 rounded animate-pulse mx-auto" /></td>
-        </tr>
-      ))}
-    </>
+
+function resolvePrefillBoqId(
+  category: ProcurementCategory,
+  preferredId: number | undefined,
+  boqBuilding: BOQBuildingItem[],
+  boqLabour: BOQLabourCost[],
+  boqPlant: BOQMachinePlant[],
+  boqProfessional: BOQProfessionalFee[],
+  boqAdmin: BOQAdminExpense[],
+): number | null {
+  const list =
+    category === 'MATERIAL'
+      ? boqBuilding
+      : category === 'LABOUR'
+        ? boqLabour
+        : category === 'PLANT'
+          ? boqPlant
+          : category === 'PROFESSIONAL'
+            ? boqProfessional
+            : boqAdmin
+  if (!list.length) return null
+  if (preferredId != null && list.some((i) => i.id === preferredId)) return preferredId
+  return list[0].id
+}
+
+/** Build request payloads for ALL items across all categories */
+function buildBulkPayloads(
+  projectId: number,
+  boqBuilding: BOQBuildingItem[],
+  boqLabour: BOQLabourCost[],
+  boqPlant: BOQMachinePlant[],
+  boqProfessional: BOQProfessionalFee[],
+  boqAdmin: BOQAdminExpense[],
+  existingRequests: MaterialRequest[],
+) {
+  const existingBoqIds = new Set(
+    existingRequests
+      .map((r) => {
+        const linkedId = r.object_id ?? (r.procurement_category === 'MATERIAL' ? r.boq_item : undefined)
+        return linkedId ? `${r.procurement_category}:${linkedId}` : null
+      })
+      .filter(Boolean),
   )
+  const payloads: { category: ProcurementCategory; data: Record<string, unknown> }[] = []
+
+  for (const item of boqBuilding) {
+    if (existingBoqIds.has(`MATERIAL:${item.id}`)) continue
+    payloads.push({
+      category: 'MATERIAL',
+      data: {
+        project: projectId, boq_source_id: item.id, procurement_category: 'MATERIAL',
+        material_name: item.description, quantity_requested: String(item.quantity ?? '1'),
+        unit: item.unit || '', price_at_request: String(item.rate ?? '0'),
+        procurement_method: 'SELF', transport_cost: '0', group_buy_deduction: '0', notes: '',
+      },
+    })
+  }
+  for (const item of boqLabour) {
+    if (existingBoqIds.has(`LABOUR:${item.id}`)) continue
+    payloads.push({
+      category: 'LABOUR',
+      data: {
+        project: projectId, boq_source_id: item.id, procurement_category: 'LABOUR',
+        material_name: item.trade_role || item.phase || 'Labour',
+        quantity_requested: String(item.total_man_days || '1'), unit: 'day',
+        price_at_request: String(item.daily_rate ?? '0'),
+        procurement_method: 'SELF', transport_cost: '0', group_buy_deduction: '0', notes: '',
+      },
+    })
+  }
+  for (const item of boqPlant) {
+    if (existingBoqIds.has(`PLANT:${item.id}`)) continue
+    payloads.push({
+      category: 'PLANT',
+      data: {
+        project: projectId, boq_source_id: item.id, procurement_category: 'PLANT',
+        material_name: item.machine_item || item.category || 'Plant',
+        quantity_requested: String(item.days_rqd || '1'), unit: 'day',
+        price_at_request: String(item.daily_wet_rate ?? '0'),
+        procurement_method: 'SELF', transport_cost: '0', group_buy_deduction: '0', notes: '',
+      },
+    })
+  }
+  for (const item of boqProfessional) {
+    if (existingBoqIds.has(`PROFESSIONAL:${item.id}`)) continue
+    payloads.push({
+      category: 'PROFESSIONAL',
+      data: {
+        project: projectId, boq_source_id: item.id, procurement_category: 'PROFESSIONAL',
+        material_name: item.role_scope || item.discipline || 'Professional Fee',
+        quantity_requested: '1', unit: 'lump sum',
+        price_at_request: String(item.estimated_fee ?? '0'),
+        procurement_method: 'SELF', transport_cost: '0', group_buy_deduction: '0', notes: '',
+      },
+    })
+  }
+  for (const item of boqAdmin) {
+    if (existingBoqIds.has(`ADMIN:${item.id}`)) continue
+    payloads.push({
+      category: 'ADMIN',
+      data: {
+        project: projectId, boq_source_id: item.id, procurement_category: 'ADMIN',
+        material_name: item.item_role || item.description || 'Admin Expense',
+        quantity_requested: String(item.total_trips || '1'), unit: 'trip',
+        price_at_request: String(item.rate ?? '0'),
+        procurement_method: 'SELF', transport_cost: '0', group_buy_deduction: '0', notes: '',
+      },
+    })
+  }
+  return payloads
 }
 
 function ProcurementPage() {
-  const { projectId } = Route.useSearch() as { projectId?: number }
+  const navigate = Route.useNavigate()
+  const { projectId, category: searchCategory, prefill, bulkPrefill, boqId: searchBoqId } = Route.useSearch() as {
+    projectId?: number
+    category?: ProcurementCategory
+    prefill?: boolean
+    bulkPrefill?: boolean
+    boqId?: number
+  }
   const [projects, setProjects] = useState<Project[]>([])
   const [loadingProjects, setLoadingProjects] = useState(true)
   const [selectedProject, setSelectedProject] = useState<number | null>(projectId || null)
-  const [activeCategory, setActiveCategory] = useState<ProcurementCategory>('MATERIAL')
+  const [activeCategory, setActiveCategory] = useState<ProcurementCategory>(
+    searchCategory && PROC_CATS.includes(searchCategory) ? searchCategory : 'MATERIAL',
+  )
   const [requests, setRequests] = useState<MaterialRequest[]>([])
   const [loadingRequests, setLoadingRequests] = useState(false)
   const [refetching, setRefetching] = useState(false)
@@ -89,6 +210,8 @@ function ProcurementPage() {
 
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [bulkCreating, setBulkCreating] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 })
   const [form, setForm] = useState({
     boq_ref: '',          // id of the selected source BOQ item
     material_name: '',
@@ -102,41 +225,140 @@ function ProcurementPage() {
   })
 
   const requestsCacheRef = useRef<Map<number, MaterialRequest[]>>(new Map())
+  const prefillConsumedRef = useRef(false)
+  const bulkConsumedRef = useRef(false)
+
+  /** Tracks whether BOQ lists have been fetched for the currently selected project. */
+  const boqLoadedRef = useRef(false)
+
+  /** Fresh flags from API — list from GET /projects/ is often stale after signing the budget elsewhere */
+  const [projectMeta, setProjectMeta] = useState<Project | null>(null)
+  const [loadingProjectMeta, setLoadingProjectMeta] = useState(false)
+
+  // DIFY mode check
+  const isDIFY = projectMeta?.engagement_tier === 'DIFY'
 
   // Load projects
+  // Reset prefill consumption when the incoming category changes so navigation from Budget re-applies correctly
+  useEffect(() => {
+    prefillConsumedRef.current = false
+    bulkConsumedRef.current = false
+  }, [searchCategory])
+
   useEffect(() => {
     builderApi.getProjects()
       .then(res => {
         const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
         setProjects(data)
-        if (!projectId && data.length > 0 && !selectedProject) {
-          setSelectedProject(data[0].id)
+        if (projectId) {
+          setSelectedProject(projectId)
+        } else if (data.length > 0) {
+          setSelectedProject(prev => (prev != null ? prev : data[0].id))
         }
       })
       .catch(() => toast.error('Failed to load projects'))
       .finally(() => setLoadingProjects(false))
-  }, [])
+  }, [projectId])
 
-  // Load BOQ source items for selected project
+  // Always refresh selected project so is_budget_signed matches DB (e.g. after signing on Budget page)
   useEffect(() => {
-    if (!selectedProject) return
+    if (!selectedProject) {
+      setProjectMeta(null)
+      return
+    }
+    let cancelled = false
+    setLoadingProjectMeta(true)
+    builderApi.getProject(selectedProject)
+      .then((res) => {
+        if (cancelled) return
+        setProjectMeta(res.data)
+        setProjects((prev) =>
+          prev.map((p) => (p.id === selectedProject ? { ...p, ...res.data } : p)),
+        )
+      })
+      .catch(() => {
+        if (!cancelled) setProjectMeta(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingProjectMeta(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedProject])
+
+  // When returning from another tab/page (e.g. after signing budget), refresh flags
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || !selectedProject) return
+      builderApi
+        .getProject(selectedProject)
+        .then((res) => {
+          setProjectMeta(res.data)
+          setProjects((prev) =>
+            prev.map((p) => (p.id === selectedProject ? { ...p, ...res.data } : p)),
+          )
+        })
+        .catch(() => {})
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [selectedProject])
+
+  useEffect(() => {
+    if (searchCategory && PROC_CATS.includes(searchCategory)) {
+      setActiveCategory(searchCategory)
+    }
+  }, [searchCategory])
+
+  const canProcure = Boolean(projectMeta?.is_budget_signed)
+
+  useEffect(() => {
+    if (!canProcure) setShowForm(false)
+  }, [canProcure])
+
+  // Load final-budget BOQ lines whenever a project is selected.
+  // No canProcure gate — backend returns [] when no final budget exists.
+  useEffect(() => {
+    if (!selectedProject) {
+      setBoqBuilding([])
+      setBoqLabour([])
+      setBoqPlant([])
+      setBoqProfessional([])
+      setBoqAdmin([])
+      boqLoadedRef.current = false
+      return
+    }
+    let cancelled = false
+    boqLoadedRef.current = false
     setLoadingBOQ(true)
     Promise.all([
-      builderApi.getProjectBOQBuildingItems(selectedProject),
-      builderApi.getProjectBOQLabourCosts(selectedProject),
-      builderApi.getProjectBOQMachinePlants(selectedProject),
-      builderApi.getProjectBOQProfessionalFees(selectedProject),
-      builderApi.getProjectBOQAdminExpenses(selectedProject),
-    ]).then(([b, l, p, pf, a]) => {
-      const extract = (r: any) => Array.isArray(r.data) ? r.data : (r.data as any).results || []
-      setBoqBuilding(extract(b))
-      setBoqLabour(extract(l))
-      setBoqPlant(extract(p))
-      setBoqProfessional(extract(pf))
-      setBoqAdmin(extract(a))
-    }).catch(() => toast.error('Failed to load BOQ items'))
-    .finally(() => setLoadingBOQ(false))
+      builderApi.getProjectBOQBuildingItems(selectedProject, 'final'),
+      builderApi.getProjectBOQLabourCosts(selectedProject, 'final'),
+      builderApi.getProjectBOQMachinePlants(selectedProject, 'final'),
+      builderApi.getProjectBOQProfessionalFees(selectedProject, 'final'),
+      builderApi.getProjectBOQAdminExpenses(selectedProject, 'final'),
+    ])
+      .then(([b, l, p, pf, a]) => {
+        if (cancelled) return
+        const extract = (r: any) =>
+          Array.isArray(r.data) ? r.data : (r.data as any).results || []
+        setBoqBuilding(extract(b))
+        setBoqLabour(extract(l))
+        setBoqPlant(extract(p))
+        setBoqProfessional(extract(pf))
+        setBoqAdmin(extract(a))
+      })
+      .catch(() => { if (!cancelled) toast.error('Failed to load BOQ items') })
+      .finally(() => {
+        if (!cancelled) {
+          boqLoadedRef.current = true
+          setLoadingBOQ(false)
+        }
+      })
+    return () => { cancelled = true }
   }, [selectedProject])
+
 
   const fetchRequests = useCallback(async () => {
     if (!selectedProject) return
@@ -154,28 +376,214 @@ function ProcurementPage() {
 
   useEffect(() => { fetchRequests() }, [fetchRequests])
 
-  // Auto-fill form when a BOQ item is selected
+  const applyBoqSelection = useCallback(
+    (id: string) => {
+      setForm((f) => ({ ...f, boq_ref: id }))
+      if (!id) return
+      const numId = Number(id)
+      if (activeCategory === 'MATERIAL') {
+        const item = boqBuilding.find((i) => i.id === numId)
+        if (item)
+          setForm((f) => ({
+            ...f,
+            boq_ref: id,
+            material_name: item.description,
+            unit: item.unit || '',
+            price_at_request: String(item.rate ?? '0'),
+            quantity_requested: String(item.quantity ?? '1'),
+          }))
+      } else if (activeCategory === 'LABOUR') {
+        const item = boqLabour.find((i) => i.id === numId)
+        if (item)
+          setForm((f) => ({
+            ...f,
+            boq_ref: id,
+            material_name: item.trade_role || item.phase || 'Labour',
+            unit: 'day',
+            price_at_request: String(item.daily_rate ?? '0'),
+            quantity_requested: String(item.total_man_days || '1'),
+          }))
+      } else if (activeCategory === 'PLANT') {
+        const item = boqPlant.find((i) => i.id === numId)
+        if (item)
+          setForm((f) => ({
+            ...f,
+            boq_ref: id,
+            material_name: item.machine_item || item.category || 'Plant',
+            unit: 'day',
+            price_at_request: String(item.daily_wet_rate ?? '0'),
+            quantity_requested: String(item.days_rqd || '1'),
+          }))
+      } else if (activeCategory === 'PROFESSIONAL') {
+        const item = boqProfessional.find((i) => i.id === numId)
+        if (item)
+          setForm((f) => ({
+            ...f,
+            boq_ref: id,
+            material_name: item.role_scope || item.discipline || 'Professional Fee',
+            unit: 'lump sum',
+            price_at_request: String(item.estimated_fee ?? '0'),
+            quantity_requested: '1',
+          }))
+      } else if (activeCategory === 'ADMIN') {
+        const item = boqAdmin.find((i) => i.id === numId)
+        if (item)
+          setForm((f) => ({
+            ...f,
+            boq_ref: id,
+            material_name: item.item_role || item.description || 'Admin Expense',
+            unit: 'trip',
+            price_at_request: String(item.rate ?? '0'),
+            quantity_requested: String(item.total_trips || '1'),
+          }))
+      }
+    },
+    [activeCategory, boqBuilding, boqLabour, boqPlant, boqProfessional, boqAdmin],
+  )
+
   const handleBoqRefChange = (id: string) => {
-    setForm(f => ({ ...f, boq_ref: id }))
-    if (!id) return
-    const numId = Number(id)
-    if (activeCategory === 'MATERIAL') {
-      const item = boqBuilding.find(i => i.id === numId)
-      if (item) setForm(f => ({ ...f, material_name: item.description, unit: item.unit || '', price_at_request: item.rate, quantity_requested: item.quantity }))
-    } else if (activeCategory === 'LABOUR') {
-      const item = boqLabour.find(i => i.id === numId)
-      if (item) setForm(f => ({ ...f, material_name: item.trade_role || item.phase || 'Labour', unit: 'day', price_at_request: item.daily_rate, quantity_requested: item.total_man_days || '1' }))
-    } else if (activeCategory === 'PLANT') {
-      const item = boqPlant.find(i => i.id === numId)
-      if (item) setForm(f => ({ ...f, material_name: item.machine_item || item.category || 'Plant', unit: 'day', price_at_request: item.daily_wet_rate, quantity_requested: item.days_rqd || '1' }))
-    } else if (activeCategory === 'PROFESSIONAL') {
-      const item = boqProfessional.find(i => i.id === numId)
-      if (item) setForm(f => ({ ...f, material_name: item.role_scope || item.discipline || 'Professional Fee', unit: 'lump sum', price_at_request: item.estimated_fee, quantity_requested: '1' }))
-    } else if (activeCategory === 'ADMIN') {
-      const item = boqAdmin.find(i => i.id === numId)
-      if (item) setForm(f => ({ ...f, material_name: item.item_role || item.description || 'Admin Expense', unit: 'trip', price_at_request: item.rate, quantity_requested: item.total_trips || '1' }))
-    }
+    applyBoqSelection(id)
   }
+
+  // Refs keep latest values without enlarging useEffect deps (avoids "dependency array changed size" + unstable navigate)
+  const applyBoqSelectionRef = useRef(applyBoqSelection)
+  applyBoqSelectionRef.current = applyBoqSelection
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
+  const boqForPrefillRef = useRef({
+    boqBuilding: [] as BOQBuildingItem[],
+    boqLabour: [] as BOQLabourCost[],
+    boqPlant: [] as BOQMachinePlant[],
+    boqProfessional: [] as BOQProfessionalFee[],
+    boqAdmin: [] as BOQAdminExpense[],
+  })
+  boqForPrefillRef.current = {
+    boqBuilding,
+    boqLabour,
+    boqPlant,
+    boqProfessional,
+    boqAdmin,
+  }
+
+  // From Construction Budget "Procure": open new request + fill from matching BOQ line
+  useEffect(() => {
+    if (!prefill) {
+      prefillConsumedRef.current = false
+      return
+    }
+    if (!selectedProject) return
+    // Wait until the active category matches the requested searchCategory (so default 'MATERIAL' doesn't consume prefill)
+    if (searchCategory && activeCategory !== searchCategory) return
+    // Wait for BOQ fetch to complete (avoid consuming prefill before lists are populated)
+    if (!boqLoadedRef.current || loadingBOQ) return
+    if (prefillConsumedRef.current) return
+
+    prefillConsumedRef.current = true
+    const { boqBuilding: bb, boqLabour: bl, boqPlant: bp, boqProfessional: bpf, boqAdmin: ba } =
+      boqForPrefillRef.current
+    const targetId = resolvePrefillBoqId(activeCategory, searchBoqId, bb, bl, bp, bpf, ba)
+    setShowForm(true)
+    if (targetId != null) {
+      applyBoqSelectionRef.current(String(targetId))
+    }
+
+    navigateRef.current({
+      to: '/builder/procurement',
+      search: {
+        projectId: selectedProject ?? undefined,
+        category: activeCategory,
+      },
+      replace: true,
+    })
+  }, [
+    prefill,
+    loadingBOQ,
+    activeCategory,
+    searchBoqId,
+    selectedProject,
+    searchCategory,
+  ])
+
+  // Bulk-create procurement requests for ALL signed-budget BOQ items
+  useEffect(() => {
+    if (!bulkPrefill || bulkConsumedRef.current) return
+    if (!selectedProject || !boqLoadedRef.current || loadingBOQ) return
+    if (!canProcure) return
+
+    bulkConsumedRef.current = true
+    setBulkCreating(true)
+    navigateRef.current({
+      to: '/builder/procurement',
+      search: { projectId: selectedProject ?? undefined, category: activeCategory },
+      replace: true,
+    })
+
+    const run = async () => {
+      try {
+        // Ensure we have the latest requests list for duplicate detection
+        let latestRequests = requests
+        try {
+          const res = await builderApi.getProjectMaterialRequests(selectedProject)
+          latestRequests = Array.isArray(res.data)
+            ? res.data
+            : (res.data as any).results || []
+        } catch { /* use what we have */ }
+
+        const { boqBuilding: bb, boqLabour: bl, boqPlant: bp, boqProfessional: bpf, boqAdmin: ba } =
+          boqForPrefillRef.current
+        const payloads = buildBulkPayloads(selectedProject, bb, bl, bp, bpf, ba, latestRequests)
+
+        if (payloads.length === 0) {
+          toast.info('All budget items already have procurement requests.')
+          return
+        }
+
+        setBulkProgress({ done: 0, total: payloads.length })
+        let created = 0
+        let failed = 0
+        const BATCH = 4
+        const failedPayloads: Array<{ category: ProcurementCategory; data: Record<string, unknown> }> = []
+        for (let i = 0; i < payloads.length; i += BATCH) {
+          const batch = payloads.slice(i, i + BATCH)
+          const results = await Promise.allSettled(
+            batch.map((p) => builderApi.createMaterialRequest(p.data)),
+          )
+          results.forEach((r, idx) => {
+            if (r.status === 'fulfilled') created++
+            else failedPayloads.push(batch[idx])
+          })
+          setBulkProgress({ done: created, total: payloads.length })
+        }
+
+        // One retry pass for transient auth races (401s) after refresh settles.
+        if (failedPayloads.length > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 250))
+          const retryResults = await Promise.allSettled(
+            failedPayloads.map((p) => builderApi.createMaterialRequest(p.data)),
+          )
+          retryResults.forEach((r) => {
+            if (r.status === 'fulfilled') created++
+            else failed++
+          })
+          setBulkProgress({ done: created + failed, total: payloads.length })
+        }
+
+        if (created > 0) {
+          toast.success(`Created ${created} procurement request${created > 1 ? 's' : ''} from signed budget.`)
+          requestsCacheRef.current.delete(selectedProject)
+          fetchRequests()
+        }
+        if (failed > 0) {
+          toast.error(`${failed} request${failed > 1 ? 's' : ''} failed to create.`)
+        }
+      } catch {
+        toast.error('Failed to create procurement requests. Please retry.')
+      } finally {
+        setBulkCreating(false)
+      }
+    }
+    run()
+  }, [bulkPrefill, selectedProject, loadingBOQ, canProcure, activeCategory, requests, fetchRequests])
 
   const currentBOQOptions = () => {
     if (activeCategory === 'MATERIAL') return boqBuilding.map(i => ({ id: i.id, label: i.description }))
@@ -187,6 +595,10 @@ function ProcurementPage() {
   }
 
   const handleSubmit = async () => {
+    if (!canProcure) {
+      toast.error('Sign the final construction budget before creating procurement requests.')
+      return
+    }
     if (!form.material_name || !form.quantity_requested || !selectedProject) {
       toast.error('Fill in all required fields')
       return
@@ -195,7 +607,7 @@ function ProcurementPage() {
     try {
       await builderApi.createMaterialRequest({
         project: selectedProject,
-        boq_item: activeCategory === 'MATERIAL' && form.boq_ref ? Number(form.boq_ref) : undefined,
+        boq_source_id: form.boq_ref ? Number(form.boq_ref) : undefined,
         procurement_category: activeCategory,
         material_name: form.material_name,
         quantity_requested: form.quantity_requested,
@@ -236,49 +648,101 @@ function ProcurementPage() {
       </Header>
 
       <Main>
-        <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
+        <div className="max-w-7xl mx-auto px-3 py-4 sm:p-4 md:p-8 space-y-4 sm:space-y-6">
           {/* Page Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">Procurement</h1>
-              <p className="text-sm text-slate-500 mt-1">Raise requests for materials, labour, plant, and services</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <select
-                value={selectedProject || ''}
-                onChange={e => setSelectedProject(Number(e.target.value))}
-                className="h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-60"
-              >
-                {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-              </select>
-              <Button
-                onClick={() => setShowForm(true)}
-                disabled={!selectedProject}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white h-10"
-              >
-                <Icon name="add" size={16} className="mr-1.5" />
-                New Request
-              </Button>
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Procurement</h1>
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">Raise requests for materials, labour, plant, and services</p>
+              </div>
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <select
+                  value={selectedProject || ''}
+                  onChange={e => setSelectedProject(Number(e.target.value))}
+                  className="h-9 sm:h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none flex-1 sm:flex-none sm:w-60 min-w-0"
+                >
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                </select>
+                {projectMeta && <ProjectModeBadge engagementTier={projectMeta.engagement_tier} size="sm" />}
+                <Button
+                  onClick={() => setShowForm(true)}
+                  disabled={!selectedProject || !canProcure}
+                  title={
+                    !canProcure && selectedProject
+                      ? 'Sign the final budget under Construction Budget first'
+                      : undefined
+                  }
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 sm:h-10 text-xs sm:text-sm"
+                >
+                  <Icon name="add" size={16} className="mr-1" />
+                  <span className="hidden xs:inline">New </span>Request
+                </Button>
+              </div>
             </div>
           </div>
 
+          {selectedProject && !loadingProjectMeta && !canProcure && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              <strong className="font-semibold">Signed final budget required.</strong>{' '}
+              Promote to final and sign under{' '}
+              <Link to="/builder/measurements" className="underline font-medium">
+                Construction Budget
+              </Link>
+              . Procurement pulls BOQ lines from that signed budget.
+            </div>
+          )}
+
+          {selectedProject && loadingProjectMeta && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 flex items-center gap-2">
+              <Icon name="progress_activity" size={18} className="animate-spin text-emerald-600" />
+              Syncing project and signed budget…
+            </div>
+          )}
+
+          {bulkCreating && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Icon name="progress_activity" size={18} className="animate-spin text-emerald-600" />
+                  <strong className="font-semibold">Creating procurement requests</strong>
+                </span>
+                {bulkProgress.total > 0 && (
+                  <span className="text-xs font-mono text-emerald-700">
+                    {bulkProgress.done} / {bulkProgress.total}
+                  </span>
+                )}
+              </div>
+              {bulkProgress.total > 0 && (
+                <div className="h-1.5 w-full bg-emerald-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-600 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Category Tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 sm:mx-0 sm:px-0 scrollbar-hide">
             {CATEGORIES.map(c => (
               <button
                 key={c.key}
                 onClick={() => { setActiveCategory(c.key); setShowForm(false) }}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all border',
+                  'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all border shrink-0',
                   activeCategory === c.key
-                    ? `bg-${c.color}-600 text-white border-${c.color}-600 shadow-sm`
+                    ? c.activeCls
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                 )}
               >
-                <Icon name={c.icon} size={16} />
-                {c.label}
+                <Icon name={c.icon} size={14} className="sm:hidden" />
+                <Icon name={c.icon} size={16} className="hidden sm:block" />
+                <span className="hidden sm:inline">{c.label}</span>
+                <span className="sm:hidden">{c.label.split(' ')[0]}</span>
                 <span className={cn(
-                  'text-xs px-1.5 py-0.5 rounded-full font-semibold',
+                  'text-[10px] sm:text-xs px-1.5 py-0.5 rounded-full font-semibold',
                   activeCategory === c.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
                 )}>
                   {requests.filter(r => r.procurement_category === c.key).length}
@@ -286,13 +750,33 @@ function ProcurementPage() {
               </button>
             ))}
           </div>
+          <style>{`.scrollbar-hide::-webkit-scrollbar{display:none}.scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}`}</style>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Main Table */}
             <div className="lg:col-span-2 space-y-4">
 
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Icon name={cat.icon} size={18} className="text-emerald-600 sm:hidden" />
+                  <Icon name={cat.icon} size={20} className="text-emerald-600 hidden sm:block" />
+                  <span className="hidden sm:inline">{cat.label}</span>
+                  <span className="sm:hidden">{cat.label.split(' ')[0]}</span>
+                </h2>
+                {isDIFY ? (
+                  <div className="text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center gap-1.5">
+                    <Icon name="info" size={14} className="text-slate-400" />
+                    <span>SQB manages procurement for DIFY projects</span>
+                  </div>
+                ) : (
+                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowForm(true)}>
+                    <Icon name="add" size={14} className="mr-1" /> New Request
+                  </Button>
+                )}
+              </div>
+
               {/* New Request Form */}
-              {showForm && (
+              {showForm && !isDIFY && (
                 <Card className="border-2 border-dashed border-emerald-200 bg-emerald-50/30">
                   <CardContent className="p-5 space-y-4">
                     <div className="flex items-center justify-between">
@@ -322,7 +806,7 @@ function ProcurementPage() {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-slate-600 mb-1">Description / Name *</label>
                         <input
@@ -409,58 +893,74 @@ function ProcurementPage() {
                 </Card>
               )}
 
-              {/* Requests Table */}
-              <Card>
-                <CardContent className="p-0">
-                  {refetching && <LoadingBar />}
-                  {loadingRequests ? (
-                    <table className="w-full text-left">
-                      <tbody><SkeletonRows /></tbody>
-                    </table>
-                  ) : categoryRequests.length === 0 ? (
-                    <div className="text-center py-12">
-                      <Icon name={cat.icon} size={36} className="text-slate-200 mx-auto mb-3" />
-                      <p className="text-sm font-medium text-slate-600">No {cat.label} requests yet</p>
-                      <p className="text-xs text-slate-400 mt-1 mb-4">Click "New Request" to raise a procurement request</p>
-                      <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>
-                        <Icon name="add" size={14} className="mr-1" /> New Request
-                      </Button>
+              {/* Requests Tiles */}
+              <style>{`@keyframes tileIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+              {refetching && <LoadingBar />}
+              {loadingRequests ? (
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="rounded-xl border border-slate-100 bg-white p-4 space-y-3 animate-pulse">
+                      <div className="flex justify-between"><div className="h-4 w-32 bg-slate-100 rounded" /><div className="h-5 w-16 bg-slate-100 rounded-full" /></div>
+                      <div className="flex gap-4"><div className="h-3 w-20 bg-slate-50 rounded" /><div className="h-3 w-20 bg-slate-50 rounded" /></div>
+                      <div className="flex justify-between pt-2 border-t border-slate-50"><div className="h-3 w-20 bg-slate-50 rounded" /><div className="h-4 w-16 bg-slate-100 rounded" /></div>
                     </div>
-                  ) : (
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="border-b border-slate-100 bg-slate-50">
-                          <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Description</th>
-                          <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-right">Qty</th>
-                          <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Unit</th>
-                          <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-right">Total</th>
-                          <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {categoryRequests.map(req => (
-                          <tr key={req.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                            <td className="px-4 py-3 text-sm font-medium text-slate-900">
-                              <p>{req.material_name}</p>
-                              {req.notes && <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{req.notes}</p>}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-slate-700 text-right">{parseFloat(req.quantity_requested).toLocaleString()}</td>
-                            <td className="px-4 py-3 text-xs text-slate-500">{req.unit || '—'}</td>
-                            <td className="px-4 py-3 text-sm font-semibold text-slate-800 text-right">
-                              {parseFloat(req.total_calculated_cost).toLocaleString()}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={cn('text-[10px] font-semibold px-2 py-1 rounded-full', STATUS_COLORS[req.status])}>
-                                {req.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </CardContent>
-              </Card>
+                  ))}
+                </div>
+              ) : categoryRequests.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
+                  <Icon name={cat.icon} size={36} className="text-slate-200 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-slate-600">No {cat.label} requests yet</p>
+                  <p className="text-xs text-slate-400 mt-1 mb-4">Click "New Request" to raise a procurement request</p>
+                  <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>
+                    <Icon name="add" size={14} className="mr-1" /> New Request
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                  {categoryRequests.map((req, idx) => (
+                    <div
+                      key={req.id}
+                      className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:shadow-lg hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-200"
+                      style={{ animation: `tileIn 0.35s ease-out ${idx * 50}ms both` }}
+                    >
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <p className="text-sm font-semibold text-slate-900 truncate flex-1">{req.material_name}</p>
+                        <span className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 uppercase tracking-wide', STATUS_COLORS[req.status])}>
+                          {req.status}
+                        </span>
+                      </div>
+                      {req.notes && <p className="text-[11px] text-slate-400 line-clamp-1 mb-2">{req.notes}</p>}
+
+                      {/* Meta row */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <Icon name="inventory_2" size={12} className="text-slate-400" />
+                          {parseFloat(req.quantity_requested).toLocaleString()} {req.unit || '—'}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Icon name="payments" size={12} className="text-slate-400" />
+                          {parseFloat(req.price_at_request).toLocaleString()}/{req.unit || 'unit'}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Icon name={req.procurement_method === 'SELF' ? 'foundation' : 'groups'} size={12} className="text-slate-400" />
+                          {req.procurement_method === 'SELF' ? 'Self' : 'Group Buy'}
+                        </span>
+                      </div>
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100">
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(req.created_at).toLocaleDateString()}
+                        </span>
+                        <span className="text-sm font-bold text-slate-900">
+                          ${parseFloat(req.total_calculated_cost).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Sidebar — Summary */}

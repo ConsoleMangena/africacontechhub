@@ -65,6 +65,14 @@ class Project(TimeStampedModel):
     def __str__(self):
         return self.title
 
+    def preliminary_budget_version(self):
+        """Working budget (corrections)."""
+        return self.budget_versions.filter(kind='PRELIMINARY').first()
+
+    def final_budget_version(self):
+        """Signed-off budget snapshot."""
+        return self.budget_versions.filter(kind='FINAL').first()
+
 class SiteUpdate(TimeStampedModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='site_updates')
     description = models.TextField()
@@ -189,8 +197,56 @@ class SiteCamera(TimeStampedModel):
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 
+
+class ProjectBudgetVersion(TimeStampedModel):
+    """One preliminary (working) and one final (signed) budget per project."""
+
+    class Kind(models.TextChoices):
+        PRELIMINARY = "PRELIMINARY", "Preliminary"
+        FINAL = "FINAL", "Final"
+
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="budget_versions"
+    )
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    signed_at = models.DateTimeField(null=True, blank=True)
+    signed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="signed_budget_versions",
+    )
+    author_signature = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Signer display name at time of signing",
+    )
+    signature_image = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Snapshot of profile digital signature (data URL) at sign time",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "kind"],
+                name="uniq_builder_project_budgetversion_kind",
+            )
+        ]
+        ordering = ["project_id", "kind"]
+
+    def __str__(self):
+        return f"{self.project_id} {self.kind}"
+
+
 class BOQBuildingItem(TimeStampedModel):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='building_items')
+    budget_version = models.ForeignKey(
+        ProjectBudgetVersion,
+        on_delete=models.CASCADE,
+        related_name="building_items",
+    )
     bill_no = models.CharField(max_length=50, blank=True, null=True)
     description = models.TextField(blank=True, default='')
     specification = models.TextField(blank=True, null=True, help_text="Material specification details")
@@ -211,7 +267,11 @@ class BOQBuildingItem(TimeStampedModel):
         return f"{self.bill_no} - {self.amount}"
 
 class BOQProfessionalFee(TimeStampedModel):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='professional_fees')
+    budget_version = models.ForeignKey(
+        ProjectBudgetVersion,
+        on_delete=models.CASCADE,
+        related_name="professional_fees",
+    )
     discipline = models.CharField(max_length=255, blank=True, null=True)
     role_scope = models.TextField(blank=True, null=True)
     basis = models.CharField(max_length=255, blank=True, null=True)
@@ -220,7 +280,11 @@ class BOQProfessionalFee(TimeStampedModel):
     is_ai_generated = models.BooleanField(default=False)
 
 class BOQAdminExpense(TimeStampedModel):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='admin_expenses')
+    budget_version = models.ForeignKey(
+        ProjectBudgetVersion,
+        on_delete=models.CASCADE,
+        related_name="admin_expenses",
+    )
     item_role = models.CharField(max_length=255, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     trips_per_week = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -231,7 +295,11 @@ class BOQAdminExpense(TimeStampedModel):
     is_ai_generated = models.BooleanField(default=False)
 
 class BOQLabourCost(TimeStampedModel):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='labour_costs')
+    budget_version = models.ForeignKey(
+        ProjectBudgetVersion,
+        on_delete=models.CASCADE,
+        related_name="labour_costs",
+    )
     phase = models.CharField(max_length=255, blank=True, null=True)
     trade_role = models.CharField(max_length=255, blank=True, null=True)
     skill_level = models.CharField(max_length=100, blank=True, null=True)
@@ -244,7 +312,11 @@ class BOQLabourCost(TimeStampedModel):
     is_ai_generated = models.BooleanField(default=False)
 
 class BOQMachinePlant(TimeStampedModel):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='machine_plants')
+    budget_version = models.ForeignKey(
+        ProjectBudgetVersion,
+        on_delete=models.CASCADE,
+        related_name="machine_plants",
+    )
     category = models.CharField(max_length=255, blank=True, null=True)
     machine_item = models.CharField(max_length=255, blank=True, null=True)
     qty = models.DecimalField(max_digits=10, decimal_places=2, default=1)
@@ -259,7 +331,11 @@ class BOQMachinePlant(TimeStampedModel):
     is_ai_generated = models.BooleanField(default=False)
 
 class BOQLabourBreakdown(TimeStampedModel):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='labour_breakdowns')
+    budget_version = models.ForeignKey(
+        ProjectBudgetVersion,
+        on_delete=models.CASCADE,
+        related_name="labour_breakdowns",
+    )
     phase = models.CharField(max_length=255, blank=True, null=True)
     trade_role = models.CharField(max_length=255, blank=True, null=True)
     skill_level = models.CharField(max_length=100, blank=True, null=True)
@@ -271,7 +347,11 @@ class BOQLabourBreakdown(TimeStampedModel):
     is_ai_generated = models.BooleanField(default=False)
 
 class BOQScheduleTask(TimeStampedModel):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='schedule_tasks')
+    budget_version = models.ForeignKey(
+        ProjectBudgetVersion,
+        on_delete=models.CASCADE,
+        related_name="schedule_tasks",
+    )
     wbs = models.CharField(max_length=50, blank=True, null=True)
     task_description = models.CharField(max_length=255, blank=True, null=True)
     start_date = models.CharField(max_length=50, blank=True, null=True)
@@ -291,7 +371,11 @@ class ScheduleOfMaterial(TimeStampedModel):
         ('PLUMBING', 'Plumbing & Drainage'),
         ('ELECTRICAL_SOLAR', 'Electrical & Solar Off-Grid'),
     ]
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='schedule_materials')
+    budget_version = models.ForeignKey(
+        ProjectBudgetVersion,
+        on_delete=models.CASCADE,
+        related_name="schedule_materials",
+    )
     section = models.CharField(max_length=50, choices=SECTION_CHOICES)
     material_description = models.CharField(max_length=255)
     specification = models.TextField(blank=True, null=True, help_text="Detailed material specification")
@@ -456,3 +540,106 @@ class ProjectTeam(TimeStampedModel):
 
     def __str__(self):
         return f"{self.user.username} as {self.role} for {self.project.title}"
+
+
+class ProjectMilestone(TimeStampedModel):
+    """Project milestones for tracking progress"""
+    CATEGORY_CHOICES = [
+        ('design', 'Design'),
+        ('budget', 'Budget'),
+        ('procurement', 'Procurement'),
+        ('construction', 'Construction'),
+        ('other', 'Other'),
+    ]
+    
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='milestones')
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
+    target_date = models.DateField()
+    completed = models.BooleanField(default=False)
+    completed_date = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['target_date', 'created_at']
+    
+    def __str__(self):
+        return f"{self.project.title} - {self.name}"
+
+
+class ProjectActivity(TimeStampedModel):
+    """Activity log for project events"""
+    TYPE_CHOICES = [
+        ('team', 'Team'),
+        ('budget', 'Budget'),
+        ('procurement', 'Procurement'),
+        ('design', 'Design'),
+        ('status', 'Status'),
+        ('document', 'Document'),
+        ('general', 'General'),
+    ]
+    
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='activities')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='project_activities')
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='general')
+    action = models.CharField(max_length=255)
+    description = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name_plural = 'Project activities'
+    
+    def __str__(self):
+        return f"{self.project.title} - {self.action}"
+
+
+class UserNotification(TimeStampedModel):
+    """User notifications for project updates"""
+    TYPE_CHOICES = [
+        ('team', 'Team'),
+        ('budget', 'Budget'),
+        ('procurement', 'Procurement'),
+        ('design', 'Design'),
+        ('status', 'Status'),
+        ('general', 'General'),
+    ]
+    
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, blank=True, related_name='notifications')
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='general')
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    read = models.BooleanField(default=False)
+    action_url = models.CharField(max_length=500, blank=True, null=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.title}"
+
+
+class ProjectDocument(TimeStampedModel):
+    """Project documents storage"""
+    TYPE_CHOICES = [
+        ('contract', 'Contract'),
+        ('permit', 'Permit'),
+        ('invoice', 'Invoice'),
+        ('insurance', 'Insurance'),
+        ('warranty', 'Warranty'),
+        ('other', 'Other'),
+    ]
+    
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='documents')
+    name = models.CharField(max_length=255)
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='other')
+    file = models.FileField(upload_to='project_documents/%Y/%m/')
+    file_size = models.BigIntegerField(help_text="File size in bytes")
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='uploaded_documents')
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.project.title} - {self.name}"

@@ -59,28 +59,21 @@ function ProjectProcurementPage() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     boq_ref: '',
+    material_name: '',
+    quantity_requested: '1',
     unit: '',
     procurement_method: 'SELF' as 'SELF' | 'GROUP_BUY',
     notes: '',
   })
 
-  const loadProject = async () => {
-    try {
-      const res = await builderApi.getProject(pid)
-      setProject(res.data)
-    } catch {
-      toast.error('Failed to load project details')
-    }
-  }
-
-  const loadBOQData = async () => {
+  const loadBOQDataSignedFinal = async () => {
     try {
       const [b, l, p, pf, a] = await Promise.all([
-        builderApi.getProjectBOQBuildingItems(pid),
-        builderApi.getProjectBOQLabourCosts(pid),
-        builderApi.getProjectBOQMachinePlants(pid),
-        builderApi.getProjectBOQProfessionalFees(pid),
-        builderApi.getProjectBOQAdminExpenses(pid),
+        builderApi.getProjectBOQBuildingItems(pid, 'final'),
+        builderApi.getProjectBOQLabourCosts(pid, 'final'),
+        builderApi.getProjectBOQMachinePlants(pid, 'final'),
+        builderApi.getProjectBOQProfessionalFees(pid, 'final'),
+        builderApi.getProjectBOQAdminExpenses(pid, 'final'),
       ])
       const extract = (r: any) => Array.isArray(r.data) ? r.data : (r.data as any).results || []
       setBoqBuilding(extract(b))
@@ -109,8 +102,24 @@ function ProjectProcurementPage() {
   useEffect(() => {
     const init = async () => {
       setLoading(true)
-      await Promise.all([loadProject(), loadBOQData(), fetchRequests()])
-      setLoading(false)
+      try {
+        const pres = await builderApi.getProject(pid)
+        setProject(pres.data)
+        await fetchRequests()
+        if (pres.data.is_budget_signed) {
+          await loadBOQDataSignedFinal()
+        } else {
+          setBoqBuilding([])
+          setBoqLabour([])
+          setBoqPlant([])
+          setBoqProfessional([])
+          setBoqAdmin([])
+        }
+      } catch {
+        toast.error('Failed to load project')
+      } finally {
+        setLoading(false)
+      }
     }
     init()
   }, [pid])
@@ -137,16 +146,26 @@ function ProjectProcurementPage() {
     }
   }
 
+  const canProcure = Boolean(project?.is_budget_signed)
+
+  useEffect(() => {
+    if (!canProcure) setShowForm(false)
+  }, [canProcure])
+
   const handleSubmit = async () => {
+    if (!canProcure) {
+      toast.error('Sign the final construction budget before creating procurement requests.')
+      return
+    }
     if (!form.material_name || !form.quantity_requested) return
     setSaving(true)
     try {
-      const boqItemRef = activeCategory === 'MATERIAL' && form.boq_ref ? Number(form.boq_ref) : undefined
-      
+      const boqItemRef = form.boq_ref ? Number(form.boq_ref) : undefined
+
       await builderApi.createMaterialRequest({
         project: pid,
         procurement_category: activeCategory,
-        boq_item: boqItemRef,
+        boq_source_id: boqItemRef,
         material_name: form.material_name,
         quantity_requested: form.quantity_requested,
         unit: form.unit,
@@ -155,7 +174,14 @@ function ProjectProcurementPage() {
         price_at_request: '0',
       } as any)
       
-      setForm({ boq_ref: '', material_name: '', quantity_requested: '1', unit: '', procurement_method: 'SELF', notes: '' })
+      setForm({
+        boq_ref: '',
+        material_name: '',
+        quantity_requested: '1',
+        unit: '',
+        procurement_method: 'SELF',
+        notes: '',
+      })
       setShowForm(false)
       toast.success('Procurement request created')
       fetchRequests()
@@ -201,11 +227,28 @@ function ProjectProcurementPage() {
                 <p className="text-xs text-slate-500 mt-0.5">Manage material, labour, and equipment requests</p>
               </div>
             </div>
-            <Button onClick={() => setShowForm(true)} size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+            <Button
+              onClick={() => setShowForm(true)}
+              size="sm"
+              disabled={!canProcure}
+              title={!canProcure ? 'Sign the final budget under Construction Budget first' : undefined}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
               <Icon name="add" size={14} className="mr-1.5" />
               New Request
             </Button>
           </div>
+
+          {!canProcure && project && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              <strong className="font-semibold">Signed final budget required.</strong>{' '}
+              Go to{' '}
+              <Link to="/builder/measurements" className="underline font-medium">
+                Construction Budget
+              </Link>
+              , promote to final, and sign before raising procurement requests.
+            </div>
+          )}
 
           {/* Category Tabs */}
           <div className="flex gap-2 border-b border-slate-100 pb-px overflow-x-auto">

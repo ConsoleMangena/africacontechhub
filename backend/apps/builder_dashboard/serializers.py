@@ -5,7 +5,8 @@ from .models import (
     BOQBuildingItem, BOQProfessionalFee, BOQAdminExpense,
     BOQLabourCost, BOQMachinePlant, BOQLabourBreakdown, BOQScheduleTask,
     MaterialRequest, DrawingRequest, DrawingFile, ProjectTeam,
-    BOQCorrection, ScheduleOfMaterial
+    BOQCorrection, ScheduleOfMaterial, ProjectBudgetVersion,
+    ProjectMilestone, ProjectActivity, UserNotification, ProjectDocument,
 )
 from apps.authentication.models import Profile
 
@@ -135,52 +136,79 @@ class SiteCameraSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_at', 'updated_at')
 
 class BOQBuildingItemSerializer(serializers.ModelSerializer):
+    project = serializers.IntegerField(source='budget_version.project_id', read_only=True)
+
     class Meta:
         model = BOQBuildingItem
         fields = '__all__'
-        read_only_fields = ('amount', 'created_at', 'updated_at')
+        read_only_fields = ('amount', 'created_at', 'updated_at', 'budget_version')
 
 class BOQProfessionalFeeSerializer(serializers.ModelSerializer):
+    project = serializers.IntegerField(source='budget_version.project_id', read_only=True)
+
     class Meta:
         model = BOQProfessionalFee
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        read_only_fields = ('created_at', 'updated_at', 'budget_version')
 
 class BOQAdminExpenseSerializer(serializers.ModelSerializer):
+    project = serializers.IntegerField(source='budget_version.project_id', read_only=True)
+
     class Meta:
         model = BOQAdminExpense
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        read_only_fields = ('created_at', 'updated_at', 'budget_version')
 
 class BOQLabourCostSerializer(serializers.ModelSerializer):
+    project = serializers.IntegerField(source='budget_version.project_id', read_only=True)
+
     class Meta:
         model = BOQLabourCost
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        read_only_fields = ('created_at', 'updated_at', 'budget_version')
 
 class BOQMachinePlantSerializer(serializers.ModelSerializer):
+    project = serializers.IntegerField(source='budget_version.project_id', read_only=True)
+
     class Meta:
         model = BOQMachinePlant
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        read_only_fields = ('created_at', 'updated_at', 'budget_version')
 
 class BOQLabourBreakdownSerializer(serializers.ModelSerializer):
+    project = serializers.IntegerField(source='budget_version.project_id', read_only=True)
+
     class Meta:
         model = BOQLabourBreakdown
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        read_only_fields = ('created_at', 'updated_at', 'budget_version')
 
 class BOQScheduleTaskSerializer(serializers.ModelSerializer):
+    project = serializers.IntegerField(source='budget_version.project_id', read_only=True)
+
     class Meta:
         model = BOQScheduleTask
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        read_only_fields = ('created_at', 'updated_at', 'budget_version')
 
 class ScheduleOfMaterialSerializer(serializers.ModelSerializer):
+    project = serializers.IntegerField(source='budget_version.project_id', read_only=True)
+
     class Meta:
         model = ScheduleOfMaterial
         fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        read_only_fields = ('created_at', 'updated_at', 'budget_version')
+
+
+class ProjectBudgetVersionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectBudgetVersion
+        fields = (
+            'id', 'project', 'kind', 'signed_at', 'signed_by', 'author_signature',
+            'signature_image',
+            'created_at', 'updated_at',
+        )
+        read_only_fields = ('signed_at', 'signed_by', 'created_at', 'updated_at')
 
 class BOQCorrectionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -192,7 +220,10 @@ class MaterialRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = MaterialRequest
         fields = '__all__'
-        read_only_fields = ('total_calculated_cost', 'created_at', 'updated_at')
+        read_only_fields = (
+            'boq_item', 'content_type', 'object_id',
+            'total_calculated_cost', 'created_at', 'updated_at',
+        )
 
 class DrawingFileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -207,3 +238,35 @@ class DrawingRequestSerializer(serializers.ModelSerializer):
         model = DrawingRequest
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
+
+
+class ProjectMilestoneSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectMilestone
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+
+class ProjectActivitySerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    
+    class Meta:
+        model = ProjectActivity
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+
+class UserNotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserNotification
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+
+class ProjectDocumentSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = ProjectDocument
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'file_size')

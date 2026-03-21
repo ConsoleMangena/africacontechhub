@@ -2,7 +2,7 @@ import os, django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
-from apps.builder_dashboard.models import Project, BOQBuildingItem, BOQLabourCost, BOQProfessionalFee
+from apps.builder_dashboard.models import Project
 
 def dedupe(qs, attr_keys):
     seen = set()
@@ -20,12 +20,15 @@ def dedupe(qs, attr_keys):
 
 for p in Project.objects.all():
     print(f"Checking Project: {p.title}")
-    dedupe(p.building_items.all(), ['bill_no', 'description'])
-    dedupe(p.professional_fees.all(), ['discipline', 'role_scope'])
-    dedupe(p.admin_expenses.all(), ['item_role', 'description'])
-    dedupe(p.labour_costs.all(), ['phase', 'trade_role'])
-    dedupe(p.machine_plants.all(), ['category', 'machine_item'])
-    dedupe(p.labour_breakdowns.all(), ['phase', 'trade_role'])
-    dedupe(p.schedule_tasks.all(), ['wbs', 'task_description'])
-    dedupe(p.schedule_materials.all(), ['section', 'material_description'])
+    pv = p.preliminary_budget_version()
+    if not pv:
+        continue
+    dedupe(pv.building_items.all(), ['bill_no', 'description'])
+    dedupe(pv.professional_fees.all(), ['discipline', 'role_scope'])
+    dedupe(pv.admin_expenses.all(), ['item_role', 'description'])
+    dedupe(pv.labour_costs.all(), ['phase', 'trade_role'])
+    dedupe(pv.machine_plants.all(), ['category', 'machine_item'])
+    dedupe(pv.labour_breakdowns.all(), ['phase', 'trade_role'])
+    dedupe(pv.schedule_tasks.all(), ['wbs', 'task_description'])
+    dedupe(pv.schedule_materials.all(), ['section', 'material_description'])
 
