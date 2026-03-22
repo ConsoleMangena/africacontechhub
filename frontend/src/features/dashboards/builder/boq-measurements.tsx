@@ -233,7 +233,7 @@ export default function BOQMeasurements() {
     const canOpenProcurement = Boolean(selectedProject && isFinalLocked);
 
     return (
-        <div className="max-w-7xl mx-auto px-3 py-4 sm:p-4 md:p-8 space-y-4 sm:space-y-6">
+        <div className="w-full px-3 py-4 sm:p-4 md:p-8 space-y-4 sm:space-y-6">
             <div className="flex flex-col gap-3 sm:gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Project Budget</h1>

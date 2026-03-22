@@ -19,15 +19,8 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog'
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { useNavigate } from '@tanstack/react-router'
 
 
 const ROLE_LABELS: Record<string, string> = {
@@ -44,14 +37,15 @@ function getInitials(first?: string, last?: string, email?: string): string {
     return '?'
 }
 
-function timeAgo(dateStr: string): string {
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const days = Math.floor(diff / 86400000)
-    if (days === 0) return 'Today'
-    if (days === 1) return 'Yesterday'
-    if (days < 30) return `${days}d ago`
-    if (days < 365) return `${Math.floor(days / 30)}mo ago`
-    return `${Math.floor(days / 365)}y ago`
+function formatDate(dateStr?: string): string {
+    if (!dateStr) return '-'
+    const d = new Date(dateStr)
+    if (Number.isNaN(d.getTime())) return '-'
+    return new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+    }).format(d)
 }
 
 const AVATAR_COLORS = [
@@ -60,12 +54,17 @@ const AVATAR_COLORS = [
 ]
 
 export function UserManagement() {
+    const navigate = useNavigate()
     const [users, setUsers] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState<string | null>(null)
-    const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null)
     const [search, setSearch] = useState('')
     const [roleFilter, setRoleFilter] = useState<string>('ALL')
+    const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED'>('ALL')
+    const [joinedFrom, setJoinedFrom] = useState('')
+    const [joinedTo, setJoinedTo] = useState('')
+    const [page, setPage] = useState(1)
+    const [pageSize, setPageSize] = useState<'10' | '25' | '50'>('25')
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [newUser, setNewUser] = useState({
         email: '',
@@ -98,6 +97,21 @@ export function UserManagement() {
         if (roleFilter !== 'ALL') {
             result = result.filter(u => u.role === roleFilter)
         }
+        if (statusFilter !== 'ALL') {
+            const shouldBeActive = statusFilter === 'ACTIVE'
+            result = result.filter(u => !!u.is_active === shouldBeActive)
+        }
+        const fromDate = joinedFrom ? new Date(`${joinedFrom}T00:00:00`) : null
+        const toDate = joinedTo ? new Date(`${joinedTo}T23:59:59`) : null
+        if (fromDate || toDate) {
+            result = result.filter(u => {
+                const d = u.date_joined ? new Date(u.date_joined) : null
+                if (!d || Number.isNaN(d.getTime())) return false
+                if (fromDate && d < fromDate) return false
+                if (toDate && d > toDate) return false
+                return true
+            })
+        }
         if (search.trim()) {
             const q = search.toLowerCase()
             result = result.filter(u =>
@@ -107,7 +121,23 @@ export function UserManagement() {
             )
         }
         return result
-    }, [users, search, roleFilter])
+    }, [users, search, roleFilter, statusFilter, joinedFrom, joinedTo])
+
+    useEffect(() => {
+        // Reset to first page when filters change.
+        setPage(1)
+    }, [search, roleFilter, statusFilter, joinedFrom, joinedTo, users.length])
+
+    const pagination = useMemo(() => {
+        const size = Number(pageSize)
+        const total = filteredUsers.length
+        const totalPages = Math.max(1, Math.ceil(total / size))
+        const safePage = Math.min(Math.max(1, page), totalPages)
+        const startIdx = (safePage - 1) * size
+        const endIdx = Math.min(total, startIdx + size)
+        const items = filteredUsers.slice(startIdx, endIdx)
+        return { size, total, totalPages, page: safePage, startIdx, endIdx, items }
+    }, [filteredUsers, page, pageSize])
 
     const handleRoleChange = async (userId: number, newRole: string) => {
         setActionLoading(`role-${userId}`)
@@ -134,22 +164,6 @@ export function UserManagement() {
             toast.error('Failed to update status')
         } finally {
             setActionLoading(null)
-        }
-    }
-
-    const handleDelete = async () => {
-        if (!deleteTarget) return
-        setActionLoading(`delete-${deleteTarget.id}`)
-        try {
-            await adminApi.deleteUser(deleteTarget.id)
-            toast.success('User deleted successfully')
-            await fetchUsers()
-        } catch (error) {
-            console.error("Failed to delete user", error)
-            toast.error('Failed to delete user')
-        } finally {
-            setActionLoading(null)
-            setDeleteTarget(null)
         }
     }
 
@@ -203,8 +217,8 @@ export function UserManagement() {
     return (
         <>
             {/* Search & Filter Bar */}
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 mb-4">
-                <div className="relative flex-1">
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+                <div className="relative flex-1 min-w-[220px]">
                     <Icon name="search" className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
                     <Input
                         placeholder="Search by name or email..."
@@ -213,119 +227,151 @@ export function UserManagement() {
                         className="pl-9 h-9 text-xs sm:text-sm bg-muted/30 border-border/50 focus-visible:bg-white"
                     />
                 </div>
-                <div className="flex items-center gap-2">
-                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="h-9 gap-2 px-3 border-border/60 hover:bg-muted/50 hover:text-indigo-600 font-bold transition-all shadow-none">
-                                <Icon name="add_circle" className="h-4 w-4" />
-                                <span className="hidden sm:inline">Add User</span>
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
-                            <form onSubmit={handleCreateUser}>
-                                <DialogHeader>
-                                    <DialogTitle>Create New User</DialogTitle>
-                                    <DialogDescription>
-                                        Add a new member to the SQB platform.
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <div className="grid gap-4 py-4">
+
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                    <SelectTrigger className="h-9 w-full sm:w-[150px] text-[11px] font-bold border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors">
+                        <SelectValue placeholder="All Roles" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="ALL">All Roles</SelectItem>
+                        <SelectItem value="ADMIN">Administrators</SelectItem>
+                        <SelectItem value="BUILDER">Builders</SelectItem>
+                        <SelectItem value="CONTRACTOR">Contractors</SelectItem>
+                        <SelectItem value="SUPPLIER">Suppliers</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+                    <SelectTrigger className="h-9 w-full sm:w-[160px] text-[11px] font-bold border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors">
+                        <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="ALL">All statuses</SelectItem>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                <Input type="date" value={joinedFrom} onChange={(e) => setJoinedFrom(e.target.value)} className="h-9 text-xs w-full sm:w-[160px]" />
+                <Input type="date" value={joinedTo} onChange={(e) => setJoinedTo(e.target.value)} className="h-9 text-xs w-full sm:w-[160px]" />
+
+                {(search || roleFilter !== 'ALL' || statusFilter !== 'ALL' || joinedFrom || joinedTo) && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 text-[11px] font-bold"
+                        onClick={() => {
+                            setSearch('')
+                            setRoleFilter('ALL')
+                            setStatusFilter('ALL')
+                            setJoinedFrom('')
+                            setJoinedTo('')
+                        }}
+                    >
+                        <Icon name="close" className="h-4 w-4 mr-1.5" />
+                        Clear
+                    </Button>
+                )}
+
+                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-9 gap-2 px-3 border-border/60 hover:bg-muted/50 hover:text-indigo-600 font-bold transition-all shadow-none">
+                            <Icon name="add_circle" className="h-4 w-4" />
+                            <span className="hidden sm:inline">Add User</span>
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <form onSubmit={handleCreateUser}>
+                            <DialogHeader>
+                                <DialogTitle>Create New User</DialogTitle>
+                                <DialogDescription>
+                                    Add a new member to the SQB platform.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="email" className="text-xs">Email Address</Label>
+                                    <Input
+                                        id="email"
+                                        type="email"
+                                        placeholder="user@example.com"
+                                        value={newUser.email}
+                                        onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                                        className="h-9 text-sm"
+                                        required
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
                                     <div className="grid gap-2">
-                                        <Label htmlFor="email" className="text-xs">Email Address</Label>
+                                        <Label htmlFor="first_name" className="text-xs">First Name</Label>
                                         <Input
-                                            id="email"
-                                            type="email"
-                                            placeholder="user@example.com"
-                                            value={newUser.email}
-                                            onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                                            id="first_name"
+                                            placeholder="John"
+                                            value={newUser.first_name}
+                                            onChange={e => setNewUser({ ...newUser, first_name: e.target.value })}
                                             className="h-9 text-sm"
-                                            required
                                         />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="first_name" className="text-xs">First Name</Label>
-                                            <Input
-                                                id="first_name"
-                                                placeholder="John"
-                                                value={newUser.first_name}
-                                                onChange={e => setNewUser({ ...newUser, first_name: e.target.value })}
-                                                className="h-9 text-sm"
-                                            />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="last_name" className="text-xs">Last Name</Label>
-                                            <Input
-                                                id="last_name"
-                                                placeholder="Doe"
-                                                value={newUser.last_name}
-                                                onChange={e => setNewUser({ ...newUser, last_name: e.target.value })}
-                                                className="h-9 text-sm"
-                                            />
-                                        </div>
-                                    </div>
                                     <div className="grid gap-2">
-                                        <Label htmlFor="role" className="text-xs">Initial Role</Label>
-                                        <Select
-                                            value={newUser.role}
-                                            onValueChange={val => setNewUser({ ...newUser, role: val })}
-                                        >
-                                            <SelectTrigger className="h-9 text-sm">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="BUILDER">Builder</SelectItem>
-                                                <SelectItem value="CONTRACTOR">Contractor</SelectItem>
-                                                <SelectItem value="SUPPLIER">Supplier</SelectItem>
-                                                <SelectItem value="ADMIN">Administrator</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="pass" className="text-xs">Password (Optional)</Label>
+                                        <Label htmlFor="last_name" className="text-xs">Last Name</Label>
                                         <Input
-                                            id="pass"
-                                            type="password"
-                                            placeholder="Leave empty for random"
-                                            value={newUser.password}
-                                            onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                                            id="last_name"
+                                            placeholder="Doe"
+                                            value={newUser.last_name}
+                                            onChange={e => setNewUser({ ...newUser, last_name: e.target.value })}
                                             className="h-9 text-sm"
                                         />
                                     </div>
                                 </div>
-                                <DialogFooter>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => setIsCreateOpen(false)}>
-                                        Cancel
-                                    </Button>
-                                    <Button type="submit" size="sm" className="bg-indigo-600 hover:bg-indigo-700" disabled={actionLoading === 'create'}>
-                                        {actionLoading === 'create' ? <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                                        Create Account
-                                    </Button>
-                                </DialogFooter>
-                            </form>
-                        </DialogContent>
-                    </Dialog>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="role" className="text-xs">Initial Role</Label>
+                                    <Select
+                                        value={newUser.role}
+                                        onValueChange={val => setNewUser({ ...newUser, role: val })}
+                                    >
+                                        <SelectTrigger className="h-9 text-sm">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="BUILDER">Builder</SelectItem>
+                                            <SelectItem value="CONTRACTOR">Contractor</SelectItem>
+                                            <SelectItem value="SUPPLIER">Supplier</SelectItem>
+                                            <SelectItem value="ADMIN">Administrator</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="pass" className="text-xs">Password (Optional)</Label>
+                                    <Input
+                                        id="pass"
+                                        type="password"
+                                        placeholder="Leave empty for random"
+                                        value={newUser.password}
+                                        onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                                        className="h-9 text-sm"
+                                    />
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button type="button" variant="outline" size="sm" onClick={() => setIsCreateOpen(false)}>
+                                    Cancel
+                                </Button>
+                                <Button type="submit" size="sm" className="bg-indigo-600 hover:bg-indigo-700" disabled={actionLoading === 'create'}>
+                                    {actionLoading === 'create' ? <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                                    Create Account
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
 
-                    <Select value={roleFilter} onValueChange={setRoleFilter}>
-                        <SelectTrigger className="h-9 flex-1 lg:w-[150px] text-[11px] font-bold border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors">
-                            <SelectValue placeholder="All Roles" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="ALL">All Roles</SelectItem>
-                            <SelectItem value="ADMIN">Administrators</SelectItem>
-                            <SelectItem value="BUILDER">Builders</SelectItem>
-                            <SelectItem value="CONTRACTOR">Contractors</SelectItem>
-                            <SelectItem value="SUPPLIER">Suppliers</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <div className="flex items-center gap-2 shrink-0 bg-muted/20 px-2 py-1 rounded-md border border-border/40">
-                        <span className="text-[10px] sm:text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
-                            {filteredUsers.length} Users
-                        </span>
-                        <Button variant="ghost" size="icon" onClick={() => fetchUsers()} className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Refresh">
-                            <Icon name="refresh" className="h-3.5 w-3.5" />
-                        </Button>
-                    </div>
+                <div className="flex items-center gap-2 shrink-0 bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                    <span className="text-[10px] sm:text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
+                        {pagination.total} Users
+                    </span>
+                    <Button variant="ghost" size="icon" onClick={() => fetchUsers()} className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Refresh">
+                        <Icon name="refresh" className="h-3.5 w-3.5" />
+                    </Button>
                 </div>
             </div>
 
@@ -334,27 +380,30 @@ export function UserManagement() {
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
-                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground min-w-[200px]">User</TableHead>
-                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground min-w-[120px]">Role</TableHead>
-                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground min-w-[100px]">Status</TableHead>
-                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hidden lg:table-cell">Joined</TableHead>
-                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right w-[50px]"></TableHead>
+                            <TableHead className="h-11 px-4 py-2 align-middle text-[11px] font-semibold uppercase tracking-wider text-muted-foreground min-w-[240px]">Name</TableHead>
+                            <TableHead className="h-11 px-4 py-2 align-middle text-[11px] font-semibold uppercase tracking-wider text-muted-foreground min-w-[260px]">Email</TableHead>
+                            <TableHead className="h-11 px-4 py-2 align-middle text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-[160px]">Role</TableHead>
+                            <TableHead className="h-11 px-4 py-2 align-middle text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-[140px]">Status</TableHead>
+                            <TableHead className="h-11 px-4 py-2 align-middle text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hidden lg:table-cell w-[150px]">Joined</TableHead>
+                            <TableHead className="h-11 px-4 py-2 align-middle text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-[190px]">
+                                <div className="flex justify-end">Actions</div>
+                            </TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredUsers.length === 0 ? (
+                        {pagination.total === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                                     <Icon name="search_off" className="h-6 w-6 mx-auto mb-1.5 opacity-40" />
                                     <p className="text-xs font-medium">No users match your search</p>
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            filteredUsers.map((user) => {
+                            pagination.items.map((user) => {
                                 const avatarColor = AVATAR_COLORS[user.id % AVATAR_COLORS.length]
                                 return (
                                     <TableRow key={user.id} className="hover:bg-muted/20 group">
-                                        <TableCell>
+                                        <TableCell className="px-4 py-3 align-middle">
                                             <div className="flex items-center gap-3">
                                                 <div className={`h-7 w-7 rounded-full ${avatarColor} flex items-center justify-center text-white text-[10px] font-bold shrink-0`}>
                                                     {getInitials(user.first_name, user.last_name, user.email)}
@@ -370,18 +419,22 @@ export function UserManagement() {
                                                             </Badge>
                                                         )}
                                                     </p>
-                                                    <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
                                                 </div>
                                             </div>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="px-4 py-3 align-middle">
+                                            <p className="text-[12px] text-muted-foreground truncate" title={user.email}>
+                                                {user.email}
+                                            </p>
+                                        </TableCell>
+                                        <TableCell className="px-4 py-3 align-middle">
                                             <Select
                                                 key={`role-${user.id}-${user.role}`}
                                                 value={user.role}
                                                 onValueChange={(val) => handleRoleChange(user.id, val)}
                                                 disabled={actionLoading === `role-${user.id}`}
                                             >
-                                                <SelectTrigger className={`h-7 w-[125px] text-[10px] font-bold border-0 bg-muted/20 hover:bg-muted/40 transition-all rounded-md`}>
+                                                <SelectTrigger className="h-7 w-[140px] px-2 text-[10px] font-bold border border-border/50 bg-muted/20 hover:bg-muted/40 transition-all rounded-md">
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -392,7 +445,7 @@ export function UserManagement() {
                                                 </SelectContent>
                                             </Select>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="px-4 py-3 align-middle">
                                             <Badge
                                                 className={`text-[11px] font-bold cursor-pointer rounded-lg px-2 border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition-colors ${actionLoading === `status-${user.id}` ? 'opacity-50 pointer-events-none' : ''}`}
                                                 onClick={() => {
@@ -409,31 +462,22 @@ export function UserManagement() {
                                                 {user.is_active ? 'Active' : 'Suspended'}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell className="hidden lg:table-cell">
-                                            <span className="text-[11px] text-muted-foreground" title={new Date(user.date_joined).toLocaleString()}>
-                                                {timeAgo(user.date_joined)}
+                                        <TableCell className="hidden lg:table-cell px-4 py-3 align-middle">
+                                            <span className="text-[11px] text-muted-foreground tabular-nums" title={user.date_joined ? new Date(user.date_joined).toLocaleString() : undefined}>
+                                                {formatDate(user.date_joined)}
                                             </span>
                                         </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="text-muted-foreground/40 hover:text-red-600 hover:bg-red-50 h-7 w-7 disabled:opacity-20 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                disabled={isSelf(user.id) || actionLoading === `delete-${user.id}`}
-                                                title={isSelf(user.id) ? 'You cannot delete your own account' : 'Delete user'}
-                                                onClick={() => setDeleteTarget({
-                                                    id: user.id,
-                                                    name: user.first_name || user.last_name
-                                                        ? `${user.first_name} ${user.last_name}`.trim()
-                                                        : user.email,
-                                                })}
-                                            >
-                                                {actionLoading === `delete-${user.id}` ? (
-                                                    <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin" />
-                                                ) : (
-                                                    <Icon name="delete" className="h-3.5 w-3.5" />
-                                                )}
-                                            </Button>
+                                        <TableCell className="px-4 py-3 align-middle text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-7 px-2 text-[11px] font-bold"
+                                                    onClick={() => navigate({ to: '/admin/users/$userId', params: { userId: String(user.id) } })}
+                                                >
+                                                    View
+                                                </Button>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 )
@@ -443,35 +487,70 @@ export function UserManagement() {
                 </Table>
             </div>
 
-            {/* Delete Confirmation Dialog */}
-            <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
-                <AlertDialogContent className="sm:max-w-md">
-                    <AlertDialogHeader>
-                        <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-2">
-                            <Icon name="delete" className="h-5 w-5 text-red-600" />
-                        </div>
-                        <AlertDialogTitle className="text-center">Delete User</AlertDialogTitle>
-                        <AlertDialogDescription className="text-center">
-                            Are you sure you want to permanently delete <strong>{deleteTarget?.name}</strong>?
-                            This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="sm:justify-center gap-2">
-                        <AlertDialogCancel disabled={actionLoading?.startsWith('delete-')}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                            onClick={handleDelete}
-                            disabled={actionLoading?.startsWith('delete-')}
+            {/* Pagination */}
+            {pagination.total > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="tabular-nums">
+                            Showing {pagination.startIdx + 1}-{pagination.endIdx} of {pagination.total}
+                        </span>
+                        <Select value={pageSize} onValueChange={(v) => setPageSize(v as any)}>
+                            <SelectTrigger className="h-8 w-[110px] text-[11px] font-bold border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="10">10 / page</SelectItem>
+                                <SelectItem value="25">25 / page</SelectItem>
+                                <SelectItem value="50">50 / page</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            disabled={pagination.page <= 1}
+                            onClick={() => setPage(1)}
                         >
-                            {actionLoading?.startsWith('delete-') ? (
-                                <><Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin mr-1.5" /> Deleting...</>
-                            ) : (
-                                'Delete User'
-                            )}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+                            First
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            disabled={pagination.page <= 1}
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                            title="Previous"
+                        >
+                            <Icon name="chevron_left" className="h-4 w-4" />
+                        </Button>
+                        <div className="text-xs text-muted-foreground tabular-nums px-2">
+                            Page {pagination.page} / {pagination.totalPages}
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            disabled={pagination.page >= pagination.totalPages}
+                            onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                            title="Next"
+                        >
+                            <Icon name="chevron_right" className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            disabled={pagination.page >= pagination.totalPages}
+                            onClick={() => setPage(pagination.totalPages)}
+                        >
+                            Last
+                        </Button>
+                    </div>
+                </div>
+            )}
+
         </>
     )
 }

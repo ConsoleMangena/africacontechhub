@@ -28,6 +28,11 @@ export const sidebarData: SidebarData = {
       title: 'Admin Workspace',
       items: [
         {
+          title: 'Dashboard Analytics',
+          url: '/admin/dashboard-analytics',
+          icon: 'monitoring',
+        },
+        {
           title: 'Overview',
           url: '/admin',
           icon: 'security',
@@ -66,11 +71,6 @@ export const sidebarData: SidebarData = {
           title: 'Floor Plans',
           url: '/admin/floor-plans',
           icon: 'image',
-        },
-        {
-          title: 'Activity Log',
-          url: '/admin/activity-log',
-          icon: 'history',
         },
         {
           title: 'Platform Billing',
@@ -207,6 +207,51 @@ export const sidebarData: SidebarData = {
           title: 'Billing',
           url: '/billing',
           icon: 'credit_card',
+        },
+      ],
+    },
+    {
+      title: 'Finance Management',
+      items: [
+        {
+          title: 'Financial Reports',
+          url: '/admin/finance?tab=pl',
+          icon: 'account_balance',
+        },
+        {
+          title: 'Balance Sheet',
+          url: '/admin/finance?tab=balance',
+          icon: 'balance',
+        },
+        {
+          title: 'Profit & Loss',
+          url: '/admin/finance?tab=pl',
+          icon: 'trending_up',
+        },
+        {
+          title: 'Cash Flow',
+          url: '/admin/finance?tab=cashflow',
+          icon: 'water',
+        },
+        {
+          title: 'Invoices',
+          url: '/admin/finance?tab=invoices',
+          icon: 'receipt_long',
+        },
+      ],
+    },
+    {
+      title: 'Cyber Info',
+      items: [
+        {
+          title: 'Activity Log',
+          url: '/admin/activity-log',
+          icon: 'history',
+        },
+        {
+          title: 'Audit Log',
+          url: '/admin/audit-log',
+          icon: 'travel_explore',
         },
       ],
     },

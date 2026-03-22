@@ -3,9 +3,17 @@ import asyncio
 import json
 from django.conf import settings
 from django.core.cache import cache
-from mcp import ClientSession
-from mcp.client.sse import sse_client
-from mcp.client.stdio import stdio_client, StdioServerParameters
+try:
+    from mcp import ClientSession
+    from mcp.client.sse import sse_client
+    from mcp.client.stdio import stdio_client, StdioServerParameters
+    MCP_AVAILABLE = True
+except Exception:
+    ClientSession = None  # type: ignore[assignment]
+    sse_client = None  # type: ignore[assignment]
+    stdio_client = None  # type: ignore[assignment]
+    StdioServerParameters = None  # type: ignore[assignment]
+    MCP_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +118,9 @@ class MCPManager:
 
 def sync_get_mcp_tools():
     """Sync wrapper to discover tools with caching."""
+    if not MCP_AVAILABLE:
+        return []
+
     urls = getattr(settings, 'MCP_SERVERS', [])
     stdio = getattr(settings, 'MCP_STDIO_SERVERS', [])
     
@@ -137,6 +148,9 @@ def sync_get_mcp_tools():
 
 def sync_execute_mcp_tool(tool_name, arguments):
     """Sync wrapper to execute a tool."""
+    if not MCP_AVAILABLE:
+        return {"error": "MCP dependency is not installed on the backend."}
+
     urls = getattr(settings, 'MCP_SERVERS', [])
     stdio = getattr(settings, 'MCP_STDIO_SERVERS', [])
     

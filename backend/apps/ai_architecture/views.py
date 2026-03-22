@@ -1634,9 +1634,7 @@ class ChatCompletionView(APIView):
         # ── Build forbidden list based on floor count ────────────────────
         forbidden = [
             "3d", "perspective", "isometric", "shading", "realistic",
-            "photorealistic", "legend", "key", "title block", "border",
-            "frame", "margin text", "chart", "table", "metadata",
-            "furniture photo", "room schedule"
+            "photorealistic", "furniture photo"
         ]
         if floor_count == 1:
             forbidden.extend(["stairs", "staircase", "stairwell", "elevator", "escalator", "second floor", "upper level"])
@@ -1665,6 +1663,25 @@ class ChatCompletionView(APIView):
                 "labels": "every room must show its name inside the room",
                 "dimensions": "every room must show width x length in meters (m), e.g. 4.2m x 5.1m",
                 "dimension_unit": "meters (m)",
+                "detail_level": "construction drawing sheet",
+                "dimensioning_standard": "overall dimensions + room dimensions + opening dimensions",
+                "annotation_requirements": [
+                    "structural grid bubbles and grid lines",
+                    "north arrow",
+                    "scale notation (e.g., 1:100)",
+                    "wall type notation (external/internal with thickness)",
+                    "door and window tags (e.g., D1, W1, W2)",
+                    "room names and area or size labels",
+                    "clear circulation labels for corridors/passages"
+                ],
+                "sheet_requirements": {
+                    "include_border_frame": True,
+                    "include_title_block": True,
+                    "include_legend": True,
+                    "include_notes_block": True,
+                    "include_area_schedule": True
+                },
+                "lineweight_guidance": "thick cut lines for walls, medium for openings, thin for dimensions/annotation",
                 "style": style_hint,
             },
             "forbidden": forbidden
@@ -1828,17 +1845,17 @@ class ChatCompletionView(APIView):
         prompt_system = (
             "You are an expert architectural prompt engineer. You have just received a detailed "
             "description of a hand-drawn floor plan. Your job is to convert this description into "
-            "a concise, vivid text-to-image prompt (max 150 words) that will generate a "
-            "STRICTLY 2D professional architectural floor plan.\n"
+            "a concise, vivid text-to-image prompt (max 260 words) that will generate a "
+            "STRICTLY 2D professional architectural construction drawing sheet.\n"
             f"{project_context}\n"
             "REQUIREMENTS:\n"
             "- Strictly 2D TOP-DOWN flat orthographic view. NO 3D, perspective, or realistic shading.\n"
             "- ROOM LABELS: Every room MUST have its name printed INSIDE the room.\n"
             "- DIMENSIONS: Every room MUST show width × length in METERS (m), e.g. '4.2m × 5.1m'.\n"
-            "- FORBIDDEN: Do NOT include legends, keys, title blocks, margin text, or borders.\n"
-            "- The image MUST ONLY show the floor plan layout itself.\n"
+            "- SHEET CONTENT: Include dimension chains, structural grid bubbles, north arrow, scale notation, legend, notes, and title block.\n"
+            "- Include wall thickness callouts, door/window tags, and area schedule when possible.\n"
             "- Style: clean black CAD lines on plain white background, architectural blueprint style.\n"
-            "- Details: Wall thicknesses, door swings, window symbols.\n"
+            "- Details: Wall thicknesses, door swings, window symbols, opening sizes, and circulation labels.\n"
             "\nOutput ONLY the prompt text, nothing else."
         )
 
@@ -1867,7 +1884,8 @@ class ChatCompletionView(APIView):
         image_prompt += (
             ". STRICTLY 2D top-down floor plan only. "
             "Every room labeled with name and dimensions in meters. "
-            "Clean black lines on white background. No legends, no keys, no title blocks."
+            "Clean black lines on white background. "
+            "Include construction-sheet details: dimension chains, grid bubbles, north arrow, scale label, legend, notes, and title block."
         )
 
         final_prompt = image_prompt
@@ -1876,7 +1894,7 @@ class ChatCompletionView(APIView):
         # Build negative prompt, conditionally adding stairs exclusion
         neg_scan = (
             "3d, perspective, isometric, shaded, render, blurry, messy, "
-            "legend, key, title block, border, frame, text list, chart, metadata"
+            "photorealistic, watercolor, painterly, cartoon, decorative textures"
         )
         if ("single story" in plan_analysis.lower() or "single-story" in plan_analysis.lower()
                 or "one story" in plan_analysis.lower() or "one-story" in plan_analysis.lower()):

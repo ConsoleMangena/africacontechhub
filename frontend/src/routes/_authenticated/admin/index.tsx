@@ -1,6 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { AdminDashboard } from '@/features/dashboards/admin'
+import { createFileRoute, Navigate } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/admin/')({
-  component: AdminDashboard,
+  component: () => <Navigate to="/admin/dashboard-analytics" replace />,
 })

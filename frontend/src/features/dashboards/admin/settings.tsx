@@ -58,7 +58,7 @@ export function AdminSettings() {
     const hasChanges = JSON.stringify(form) !== JSON.stringify(data)
 
     return (
-        <div className="w-full max-w-4xl mx-auto space-y-6">
+        <div className="w-full space-y-6">
             {/* Page Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -84,140 +84,143 @@ export function AdminSettings() {
                 </Button>
             </div>
 
-            {/* General Settings */}
-            <Card className="border-border/60 shadow-sm">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
-                        <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
-                            <Icon name="info" className="h-3.5 w-3.5 text-slate-400" />
+            {/* Cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* General Settings */}
+                <Card className="border-border/60 shadow-sm">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                            <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                <Icon name="info" className="h-3.5 w-3.5 text-slate-400" />
+                            </div>
+                            Platform Identity
+                        </CardTitle>
+                        <CardDescription className="text-xs">Basic platform identity and contact information.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs font-medium text-muted-foreground">Site Name</label>
+                                <Input value={form.site_name} onChange={(e) => setForm({ ...form, site_name: e.target.value })} className="mt-1" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-muted-foreground">Support Email</label>
+                                <Input type="email" value={form.support_email} onChange={(e) => setForm({ ...form, support_email: e.target.value })} className="mt-1" />
+                            </div>
                         </div>
-                        Platform Identity
-                    </CardTitle>
-                    <CardDescription className="text-xs">Basic platform identity and contact information.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs font-medium text-muted-foreground">Site Name</label>
-                            <Input value={form.site_name} onChange={(e) => setForm({ ...form, site_name: e.target.value })} className="mt-1" />
+                            <label className="text-xs font-medium text-muted-foreground">Tagline</label>
+                            <Input value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} className="mt-1" />
                         </div>
-                        <div>
-                            <label className="text-xs font-medium text-muted-foreground">Support Email</label>
-                            <Input type="email" value={form.support_email} onChange={(e) => setForm({ ...form, support_email: e.target.value })} className="mt-1" />
-                        </div>
-                    </div>
-                    <div>
-                        <label className="text-xs font-medium text-muted-foreground">Tagline</label>
-                        <Input value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} className="mt-1" />
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
 
-            {/* Registration & Access */}
-            <Card className="border-border/60 shadow-sm">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
-                        <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
-                            <Icon name="person_add" className="h-3.5 w-3.5 text-slate-400" />
-                        </div>
-                        Onboarding Policy
-                    </CardTitle>
-                    <CardDescription className="text-xs">Control how users can sign up and access the platform.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <ToggleRow
-                        label="Open Registration"
-                        description="Allow new users to create accounts"
-                        checked={form.registration_open}
-                        onChange={(v) => setForm({ ...form, registration_open: v })}
-                    />
-                    <ToggleRow
-                        label="Require Admin Approval"
-                        description="New accounts must be approved before gaining access"
-                        checked={form.require_approval}
-                        onChange={(v) => setForm({ ...form, require_approval: v })}
-                    />
-                    <div className="pt-3">
-                        <label className="text-xs font-medium text-muted-foreground">Default Role for New Users</label>
-                        <Select value={form.default_role} onValueChange={(v) => setForm({ ...form, default_role: v })}>
-                            <SelectTrigger className="w-[200px] mt-1 h-8 text-xs">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="BUILDER">Builder</SelectItem>
-                                <SelectItem value="CONTRACTOR">Contractor</SelectItem>
-                                <SelectItem value="SUPPLIER">Supplier</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Limits */}
-            <Card className="border-border/60 shadow-sm">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
-                        <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
-                            <Icon name="tune" className="h-3.5 w-3.5 text-slate-400" />
-                        </div>
-                        Resource Governance
-                    </CardTitle>
-                    <CardDescription className="text-xs">Set resource limits for platform users.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-medium text-muted-foreground">Max Projects per User</label>
-                            <Input
-                                type="number"
-                                value={form.max_projects_per_user}
-                                onChange={(e) => setForm({ ...form, max_projects_per_user: parseInt(e.target.value) || 0 })}
-                                className="mt-1"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-medium text-muted-foreground">Max File Upload (MB)</label>
-                            <Input
-                                type="number"
-                                value={form.max_file_upload_mb}
-                                onChange={(e) => setForm({ ...form, max_file_upload_mb: parseInt(e.target.value) || 0 })}
-                                className="mt-1"
-                            />
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Maintenance Mode */}
-            <Card className="border-border/60 shadow-sm">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
-                        <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
-                            <Icon name="engineering" className="h-3.5 w-3.5 text-slate-400" />
-                        </div>
-                        System Maintenance
-                    </CardTitle>
-                    <CardDescription className="text-xs">Take the platform offline for maintenance.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <ToggleRow
-                        label="Enable Maintenance Mode"
-                        description="Users will see a maintenance page instead of the platform"
-                        checked={form.maintenance_mode}
-                        onChange={(v) => setForm({ ...form, maintenance_mode: v })}
-                    />
-                    {form.maintenance_mode && (
+                {/* Registration & Access */}
+                <Card className="border-border/60 shadow-sm">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                            <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                <Icon name="person_add" className="h-3.5 w-3.5 text-slate-400" />
+                            </div>
+                            Onboarding Policy
+                        </CardTitle>
+                        <CardDescription className="text-xs">Control how users can sign up and access the platform.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ToggleRow
+                            label="Open Registration"
+                            description="Allow new users to create accounts"
+                            checked={form.registration_open}
+                            onChange={(v) => setForm({ ...form, registration_open: v })}
+                        />
+                        <ToggleRow
+                            label="Require Admin Approval"
+                            description="New accounts must be approved before gaining access"
+                            checked={form.require_approval}
+                            onChange={(v) => setForm({ ...form, require_approval: v })}
+                        />
                         <div className="pt-3">
-                            <label className="text-xs font-medium text-muted-foreground">Maintenance Message</label>
-                            <Textarea
-                                value={form.maintenance_message}
-                                onChange={(e) => setForm({ ...form, maintenance_message: e.target.value })}
-                                className="mt-1 min-h-[80px] text-sm"
-                            />
+                            <label className="text-xs font-medium text-muted-foreground">Default Role for New Users</label>
+                            <Select value={form.default_role} onValueChange={(v) => setForm({ ...form, default_role: v })}>
+                                <SelectTrigger className="w-[200px] mt-1 h-8 text-xs">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="BUILDER">Builder</SelectItem>
+                                    <SelectItem value="CONTRACTOR">Contractor</SelectItem>
+                                    <SelectItem value="SUPPLIER">Supplier</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+
+                {/* Limits */}
+                <Card className="border-border/60 shadow-sm">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                            <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                <Icon name="tune" className="h-3.5 w-3.5 text-slate-400" />
+                            </div>
+                            Resource Governance
+                        </CardTitle>
+                        <CardDescription className="text-xs">Set resource limits for platform users.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs font-medium text-muted-foreground">Max Projects per User</label>
+                                <Input
+                                    type="number"
+                                    value={form.max_projects_per_user}
+                                    onChange={(e) => setForm({ ...form, max_projects_per_user: parseInt(e.target.value) || 0 })}
+                                    className="mt-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-muted-foreground">Max File Upload (MB)</label>
+                                <Input
+                                    type="number"
+                                    value={form.max_file_upload_mb}
+                                    onChange={(e) => setForm({ ...form, max_file_upload_mb: parseInt(e.target.value) || 0 })}
+                                    className="mt-1"
+                                />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Maintenance Mode */}
+                <Card className="border-border/60 shadow-sm">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                            <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                <Icon name="engineering" className="h-3.5 w-3.5 text-slate-400" />
+                            </div>
+                            System Maintenance
+                        </CardTitle>
+                        <CardDescription className="text-xs">Take the platform offline for maintenance.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ToggleRow
+                            label="Enable Maintenance Mode"
+                            description="Users will see a maintenance page instead of the platform"
+                            checked={form.maintenance_mode}
+                            onChange={(v) => setForm({ ...form, maintenance_mode: v })}
+                        />
+                        {form.maintenance_mode && (
+                            <div className="pt-3">
+                                <label className="text-xs font-medium text-muted-foreground">Maintenance Message</label>
+                                <Textarea
+                                    value={form.maintenance_message}
+                                    onChange={(e) => setForm({ ...form, maintenance_message: e.target.value })}
+                                    className="mt-1 min-h-[80px] text-sm"
+                                />
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     )
 }

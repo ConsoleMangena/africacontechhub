@@ -49,9 +49,14 @@ export function AppSidebar() {
             return <NavGroup key={props.title} {...props} />
           }
 
-          // Admin sees Admin Workspace and Other
+          // Admin sees Admin Workspace, Cyber Info, and Other
           if (role === 'ADMIN') {
-            if (props.title === 'Admin Workspace' || props.title === 'Other') {
+            if (
+              props.title === 'Admin Workspace' ||
+              props.title === 'Finance Management' ||
+              props.title === 'Cyber Info' ||
+              props.title === 'Other'
+            ) {
               return <NavGroup key={props.title} {...props} />
             }
           }

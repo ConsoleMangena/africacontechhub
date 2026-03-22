@@ -28,9 +28,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
     login: async () => {
       try {
         set((state) => ({ auth: { ...state.auth, isLoading: true } }));
-        const { data: { user: supabaseUser }, error } = await supabase.auth.getUser();
-
-        if (error || !supabaseUser) throw error;
+        // Prefer local session over getUser() network call.
+        // In some environments, browser/extension/network layers can abort the getUser request.
+        const { data: { session }, error } = await supabase.auth.getSession()
+        const supabaseUser = session?.user
+        if (error || !supabaseUser) throw error || new Error('No active session')
 
         // Fetch profile from Django
         const response = await apiClient.get('/api/v1/auth/me/');

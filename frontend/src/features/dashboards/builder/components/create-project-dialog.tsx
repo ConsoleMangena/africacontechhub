@@ -1,5 +1,5 @@
 import { Icon } from '@/components/ui/material-icon'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
     Dialog,
     DialogContent,
@@ -28,6 +28,12 @@ interface CreateProjectDialogProps {
     onOpenChange: (open: boolean) => void
     onSuccess: () => void
     project: Project | null
+}
+
+interface LocationSuggestion {
+    displayName: string
+    lat: number
+    lng: number
 }
 
 export function CreateProjectDialog({
@@ -67,6 +73,10 @@ export function CreateProjectDialog({
     const [siteNotes, setSiteNotes] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [step, setStep] = useState(0)
+    const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([])
+    const [isLocationSuggesting, setIsLocationSuggesting] = useState(false)
+    const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
+    const locationAbortRef = useRef<AbortController | null>(null)
 
     const steps = [
         { key: 'basics', label: 'Project basics' },
@@ -133,8 +143,70 @@ export function CreateProjectDialog({
                 setSiteNotes('')
             }
             setStep(0)
+            setLocationSuggestions([])
+            setShowLocationSuggestions(false)
+            setIsLocationSuggesting(false)
         }
     }, [open, project])
+
+    useEffect(() => {
+        if (!open || step !== 0) return
+
+        const query = location.trim()
+        if (query.length < 2) {
+            setLocationSuggestions([])
+            setIsLocationSuggesting(false)
+            return
+        }
+
+        const timeoutId = setTimeout(async () => {
+            try {
+                locationAbortRef.current?.abort()
+                const controller = new AbortController()
+                locationAbortRef.current = controller
+                setIsLocationSuggesting(true)
+
+                const res = await fetch(
+                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&countrycodes=zw`,
+                    { signal: controller.signal }
+                )
+
+                if (!res.ok) throw new Error('Failed to search locations')
+                const data = await res.json()
+
+                const suggestions: LocationSuggestion[] = Array.isArray(data)
+                    ? data.map((item: any) => ({
+                        displayName: item.display_name,
+                        lat: parseFloat(item.lat),
+                        lng: parseFloat(item.lon),
+                    })).filter((item: LocationSuggestion) => !Number.isNaN(item.lat) && !Number.isNaN(item.lng))
+                    : []
+
+                setLocationSuggestions(suggestions)
+            } catch (error: any) {
+                if (error?.name !== 'AbortError') {
+                    console.error('Location suggestion error:', error)
+                }
+            } finally {
+                setIsLocationSuggesting(false)
+            }
+        }, 300)
+
+        return () => clearTimeout(timeoutId)
+    }, [location, open, step])
+
+    useEffect(() => {
+        return () => {
+            locationAbortRef.current?.abort()
+        }
+    }, [])
+
+    const applyLocationSuggestion = (suggestion: LocationSuggestion) => {
+        setLocation(suggestion.displayName)
+        setLatitude(suggestion.lat)
+        setLongitude(suggestion.lng)
+        setShowLocationSuggestions(false)
+    }
 
     const timelineLabel = (value: string) => {
         switch (value) {
@@ -353,12 +425,44 @@ export function CreateProjectDialog({
 
                                             <div className="space-y-2">
                                                 <Label htmlFor="location">Location *</Label>
-                                                <Input
-                                                    id="location"
-                                                    placeholder="e.g. 123 Main Street, Harare"
-                                                    value={location}
-                                                    onChange={(e) => setLocation(e.target.value)}
-                                                />
+                                                <div className="relative">
+                                                    <Input
+                                                        id="location"
+                                                        placeholder="e.g. 123 Main Street, Harare"
+                                                        value={location}
+                                                        onChange={(e) => {
+                                                            setLocation(e.target.value)
+                                                            setShowLocationSuggestions(true)
+                                                        }}
+                                                        onFocus={() => {
+                                                            if (locationSuggestions.length > 0) {
+                                                                setShowLocationSuggestions(true)
+                                                            }
+                                                        }}
+                                                        onBlur={() => {
+                                                            window.setTimeout(() => setShowLocationSuggestions(false), 120)
+                                                        }}
+                                                        autoComplete="off"
+                                                    />
+                                                    {showLocationSuggestions && (locationSuggestions.length > 0 || isLocationSuggesting) && (
+                                                        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+                                                            {isLocationSuggesting && (
+                                                                <div className="px-3 py-2 text-xs text-muted-foreground">Searching locations...</div>
+                                                            )}
+                                                            {!isLocationSuggesting && locationSuggestions.map((suggestion) => (
+                                                                <button
+                                                                    key={`${suggestion.lat}-${suggestion.lng}-${suggestion.displayName}`}
+                                                                    type="button"
+                                                                    className="block w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                                                                    onMouseDown={(e) => e.preventDefault()}
+                                                                    onClick={() => applyLocationSuggestion(suggestion)}
+                                                                >
+                                                                    {suggestion.displayName}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             <div className="space-y-2">

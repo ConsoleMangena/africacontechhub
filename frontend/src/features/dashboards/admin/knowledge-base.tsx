@@ -10,7 +10,7 @@ import { KnowledgeBase } from './components/knowledge-base'
 
 export function AdminKnowledgeBase() {
     return (
-        <div className="w-full max-w-7xl mx-auto space-y-6">
+        <div className="w-full space-y-6">
             {/* Page Header */}
             <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center shadow-lg shadow-purple-500/20">

@@ -13,6 +13,7 @@ export const Route = createFileRoute('/_authenticated/admin')({
 })
 
 const adminNavigation = [
+  { name: 'Dashboard Analytics', href: '/admin/dashboard-analytics', icon: 'monitoring', badge: false },
   { name: 'Overview', href: '/admin', icon: 'space_dashboard', badge: false },
   { name: 'Users & Requests', href: '/admin/users', icon: 'group', badge: true },
   { name: 'Projects', href: '/admin/projects', icon: 'business', badge: false },
@@ -21,7 +22,6 @@ const adminNavigation = [
   { name: 'Floor Plans', href: '/admin/floor-plans', icon: 'image', badge: false },
   { name: 'AI Command Center', href: '/admin/ai-command-center', icon: 'psychology', badge: false },
   { name: 'Settings', href: '/admin/settings', icon: 'settings', badge: false },
-  { name: 'Activity Log', href: '/admin/activity-log', icon: 'history', badge: false },
 ]
 
 function AdminLayout() {
@@ -46,6 +46,11 @@ function AdminLayout() {
     return <Navigate to="/" />
   }
 
+  const hideSecondaryNav =
+    location.pathname.startsWith('/admin/activity-log') ||
+    location.pathname.startsWith('/admin/audit-log') ||
+    location.pathname.startsWith('/admin/finance')
+
   return (
     <>
       <Header>
@@ -61,44 +66,46 @@ function AdminLayout() {
       </Header>
 
       {/* Admin Secondary Navigation */}
-      <div className="border-b border-border/60 bg-background/95 backdrop-blur-sm sticky top-16 z-30">
-        <div className="flex h-11 w-full items-end px-4 sm:px-6 overflow-x-auto no-scrollbar gap-0.5">
-          {adminNavigation.map((item) => {
-            const isActive = item.href === '/admin'
-              ? location.pathname === '/admin' || location.pathname === '/admin/'
-              : location.pathname.startsWith(item.href)
+      {!hideSecondaryNav && (
+        <div className="border-b border-border/60 bg-background/95 backdrop-blur-sm sticky top-16 z-30">
+          <div className="flex h-11 w-full items-end px-4 sm:px-6 overflow-x-auto no-scrollbar gap-0.5">
+            {adminNavigation.map((item) => {
+              const isActive = item.href === '/admin'
+                ? location.pathname === '/admin' || location.pathname === '/admin/'
+                : location.pathname.startsWith(item.href)
 
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                className={cn(
-                  "relative flex items-center gap-1.5 px-3.5 pb-2.5 pt-2 text-[13px] font-medium transition-colors whitespace-nowrap",
-                  isActive
-                    ? "text-indigo-700"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Icon
-                  name={item.icon}
-                  size={15}
-                  className={cn(isActive ? "text-indigo-600" : "text-muted-foreground/70")}
-                />
-                {item.name}
-                {item.badge && pendingCount > 0 && (
-                  <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[10px] font-bold bg-amber-500 text-white leading-none">
-                    {pendingCount}
-                  </span>
-                )}
-                {/* Active indicator bar */}
-                {isActive && (
-                  <span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-indigo-600" />
-                )}
-              </Link>
-            )
-          })}
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  className={cn(
+                    "relative flex items-center gap-1.5 px-3.5 pb-2.5 pt-2 text-[13px] font-medium transition-colors whitespace-nowrap",
+                    isActive
+                      ? "text-indigo-700"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Icon
+                    name={item.icon}
+                    size={15}
+                    className={cn(isActive ? "text-indigo-600" : "text-muted-foreground/70")}
+                  />
+                  {item.name}
+                  {item.badge && pendingCount > 0 && (
+                    <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[10px] font-bold bg-amber-500 text-white leading-none">
+                      {pendingCount}
+                    </span>
+                  )}
+                  {/* Active indicator bar */}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-indigo-600" />
+                  )}
+                </Link>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       <Main fluid>
         <Outlet />

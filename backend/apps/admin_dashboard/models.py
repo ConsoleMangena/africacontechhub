@@ -118,3 +118,51 @@ def log_admin_action(request, action, target_type='', target_id=None, target_lab
         detail=detail,
         ip_address=ip or None,
     )
+
+
+# ── User Activity Tracking ──
+
+class UserActivityEvent(TimeStampedModel):
+    """
+    Lightweight audit trail for what a user is doing/looking at in the system.
+    Logged by the frontend on route changes (and optionally other events).
+    """
+    EVENT_CHOICES = [
+        ('PAGE_VIEW', 'Page View'),
+        ('CLICK', 'Click'),
+        ('ACTION', 'Action'),
+        ('OTHER', 'Other'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='activity_events'
+    )
+    event_type = models.CharField(max_length=20, choices=EVENT_CHOICES, default='PAGE_VIEW')
+    path = models.CharField(max_length=512, blank=True, default='')
+    title = models.CharField(max_length=255, blank=True, default='')
+    referrer = models.CharField(max_length=512, blank=True, default='')
+    metadata = models.JSONField(blank=True, null=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "User Activity Event"
+        verbose_name_plural = "User Activity Events"
+
+    def __str__(self):
+        return f"{self.user} — {self.event_type} — {self.path or self.title or '—'}"
+
+
+def log_user_activity(request, user, event_type='PAGE_VIEW', path='', title='', referrer='', metadata=None):
+    ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', ''))
+    if ',' in ip:
+        ip = ip.split(',')[0].strip()
+    UserActivityEvent.objects.create(
+        user=user,
+        event_type=event_type or 'PAGE_VIEW',
+        path=path or '',
+        title=title or '',
+        referrer=referrer or '',
+        metadata=metadata or None,
+        ip_address=ip or None,
+    )

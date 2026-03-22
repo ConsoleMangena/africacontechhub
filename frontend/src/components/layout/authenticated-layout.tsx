@@ -8,8 +8,9 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { SkipToMain } from '@/components/skip-to-main'
 import { useAuthStore } from '@/stores/auth-store'
-import { useNavigate } from '@tanstack/react-router'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
+import { activityApi } from '@/services/api'
 
 type AuthenticatedLayoutProps = {
   children?: React.ReactNode
@@ -19,6 +20,7 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
   const { user, isLoading } = useAuthStore((state) => state.auth)
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     if (!isLoading) {
@@ -33,6 +35,18 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
       }
     }
   }, [isLoading, user, navigate])
+
+  useEffect(() => {
+    if (!user) return
+    // Log route views for per-user activity timeline.
+    // Best-effort (never blocks navigation).
+    activityApi.logEvent({
+      event_type: 'PAGE_VIEW',
+      path: location.pathname,
+      title: document?.title || '',
+      referrer: document?.referrer || '',
+    }).catch(() => {})
+  }, [user?.id, location.pathname])
 
   if (isLoading) {
     return <Loading fullPage text="Securing your session..." />
