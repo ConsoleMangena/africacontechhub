@@ -25,7 +25,7 @@ const adminNavigation = [
 ]
 
 function AdminLayout() {
-  const user = useAuthStore((state) => state.auth.user)
+  const { user, isLoading } = useAuthStore((state) => state.auth)
   const role = user?.profile?.role
   const location = useLocation()
 
@@ -36,6 +36,11 @@ function AdminLayout() {
   })
 
   const pendingCount = metrics?.system_overview?.pending_requests ?? 0
+
+  // Wait for auth to hydrate before checking role
+  if (isLoading || !user) {
+    return null
+  }
 
   if (role !== 'ADMIN') {
     return <Navigate to="/" />
