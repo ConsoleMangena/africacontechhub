@@ -8,6 +8,16 @@ import { adminApi } from '@/services/api'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { Label } from '@/components/ui/label'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog'
 import {
     AlertDialog,
     AlertDialogAction,
@@ -62,6 +72,14 @@ export function UserManagement() {
     const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null)
     const [search, setSearch] = useState('')
     const [roleFilter, setRoleFilter] = useState<string>('ALL')
+    const [isCreateOpen, setIsCreateOpen] = useState(false)
+    const [newUser, setNewUser] = useState({
+        email: '',
+        first_name: '',
+        last_name: '',
+        role: 'BUILDER',
+        password: '',
+    })
 
     const currentUser = useAuthStore((state) => state.auth.user)
 
@@ -141,6 +159,34 @@ export function UserManagement() {
         }
     }
 
+    const handleCreateUser = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!newUser.email) {
+            toast.error('Email is required')
+            return
+        }
+        setActionLoading('create')
+        try {
+            await adminApi.createUser(newUser)
+            toast.success('User created successfully')
+            setIsCreateOpen(false)
+            setNewUser({
+                email: '',
+                first_name: '',
+                last_name: '',
+                role: 'BUILDER',
+                password: '',
+            })
+            await fetchUsers()
+        } catch (error: any) {
+            console.error("Failed to create user", error)
+            const msg = error.response?.data?.error || 'Failed to create user'
+            toast.error(msg)
+        } finally {
+            setActionLoading(null)
+        }
+    }
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -174,6 +220,98 @@ export function UserManagement() {
                     />
                 </div>
                 <div className="flex items-center gap-2">
+                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                        <DialogTrigger asChild>
+                            <Button size="sm" className="h-9 gap-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200">
+                                <Icon name="person_add" className="h-4 w-4" />
+                                <span className="hidden sm:inline">Add User</span>
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                            <form onSubmit={handleCreateUser}>
+                                <DialogHeader>
+                                    <DialogTitle>Create New User</DialogTitle>
+                                    <DialogDescription>
+                                        Add a new member to the SQB platform.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="email" className="text-xs">Email Address</Label>
+                                        <Input
+                                            id="email"
+                                            type="email"
+                                            placeholder="user@example.com"
+                                            value={newUser.email}
+                                            onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                                            className="h-9 text-sm"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="first_name" className="text-xs">First Name</Label>
+                                            <Input
+                                                id="first_name"
+                                                placeholder="John"
+                                                value={newUser.first_name}
+                                                onChange={e => setNewUser({ ...newUser, first_name: e.target.value })}
+                                                className="h-9 text-sm"
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="last_name" className="text-xs">Last Name</Label>
+                                            <Input
+                                                id="last_name"
+                                                placeholder="Doe"
+                                                value={newUser.last_name}
+                                                onChange={e => setNewUser({ ...newUser, last_name: e.target.value })}
+                                                className="h-9 text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="role" className="text-xs">Initial Role</Label>
+                                        <Select
+                                            value={newUser.role}
+                                            onValueChange={val => setNewUser({ ...newUser, role: val })}
+                                        >
+                                            <SelectTrigger className="h-9 text-sm">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="BUILDER">Builder</SelectItem>
+                                                <SelectItem value="CONTRACTOR">Contractor</SelectItem>
+                                                <SelectItem value="SUPPLIER">Supplier</SelectItem>
+                                                <SelectItem value="ADMIN">Administrator</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="pass" className="text-xs">Password (Optional)</Label>
+                                        <Input
+                                            id="pass"
+                                            type="password"
+                                            placeholder="Leave empty for random"
+                                            value={newUser.password}
+                                            onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                                            className="h-9 text-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => setIsCreateOpen(false)}>
+                                        Cancel
+                                    </Button>
+                                    <Button type="submit" size="sm" className="bg-indigo-600 hover:bg-indigo-700" disabled={actionLoading === 'create'}>
+                                        {actionLoading === 'create' ? <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                                        Create Account
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+
                     <Select value={roleFilter} onValueChange={setRoleFilter}>
                         <SelectTrigger className="h-9 flex-1 lg:w-[160px] text-[11px] sm:text-xs font-medium border-border/50 bg-muted/30">
                             <SelectValue placeholder="All Roles" />

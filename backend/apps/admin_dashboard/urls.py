@@ -4,6 +4,7 @@ from .views import (
     FloorPlanCategoryView, FloorPlanDatasetView,
     AdminProjectsView, AdminBillingView,
     PlatformSettingsView, AdminActivityLogView,
+    AdminProcurementView,
 )
 
 urlpatterns = [
@@ -26,4 +27,6 @@ urlpatterns = [
     path('settings/', PlatformSettingsView.as_view(), name='admin-settings'),
     # Activity Log
     path('activity-log/', AdminActivityLogView.as_view(), name='admin-activity-log'),
+    # Procurement Oversight
+    path('procurement/', AdminProcurementView.as_view(), name='admin-procurement'),
 ]

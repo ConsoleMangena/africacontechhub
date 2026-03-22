@@ -43,6 +43,11 @@ export const sidebarData: SidebarData = {
           icon: 'menu_book',
         },
         {
+          title: 'Procurement',
+          url: '/admin/procurement',
+          icon: 'inventory_2',
+        },
+        {
           title: 'Floor Plans',
           url: '/admin/floor-plans',
           icon: 'image',

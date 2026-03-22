@@ -524,6 +524,7 @@ export const aiApi = {
 export const adminApi = {
     getMetrics: () => api.get('/admin/metrics/'),
     getUsers: () => api.get<any[]>('/admin/users/'),
+    createUser: (data: any) => api.post('/admin/users/', data),
     updateUser: (id: number, data: any) => api.patch(`/admin/users/${id}/`, data),
     deleteUser: (id: number) => api.delete(`/admin/users/${id}/`),
     getDocuments: () => api.get<any[]>('/ai/knowledge/'),
@@ -575,6 +576,9 @@ export const adminApi = {
     updateSettings: (data: any) => api.patch('/admin/settings/', data),
     // Activity Log
     getActivityLog: (params?: { limit?: number; action?: string }) => api.get<any[]>('/admin/activity-log/', { params }),
+    // Procurement Oversight
+    getProcurementRequests: (params?: { status?: string; category?: string; project?: number }) => 
+        api.get<any>('/admin/procurement/', { params }),
 };
 
 export const contractorApi = {

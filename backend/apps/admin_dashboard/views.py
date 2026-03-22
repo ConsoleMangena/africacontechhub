@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db.models import Sum, Count, Q, Avg
 from django.db.models.functions import TruncDate
-from apps.builder_dashboard.models import Project
+from apps.builder_dashboard.models import Project, MaterialRequest
 from apps.contractor_dashboard.models import Bid
 from apps.supplier_dashboard.models import MaterialOrder
 from .models import (
@@ -42,6 +42,58 @@ class AdminUserManagementView(APIView):
                 'is_approved': profile.is_approved if profile else False,
             })
         return Response(users_data)
+
+    def post(self, request):
+        """Allow admins to create users directly."""
+        email = request.data.get('email')
+        first_name = request.data.get('first_name', '')
+        last_name = request.data.get('last_name', '')
+        role = request.data.get('role', 'BUILDER')
+        password = request.data.get('password') # Optional, if using Django auth directly
+
+        if not email:
+            return Response({'error': 'Email is required'}, status=400)
+
+        if User.objects.filter(email=email).exists():
+            return Response({'error': 'User with this email already exists'}, status=400)
+
+        # Create Django User
+        # Note: In this system, Supabase usually handles auth, but we create a matching Django user.
+        # For admin-created users, we might need to handle Supabase invitation or just create the record.
+        # For now, we create the Django user with a random username if no supabase_id is provided.
+        import uuid
+        username = str(uuid.uuid4())
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name
+        )
+        if password:
+            user.set_password(password)
+            user.save()
+
+        # Create Profile
+        Profile.objects.create(
+            user=user,
+            role=role,
+            is_approved=True,
+            first_name=first_name,
+            last_name=last_name
+        )
+
+        log_admin_action(request, 'USER_CREATED', 'User', user.id, email, f'Role: {role}')
+
+        return Response({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'role': role
+            }
+        }, status=201)
 
     def patch(self, request, pk=None):
         if not pk:
@@ -731,3 +783,56 @@ class AdminActivityLogView(APIView):
                 'created_at': entry.created_at,
             })
         return Response(logs)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ADMIN PROCUREMENT MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════════
+
+class AdminProcurementView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        status_filter = request.query_params.get('status')
+        category_filter = request.query_params.get('category')
+        project_id = request.query_params.get('project')
+
+        qs = MaterialRequest.objects.select_related('project', 'project__owner').all()
+
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        if category_filter:
+            qs = qs.filter(procurement_category=category_filter)
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+
+        data = []
+        for req in qs.order_by('-created_at')[:500]:
+            data.append({
+                'id': req.id,
+                'project_id': req.project.id,
+                'project_title': req.project.title,
+                'owner_email': req.project.owner.email,
+                'material_name': req.material_name,
+                'quantity_requested': float(req.quantity_requested),
+                'unit': req.unit,
+                'procurement_category': req.procurement_category,
+                'procurement_method': req.procurement_method,
+                'price_at_request': float(req.price_at_request),
+                'total_calculated_cost': float(req.total_calculated_cost),
+                'status': req.status,
+                'created_at': req.created_at,
+            })
+
+        # Summary for Admin
+        summary = {
+            'total_requests': qs.count(),
+            'pending_requests': qs.filter(status='PENDING').count(),
+            'total_cost': float(qs.aggregate(s=Sum('total_calculated_cost'))['s'] or 0),
+            'by_status': dict(qs.values_list('status').annotate(c=Count('id')).values_list('status', 'c')),
+        }
+
+        return Response({
+            'requests': data,
+            'summary': summary
+        })
