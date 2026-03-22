@@ -130,53 +130,54 @@ export function AccountRequests() {
                     <p className="text-xs text-muted-foreground mt-0.5">No pending account requests.</p>
                 </div>
             ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                     {pending.map((req) => (
-                        <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-lg bg-amber-50/40 border border-amber-100/80 hover:border-amber-200 hover:shadow-sm transition-all">
-                            <div className="flex items-center gap-2.5">
-                                <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-700 text-[10px] font-bold">
+                        <div key={req.id} className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 rounded-xl bg-amber-50/40 border border-amber-100/80 hover:border-amber-200 hover:shadow-sm transition-all">
+                            <div className="flex items-start sm:items-center gap-3">
+                                <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-700 text-xs font-bold">
                                     {getInitials(req.first_name, req.last_name, req.email)}
                                 </div>
-                                <div>
-                                    <p className="text-[13px] font-semibold text-foreground">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-bold text-foreground truncate">
                                         {req.first_name || req.last_name
                                             ? `${req.first_name} ${req.last_name}`.trim()
                                             : 'Unnamed User'
                                         }
                                     </p>
-                                    <p className="text-[11px] text-muted-foreground">{req.email}</p>
-                                    <div className="flex items-center gap-2 mt-1.5">
-                                        <Badge className={`text-[10px] px-1.5 py-0 border rounded-md ${ROLE_COLORS[req.requested_role] || 'bg-muted text-muted-foreground border-border'}`}>
+                                    <p className="text-[11px] text-muted-foreground truncate">{req.email}</p>
+                                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                                        <Badge variant="outline" className={`text-[10px] px-2 py-0.5 border rounded-lg whitespace-nowrap ${ROLE_COLORS[req.requested_role] || 'bg-muted text-muted-foreground border-border'}`}>
                                             {req.requested_role}
                                         </Badge>
-                                        <span className="text-[10px] text-muted-foreground/70">
+                                        <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
+                                            <Icon name="schedule" size={10} />
                                             {timeAgo(req.created_at)}
                                         </span>
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-amber-100/50">
                                 <Button
                                     size="sm"
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-md gap-1 text-[11px] h-7 px-2.5 shadow-sm"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg gap-1.5 text-xs h-9 flex-1 lg:flex-none px-4 shadow-sm"
                                     disabled={actionLoading === req.id}
                                     onClick={() => handleReview(req.id, 'approve')}
                                 >
                                     {actionLoading === req.id ? (
-                                        <Icon name="progress_activity" className="h-2.5 w-2.5 animate-spin" />
+                                        <Icon name="progress_activity" className="h-3 w-3 animate-spin" />
                                     ) : (
-                                        <Icon name="check" className="h-3 w-3" />
+                                        <Icon name="check" className="h-4 w-4" />
                                     )}
                                     Approve
                                 </Button>
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-md gap-1 text-[11px] h-7 px-2.5"
+                                    className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-lg gap-1.5 text-xs h-9 flex-1 lg:flex-none px-4"
                                     disabled={actionLoading === req.id}
                                     onClick={() => handleReview(req.id, 'reject')}
                                 >
-                                    <Icon name="close" className="h-3 w-3" />
+                                    <Icon name="close" className="h-4 w-4" />
                                     Reject
                                 </Button>
                             </div>

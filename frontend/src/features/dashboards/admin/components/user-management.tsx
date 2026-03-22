@@ -163,48 +163,50 @@ export function UserManagement() {
     return (
         <>
             {/* Search & Filter Bar */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-4">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 mb-4">
                 <div className="relative flex-1">
-                    <Icon name="search" className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60" />
+                    <Icon name="search" className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
                     <Input
                         placeholder="Search by name or email..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="pl-8 h-8 text-xs bg-muted/30 border-border/50 focus-visible:bg-white"
+                        className="pl-9 h-9 text-xs sm:text-sm bg-muted/30 border-border/50 focus-visible:bg-white"
                     />
                 </div>
-                <Select value={roleFilter} onValueChange={setRoleFilter}>
-                    <SelectTrigger className="h-8 w-full sm:w-[140px] text-[11px] font-medium border-border/50 bg-muted/30">
-                        <SelectValue placeholder="All Roles" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="ALL">All Roles</SelectItem>
-                        <SelectItem value="ADMIN">Administrators</SelectItem>
-                        <SelectItem value="BUILDER">Builders</SelectItem>
-                        <SelectItem value="CONTRACTOR">Contractors</SelectItem>
-                        <SelectItem value="SUPPLIER">Suppliers</SelectItem>
-                    </SelectContent>
-                </Select>
-                <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
-                        {filteredUsers.length} of {users.length} users
-                    </span>
-                    <Button variant="ghost" size="icon" onClick={() => fetchUsers()} className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Refresh">
-                        <Icon name="refresh" className="h-3 w-3" />
-                    </Button>
+                <div className="flex items-center gap-2">
+                    <Select value={roleFilter} onValueChange={setRoleFilter}>
+                        <SelectTrigger className="h-9 flex-1 lg:w-[160px] text-[11px] sm:text-xs font-medium border-border/50 bg-muted/30">
+                            <SelectValue placeholder="All Roles" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">All Roles</SelectItem>
+                            <SelectItem value="ADMIN">Administrators</SelectItem>
+                            <SelectItem value="BUILDER">Builders</SelectItem>
+                            <SelectItem value="CONTRACTOR">Contractors</SelectItem>
+                            <SelectItem value="SUPPLIER">Suppliers</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-2 shrink-0 bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                        <span className="text-[10px] sm:text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
+                            {filteredUsers.length} Users
+                        </span>
+                        <Button variant="ghost" size="icon" onClick={() => fetchUsers()} className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Refresh">
+                            <Icon name="refresh" className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
                 </div>
             </div>
 
             {/* User Table */}
-            <div className="rounded-xl border border-border/50 overflow-hidden">
+            <div className="rounded-xl border border-border/50 overflow-x-auto no-scrollbar">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
-                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-[280px]">User</TableHead>
-                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Role</TableHead>
-                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</TableHead>
-                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Joined</TableHead>
-                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right w-[60px]"></TableHead>
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground min-w-[200px]">User</TableHead>
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground min-w-[120px]">Role</TableHead>
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground min-w-[100px]">Status</TableHead>
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hidden lg:table-cell">Joined</TableHead>
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -278,7 +280,7 @@ export function UserManagement() {
                                                 {user.is_active ? 'Active' : 'Suspended'}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="hidden lg:table-cell">
                                             <span className="text-[11px] text-muted-foreground" title={new Date(user.date_joined).toLocaleString()}>
                                                 {timeAgo(user.date_joined)}
                                             </span>
