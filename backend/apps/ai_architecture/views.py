@@ -1558,143 +1558,133 @@ class ChatCompletionView(APIView):
             for i, p in enumerate(top_prompts, 1):
                 examples_block += f"Example {i}: {p}\n"
 
-        project_context = ""
+        # ── Build complete JSON prompt from project form data ────────────
+        import json as _json
+
         is_commercial = False
+        floor_count = 1
+        b_type = "Residential"
+        u_case = "single_family"
+
         if project:
             b_type = (project.building_type or 'Residential').upper()
             u_case = (project.use_case or 'Unspecified').lower()
-            is_commercial = b_type != 'RESIDENTIAL'
-            
-            project_context = (
-                f"\nPROJECT REQUIREMENTS (MUST BE REPLICATED IN THE DRAWING):\n"
-                f"- Building Type: {b_type}\n"
-                f"- Use Case: {u_case}\n"
-                f"- Occupants: {project.occupants or 'Unspecified'}\n"
-                f"- Floors/Storeys: {project.floors or 'Unspecified'}\n"
-            )
-            # Only include residential fields for residential or mixed use
-            if b_type in ['RESIDENTIAL', 'MIXED_USE']:
-                project_context += (
-                    f"- Bedrooms: {project.bedrooms or 'Unspecified'}\n"
-                    f"- Bathrooms: {project.bathrooms or 'Unspecified'}\n"
-                )
+            is_commercial = b_type not in ('RESIDENTIAL', 'MIXED_USE')
+
+            try:
+                if project.floors:
+                    floor_count = int(float(str(project.floors)))
+            except (ValueError, TypeError):
+                pass
+
+        # ── Build rooms array with dimensions in meters ──────────────────
+        rooms = []
+        if project:
+            bedrooms_count = 0
+            bathrooms_count = 0
+            try:
+                bedrooms_count = int(float(str(project.bedrooms or 0)))
+            except (ValueError, TypeError):
+                pass
+            try:
+                bathrooms_count = int(float(str(project.bathrooms or 0)))
+            except (ValueError, TypeError):
+                pass
+
+            if is_commercial:
+                for i in range(1, bedrooms_count + 1):
+                    rooms.append({"name": f"Office {i}", "width_m": 4.5, "length_m": 4.0, "label": True})
+                for i in range(1, bathrooms_count + 1):
+                    rooms.append({"name": f"Restroom {i}", "width_m": 2.5, "length_m": 2.0, "label": True})
+                rooms.append({"name": "Reception/Lobby", "width_m": 6.0, "length_m": 4.5, "label": True})
+                rooms.append({"name": "Conference Room", "width_m": 5.0, "length_m": 4.0, "label": True})
+                rooms.append({"name": "Corridor", "width_m": 1.5, "length_m": "full-length", "label": True})
+                if project.special_spaces and project.special_spaces.lower() != 'none':
+                    for space in project.special_spaces.split(','):
+                        s = space.strip()
+                        if s:
+                            rooms.append({"name": s, "width_m": 4.0, "length_m": 3.5, "label": True})
             else:
-                # For non-residential, use more appropriate terminology
-                project_context += (
-                    f"- Units/Offices/Spaces: {project.bedrooms or 'Unspecified'} (interpreting 'bedrooms' field as discrete units/offices)\n"
-                    f"- Restrooms: {project.bathrooms or 'Unspecified'}\n"
-                )
-                
-            project_context += (
-                f"- Garage: {'Yes' if project.has_garage else 'No'}\n"
-                f"- Parking Spaces: {project.parking_spaces or 'Unspecified'}\n"
-                f"- Lot Size: {project.lot_size or 'Unspecified'}\n"
-                f"- Footprint: {project.footprint or 'Unspecified'}\n"
-                f"- Roof Type: {project.roof_type or 'Unspecified'}\n"
-                f"- Preferred Style: {project.preferred_style or 'Modern'}\n"
-                f"- Special Spaces: {project.special_spaces or 'None'}\n"
-                f"- Sustainability: {project.sustainability or 'None'}\n"
-                f"- Accessibility: {project.accessibility or 'None'}\n"
-                f"- Site Notes: {project.site_notes or 'None'}\n"
-                f"- Constraints: {project.constraints or 'None'}\n"
-                f"- Timeline: {project.timeline or 'Unspecified'}\n"
-                f"- Budget Flexibility: {project.budget_flex or 'Unspecified'}\n"
-                f"- Additional Brief: {project.ai_brief or 'N/A'}\n"
-            )
+                rooms.append({"name": "Living Room", "width_m": 5.0, "length_m": 4.5, "label": True})
+                rooms.append({"name": "Kitchen", "width_m": 4.0, "length_m": 3.5, "label": True})
+                rooms.append({"name": "Dining Area", "width_m": 3.5, "length_m": 3.0, "label": True})
+                for i in range(1, bedrooms_count + 1):
+                    if i == 1:
+                        rooms.append({"name": "Master Bedroom", "width_m": 4.5, "length_m": 4.0, "label": True})
+                    else:
+                        rooms.append({"name": f"Bedroom {i}", "width_m": 3.5, "length_m": 3.0, "label": True})
+                for i in range(1, bathrooms_count + 1):
+                    if i == 1:
+                        rooms.append({"name": "En-suite Bathroom", "width_m": 2.5, "length_m": 2.0, "label": True})
+                    else:
+                        rooms.append({"name": f"Bathroom {i}", "width_m": 2.5, "length_m": 2.0, "label": True})
+                rooms.append({"name": "Hallway", "width_m": 1.2, "length_m": "full-length", "label": True})
+                if project.has_garage:
+                    try:
+                        parking = int(str(project.parking_spaces or 1))
+                    except (ValueError, TypeError):
+                        parking = 1
+                    rooms.append({"name": "Garage", "width_m": 3.0 * parking, "length_m": 6.0, "label": True})
+                if project.special_spaces and project.special_spaces.lower() != 'none':
+                    for space in project.special_spaces.split(','):
+                        s = space.strip()
+                        if s:
+                            rooms.append({"name": s, "width_m": 3.5, "length_m": 3.0, "label": True})
 
-        additional_directive = ""
-        # Handle stair/level enforcement
-        floor_count = 1
-        try:
-            if project and project.floors:
-                floor_count = int(float(str(project.floors)))
-        except (ValueError, TypeError):
-            pass
-
+        # ── Build forbidden list based on floor count ────────────────────
+        forbidden = [
+            "3d", "perspective", "isometric", "shading", "realistic",
+            "photorealistic", "legend", "key", "title block", "border",
+            "frame", "margin text", "chart", "table", "metadata",
+            "furniture photo", "room schedule"
+        ]
         if floor_count == 1:
-            additional_directive += "\nCRITICAL: This is a SINGLE-STORY building. DO NOT include any stairs, staircases, or second-floor indicators. "
-        
-        if is_commercial:
-            additional_directive += (
-                "\nCRITICAL: This is a COMMERCIAL/NON-RESIDENTIAL plan. "
-                "DO NOT included typical residential features like living rooms, kitchens, or family spaces "
-                "unless they are part of the 'Special Spaces'. Focus on efficient commercial/office/public layout. "
-                "Rooms should be labeled according to the 'Use Case' (e.g., Offices, Conference Room, Lobby, Warehouse, etc.)."
-            )
+            forbidden.extend(["stairs", "staircase", "stairwell", "elevator", "escalator", "second floor", "upper level"])
 
-        prompt_system = (
-            f"You are an expert architectural prompt engineer specializing in {category_name}s. "
-            f"The user wants a professional 2D ARCHITECTURAL FLOOR PLAN."
-            f"{project_context}\n"
-            f"{additional_directive}\n"
-            f"Generate a concise, vivid text-to-image prompt (max 120 words) that will produce "
-            f"a STRICTLY 2D, top-down technical architectural floor plan. "
-            f"The image must ONLY contain the building layout."
-            f"\n\nCRITICAL REQUIREMENTS:\n"
-            f"- VIEW: Strictly top-down orthographic 2D view. ABSOLUTELY NO 3D, perspective, or isometric elements.\n"
-            f"- FORBIDDEN: Do NOT include title blocks, legends, keys, boarders, frames, or text lists outside the plan.\n"
-            f"- STYLE: {style_hint}, clean black lines on crisp white background, professional CAD blueprint aesthetic.\n"
-            f"- DETAILS: Precise wall thicknesses, door swings, window symbols, and minimal room labels inside the rooms.\n"
-            f"- MEASUREMENTS: ALL architecture dimensions MUST be clearly labeled in METERS (m), e.g. '4.2m x 5.1m'.\n"
-            f"- TEXT: NO text outside the building footprint. NO metadata or 'Key' sections.\n"
-            f"\nOutput ONLY the prompt text, nothing else."
-        )
+        # ── Assemble the complete JSON prompt specification ──────────────
+        json_prompt = {
+            "instruction": "Generate a 2D top-down architectural floor plan image",
+            "building": {
+                "type": b_type,
+                "use_case": u_case.replace('_', ' '),
+                "style": (project.preferred_style or 'Modern').lower() if project else "modern",
+                "floors": floor_count,
+                "storey_shown": "ground floor",
+                "footprint": (project.footprint or None) if project else None,
+                "lot_size": (project.lot_size or None) if project else None,
+                "has_garage": bool(project.has_garage) if project else False,
+                "parking_spaces": (project.parking_spaces or 0) if project else 0,
+                "roof_type": (project.roof_type or "gable") if project else "gable",
+            },
+            "rooms": rooms,
+            "rendering": {
+                "view": "strictly 2D top-down orthographic",
+                "background": "white",
+                "lines": "clean black, precise wall thicknesses",
+                "symbols": "door swing arcs, window parallel lines",
+                "labels": "every room must show its name inside the room",
+                "dimensions": "every room must show width x length in meters (m), e.g. 4.2m x 5.1m",
+                "dimension_unit": "meters (m)",
+                "style": style_hint,
+            },
+            "forbidden": forbidden
+        }
 
-        try:
-            # If user query is just "/draw", build a descriptive request from project data
-            effective_query = user_query
-            if user_query.strip().lower() in ['/draw', '/draw '] and project:
-                b_type = (project.building_type or 'building').lower()
-                u_case = (project.use_case or 'general use').lower()
-                is_comm = b_type != 'residential'
-                
-                unit_desc = f"{project.bedrooms or 'unspecified'} units/spaces" if is_comm else f"{project.bedrooms or 'unspecified'} beds"
-                rest_desc = f"{project.bathrooms or 'unspecified'} restrooms" if is_comm else f"{project.bathrooms or 'unspecified'} baths"
-
-                effective_query = (
-                    f"A 2D architectural drawing for a {b_type} "
-                    f"({u_case}). "
-                    f"Details: {unit_desc}, {rest_desc}, "
-                    f"{project.floors or 'unspecified'} floors, "
-                    f"Garage: {'Yes' if project.has_garage else 'No'} ({project.parking_spaces or 'Unspecified'} spaces), "
-                    f"Lot Size: {project.lot_size or 'Unspecified'}, Footprint: {project.footprint or 'Unspecified'}, "
-                    f"Style: {project.preferred_style or 'Modern'}, Roof: {project.roof_type or 'Unspecified'}, "
-                    f"Special spaces: {project.special_spaces or 'None'}, "
-                    f"Sustainability: {project.sustainability or 'None'}, Accessibility: {project.accessibility or 'None'}, "
-                    f"Site Notes/Constraints: {project.site_notes or 'None'} / {project.constraints or 'None'}, "
-                    f"Timeline: {project.timeline or 'Unspecified'}, Budget Flex: {project.budget_flex or 'Unspecified'}. "
-                    f"Brief: {project.ai_brief or ''}"
-                )
-
-            image_prompt = _call_gemini(
-                messages=[{"role": "user", "content": f"User Request: {effective_query}\n\nStrictly prioritize the project requirements if the user request is generic or conflicting."}],
-                system=prompt_system,
-                max_tokens=400,
-                temperature=0.7,
-            )
-        except Exception as e:
-            logger.error("Gemini prompt generation error: %s", e)
-            image_prompt = user_query
-
-        # Append style tokens
-        if matched_preset and matched_preset.style_tokens:
-            image_prompt += f", {matched_preset.style_tokens}"
+        # Serialize the JSON prompt as the text content for the image model
+        image_prompt = _json.dumps(json_prompt, indent=2)
 
         final_image_prompt = image_prompt
-        logger.info("[AI Image] Final prompt: %s", image_prompt)
+        logger.info("[AI Image] JSON prompt: %s", image_prompt[:300])
 
-        # Strengthen negative prompt based on floor count
-        neg_stairs = ", stairs, staircase, elevator" if floor_count == 1 else ""
-        negative = (matched_preset.negative_prompt if matched_preset else "") + (
-            f", 3d, perspective, realistic, photorealistic, blurred, messy, "
-            f"legend, key, title block, border, frame, margin text, chart, table, metadata{neg_stairs}"
-        )
-        guidance = 12.0  # Increased for stricter adherence to the simplified prompt
-        
+        # Negative prompt string for the model
+        negative = ", ".join(forbidden)
+        if matched_preset and matched_preset.negative_prompt:
+            negative = matched_preset.negative_prompt + ", " + negative
+
         image_url, gen_error = _generate_image_from_gemini(
             prompt=image_prompt,
             negative_prompt=negative,
-            guidance_scale=guidance,
+            guidance_scale=14.0,
         )
         return image_url, final_image_prompt, matched_preset, gen_error
 
@@ -1783,13 +1773,17 @@ class ChatCompletionView(APIView):
 
         project_context = ""
         if project:
-            project_context = (
-                f"\nPROJECT REQUIREMENTS (REDRAW MUST MATCH THESE):\n"
-                f"- Building Type: {project.building_type or 'Residential'}\n"
-                f"- Bedrooms: {project.bedrooms or 'Unspecified'}\n"
-                f"- Bathrooms: {project.bathrooms or 'Unspecified'}\n"
-                f"- Preferred Style: {project.preferred_style or 'Modern'}\n"
-            )
+            import json as _json
+            scan_spec = {
+                "building_type": project.building_type or 'Residential',
+                "bedrooms": project.bedrooms or 'Unspecified',
+                "bathrooms": project.bathrooms or 'Unspecified',
+                "floors": project.floors or 1,
+                "preferred_style": project.preferred_style or 'Modern',
+                "lot_size": project.lot_size or 'Unspecified',
+                "footprint": project.footprint or 'Unspecified',
+            }
+            project_context = f"\nPROJECT SPECIFICATION (REDRAW MUST MATCH):\n{_json.dumps(scan_spec, indent=2)}\n"
 
         prompt_system = (
             "You are an expert architectural prompt engineer. You have just received a detailed "
@@ -1799,11 +1793,12 @@ class ChatCompletionView(APIView):
             f"{project_context}\n"
             "REQUIREMENTS:\n"
             "- Strictly 2D TOP-DOWN flat orthographic view. NO 3D, perspective, or realistic shading.\n"
+            "- ROOM LABELS: Every room MUST have its name printed INSIDE the room.\n"
+            "- DIMENSIONS: Every room MUST show width × length in METERS (m), e.g. '4.2m × 5.1m'.\n"
             "- FORBIDDEN: Do NOT include legends, keys, title blocks, margin text, or borders.\n"
             "- The image MUST ONLY show the floor plan layout itself.\n"
             "- Style: clean black CAD lines on plain white background, architectural blueprint style.\n"
-            "- Details: Wall thicknesses, door swings, window symbols, and minimal room labels INSIDE the plan.\n"
-            "- Measurements: ALL dimensions MUST be in METERS (m), e.g. '3.5m'.\n"
+            "- Details: Wall thicknesses, door swings, window symbols.\n"
             "\nOutput ONLY the prompt text, nothing else."
         )
 
@@ -1816,8 +1811,8 @@ class ChatCompletionView(APIView):
             image_prompt = _call_gemini(
                 messages=[{"role": "user", "content": user_context}],
                 system=prompt_system,
-                max_tokens=400,
-                temperature=0.7,
+                max_tokens=500,
+                temperature=0.5,
             )
         except Exception as e:
             logger.error("Gemini prompt generation error for /scan: %s", e)
@@ -1828,24 +1823,34 @@ class ChatCompletionView(APIView):
                 f"scale bar: {plan_analysis[:500]}"
             )
 
+        # Force-append critical rendering directives
+        image_prompt += (
+            ". STRICTLY 2D top-down floor plan only. "
+            "Every room labeled with name and dimensions in meters. "
+            "Clean black lines on white background. No legends, no keys, no title blocks."
+        )
+
         final_prompt = image_prompt
         logger.info("[Scan] Step 2 complete. Prompt: %.200s...", final_prompt)
+
+        # Build negative prompt, conditionally adding stairs exclusion
+        neg_scan = (
+            "3d, perspective, isometric, shaded, render, blurry, messy, "
+            "legend, key, title block, border, frame, text list, chart, metadata"
+        )
+        if ("single story" in plan_analysis.lower() or "single-story" in plan_analysis.lower()
+                or "one story" in plan_analysis.lower() or "one-story" in plan_analysis.lower()):
+            neg_scan += ", stairs, staircase, elevator, stairwell"
 
         logger.info("[Scan] Step 3: Generating professional drawing via Gemini...")
         image_url, gen_error = _generate_image_from_gemini(
             prompt=image_prompt,
-            negative_prompt="3d, perspective, shaded, render, blurry, messy, legend, key, title block, border, text list, chart",
-            guidance_scale=12.0,
+            negative_prompt=neg_scan,
+            guidance_scale=14.0,
         )
 
         if gen_error:
             return None, final_prompt, gen_error
-
-        # Update negative prompt for /scan as well
-        # If the analysis says single storey, avoid stairs
-        neg_scan = "3d, perspective, shaded, render, blurry, messy, legend, key, title block, border, text list, chart"
-        if "single story" in plan_analysis.lower() or "single-story" in plan_analysis.lower() or "one story" in plan_analysis.lower():
-            neg_scan += ", stairs, staircase, elevator"
 
         return image_url, final_prompt, None
 
