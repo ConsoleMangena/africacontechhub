@@ -33,14 +33,19 @@ export const sidebarData: SidebarData = {
           icon: 'security',
         },
         {
+          title: 'Projects',
+          url: '/admin/projects',
+          icon: 'business_center',
+        },
+        {
+          title: 'AI Command Center',
+          url: '/admin/ai-command-center',
+          icon: 'smart_toy',
+        },
+        {
           title: 'User Management',
           url: '/admin/users',
           icon: 'group',
-        },
-        {
-          title: 'Knowledge Base',
-          url: '/admin/knowledge-base',
-          icon: 'menu_book',
         },
         {
           title: 'Team Management',
@@ -53,9 +58,29 @@ export const sidebarData: SidebarData = {
           icon: 'inventory_2',
         },
         {
+          title: 'Knowledge Base',
+          url: '/admin/knowledge-base',
+          icon: 'menu_book',
+        },
+        {
           title: 'Floor Plans',
           url: '/admin/floor-plans',
           icon: 'image',
+        },
+        {
+          title: 'Activity Log',
+          url: '/admin/activity-log',
+          icon: 'history',
+        },
+        {
+          title: 'Platform Billing',
+          url: '/admin/billing',
+          icon: 'payments',
+        },
+        {
+          title: 'System Settings',
+          url: '/admin/settings',
+          icon: 'settings_suggest',
         },
       ],
     },
