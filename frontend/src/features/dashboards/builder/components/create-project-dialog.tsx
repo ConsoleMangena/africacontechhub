@@ -465,11 +465,11 @@ export function CreateProjectDialog({
 
                                                 <div className="grid grid-cols-3 gap-2 sm:col-span-2">
                                                     <div className="space-y-1">
-                                                        <Label>Bedrooms</Label>
+                                                        <Label>{buildingType === 'RESIDENTIAL' ? 'Bedrooms' : 'Units/Offices'}</Label>
                                                         <Input type="number" min="0" value={bedrooms} onChange={(e) => setBedrooms(e.target.value)} />
                                                     </div>
                                                     <div className="space-y-1">
-                                                        <Label>Bathrooms</Label>
+                                                        <Label>{buildingType === 'RESIDENTIAL' ? 'Bathrooms' : 'Restrooms'}</Label>
                                                         <Input type="number" min="0" value={bathrooms} onChange={(e) => setBathrooms(e.target.value)} />
                                                     </div>
                                                     <div className="space-y-1">

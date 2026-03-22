@@ -1559,15 +1559,33 @@ class ChatCompletionView(APIView):
                 examples_block += f"Example {i}: {p}\n"
 
         project_context = ""
+        is_commercial = False
         if project:
+            b_type = (project.building_type or 'Residential').upper()
+            u_case = (project.use_case or 'Unspecified').lower()
+            is_commercial = b_type != 'RESIDENTIAL'
+            
             project_context = (
                 f"\nPROJECT REQUIREMENTS (MUST BE REPLICATED IN THE DRAWING):\n"
-                f"- Building Type: {project.building_type or 'Residential'}\n"
-                f"- Use Case: {project.use_case or 'Unspecified'}\n"
+                f"- Building Type: {b_type}\n"
+                f"- Use Case: {u_case}\n"
                 f"- Occupants: {project.occupants or 'Unspecified'}\n"
                 f"- Floors/Storeys: {project.floors or 'Unspecified'}\n"
-                f"- Bedrooms: {project.bedrooms or 'Unspecified'}\n"
-                f"- Bathrooms: {project.bathrooms or 'Unspecified'}\n"
+            )
+            # Only include residential fields for residential or mixed use
+            if b_type in ['RESIDENTIAL', 'MIXED_USE']:
+                project_context += (
+                    f"- Bedrooms: {project.bedrooms or 'Unspecified'}\n"
+                    f"- Bathrooms: {project.bathrooms or 'Unspecified'}\n"
+                )
+            else:
+                # For non-residential, use more appropriate terminology
+                project_context += (
+                    f"- Units/Offices/Spaces: {project.bedrooms or 'Unspecified'} (interpreting 'bedrooms' field as discrete units/offices)\n"
+                    f"- Restrooms: {project.bathrooms or 'Unspecified'}\n"
+                )
+                
+            project_context += (
                 f"- Garage: {'Yes' if project.has_garage else 'No'}\n"
                 f"- Parking Spaces: {project.parking_spaces or 'Unspecified'}\n"
                 f"- Lot Size: {project.lot_size or 'Unspecified'}\n"
@@ -1584,10 +1602,20 @@ class ChatCompletionView(APIView):
                 f"- Additional Brief: {project.ai_brief or 'N/A'}\n"
             )
 
+        additional_directive = ""
+        if is_commercial:
+            additional_directive = (
+                "\nCRITICAL: This is a COMMERCIAL/NON-RESIDENTIAL plan. "
+                "DO NOT included typical residential features like living rooms, kitchens, or family spaces "
+                "unless they are part of the 'Special Spaces'. Focus on efficient commercial/office/public layout. "
+                "Rooms should be labeled according to the 'Use Case' (e.g., Offices, Conference Room, Lobby, Warehouse, etc.)."
+            )
+
         prompt_system = (
             f"You are an expert architectural prompt engineer specializing in {category_name}s. "
             f"The user wants a professional 2D ARCHITECTURAL FLOOR PLAN."
             f"{project_context}\n"
+            f"{additional_directive}\n"
             f"Generate a concise, vivid text-to-image prompt (max 150 words) that will produce "
             f"a strictly 2D, top-down CAD-style floor plan that MUST ALIGN with the project requirements above.\n\n"
             f"CRITICAL REQUIREMENTS:\n"
@@ -1603,10 +1631,17 @@ class ChatCompletionView(APIView):
             # If user query is just "/draw", build a descriptive request from project data
             effective_query = user_query
             if user_query.strip().lower() in ['/draw', '/draw '] and project:
+                b_type = (project.building_type or 'building').lower()
+                u_case = (project.use_case or 'general use').lower()
+                is_comm = b_type != 'residential'
+                
+                unit_desc = f"{project.bedrooms or 'unspecified'} units/spaces" if is_comm else f"{project.bedrooms or 'unspecified'} beds"
+                rest_desc = f"{project.bathrooms or 'unspecified'} restrooms" if is_comm else f"{project.bathrooms or 'unspecified'} baths"
+
                 effective_query = (
-                    f"A 2D architectural drawing for a {project.building_type or 'building'} "
-                    f"({project.use_case or 'general use'}). "
-                    f"Details: {project.bedrooms or 'unspecified'} beds, {project.bathrooms or 'unspecified'} baths, "
+                    f"A 2D architectural drawing for a {b_type} "
+                    f"({u_case}). "
+                    f"Details: {unit_desc}, {rest_desc}, "
                     f"{project.floors or 'unspecified'} floors, "
                     f"Garage: {'Yes' if project.has_garage else 'No'} ({project.parking_spaces or 'Unspecified'} spaces), "
                     f"Lot Size: {project.lot_size or 'Unspecified'}, Footprint: {project.footprint or 'Unspecified'}, "
