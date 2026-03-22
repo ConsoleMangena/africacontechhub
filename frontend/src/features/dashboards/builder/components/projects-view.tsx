@@ -56,7 +56,7 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {projects.map((project) => {
                         const tier = tierConfig[project.engagement_tier]
                         const statusBadge = statusConfig[project.status]
@@ -82,53 +82,53 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
                                     </Badge>
                                 </div>
 
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
+                                    <div className="flex items-center gap-1 text-[11px] sm:text-xs text-muted-foreground whitespace-nowrap">
                                         <Icon name="attach_money" size={12} />
                                         <span>${parseFloat(project.budget).toLocaleString()}</span>
                                     </div>
-                                    <Badge variant="outline" className={`text-xs ${tier?.className || ''}`}>
+                                    <Badge variant="outline" className={`text-[10px] sm:text-xs whitespace-nowrap ${tier?.className || ''}`}>
                                         <Icon name={tierIconName} size={12} className="mr-1" />
                                         {tier?.label || project.engagement_tier}
                                     </Badge>
                                     {project.si56_verified && (
-                                        <Badge variant="outline" className="text-xs text-green-600 bg-green-50">
+                                        <Badge variant="outline" className="text-[10px] sm:text-xs text-green-600 bg-green-50 whitespace-nowrap">
                                             <Icon name="gpp_good" size={12} className="mr-1" />
                                             SI 56
                                         </Badge>
                                     )}
-                                    <Badge variant="outline" className="text-xs text-blue-600 bg-blue-50">
+                                    <Badge variant="outline" className="text-[10px] sm:text-xs text-blue-600 bg-blue-50 whitespace-nowrap">
                                         <Icon name="groups" size={12} className="mr-1" />
                                         {project.total_team_count} Artisans
                                     </Badge>
                                 </div>
 
-                                <div className="flex items-center gap-2 pt-2 border-t border-border/40">
+                                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-7 text-xs flex-1"
+                                        className="h-8 text-[11px] sm:text-xs flex-1 min-w-[60px]"
                                         onClick={() => onView(project)}
                                     >
-                                        <Icon name="visibility" size={12} className="mr-1" />
+                                        <Icon name="visibility" size={14} className="mr-1" />
                                         View
                                     </Button>
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-7 text-xs flex-1"
+                                        className="h-8 text-[11px] sm:text-xs flex-1 min-w-[60px]"
                                         onClick={() => onEdit(project)}
                                     >
-                                        <Icon name="edit" size={12} className="mr-1" />
+                                        <Icon name="edit" size={14} className="mr-1" />
                                         Edit
                                     </Button>
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-7 text-xs flex-1 text-destructive hover:text-destructive"
+                                        className="h-8 text-[11px] sm:text-xs flex-1 min-w-[60px] text-destructive hover:text-destructive"
                                         onClick={() => onDelete(project)}
                                     >
-                                        <Icon name="delete" size={12} className="mr-1" />
+                                        <Icon name="delete" size={14} className="mr-1" />
                                         Delete
                                     </Button>
                                 </div>

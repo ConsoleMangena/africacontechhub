@@ -113,34 +113,36 @@ export default function BuilderDashboard() {
                         {/* Active Sites (Tabs) */}
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                             <Tabs defaultValue="in-progress" className="w-full">
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
                                     <h2 className="text-lg font-bold font-display text-slate-900 flex items-center gap-2">
                                         <Icon name="folder_open" size={20} className="text-blue-500" />
                                         Project Portfolio
                                     </h2>
-                                    <TabsList className="bg-slate-50 border border-slate-200 p-1">
-                                        <TabsTrigger value="planning" className="gap-2 px-4">
-                                            <Icon name="assignment" size={14} className="text-blue-500" />
-                                            Planning
-                                            <span className="ml-1.5 flex h-4 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[10px] font-bold text-slate-700">
-                                                {planningProjects.length}
-                                            </span>
-                                        </TabsTrigger>
-                                        <TabsTrigger value="in-progress" className="gap-2 px-4">
-                                            <Icon name="engineering" size={14} className="text-amber-500" />
-                                            In Progress
-                                            <span className="ml-1.5 flex h-4 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[10px] font-bold text-slate-700">
-                                                {inProgressProjects.length}
-                                            </span>
-                                        </TabsTrigger>
-                                        <TabsTrigger value="completed" className="gap-2 px-4">
-                                            <Icon name="check_circle" size={14} className="text-emerald-500" />
-                                            Completed
-                                            <span className="ml-1.5 flex h-4 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[10px] font-bold text-slate-700">
-                                                {completedProjects.length}
-                                            </span>
-                                        </TabsTrigger>
-                                    </TabsList>
+                                    <div className="w-full overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
+                                        <TabsList className="bg-slate-50 border border-slate-200 p-1 flex">
+                                            <TabsTrigger value="planning" className="gap-2 px-3 sm:px-4 text-xs sm:text-sm whitespace-nowrap flex-1">
+                                                <Icon name="assignment" size={14} className="text-blue-500" />
+                                                Planning
+                                                <span className="ml-1 flex h-4 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[10px] font-bold text-slate-700">
+                                                    {planningProjects.length}
+                                                </span>
+                                            </TabsTrigger>
+                                            <TabsTrigger value="in-progress" className="gap-2 px-3 sm:px-4 text-xs sm:text-sm whitespace-nowrap flex-1">
+                                                <Icon name="engineering" size={14} className="text-amber-500" />
+                                                In Progress
+                                                <span className="ml-1 flex h-4 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[10px] font-bold text-slate-700">
+                                                    {inProgressProjects.length}
+                                                </span>
+                                            </TabsTrigger>
+                                            <TabsTrigger value="completed" className="gap-2 px-3 sm:px-4 text-xs sm:text-sm whitespace-nowrap flex-1">
+                                                <Icon name="check_circle" size={14} className="text-emerald-500" />
+                                                Completed
+                                                <span className="ml-1 flex h-4 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[10px] font-bold text-slate-700">
+                                                    {completedProjects.length}
+                                                </span>
+                                            </TabsTrigger>
+                                        </TabsList>
+                                    </div>
                                 </div>
 
                                 <TabsContent value="planning" className="focus-visible:outline-none">

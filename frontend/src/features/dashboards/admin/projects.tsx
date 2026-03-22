@@ -135,11 +135,11 @@ export function AdminProjects() {
                                 <thead>
                                     <tr className="bg-muted/30 text-muted-foreground text-xs">
                                         <th className="text-left px-4 py-2.5 font-medium">Project</th>
-                                        <th className="text-left px-4 py-2.5 font-medium">Owner</th>
+                                        <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Owner</th>
                                         <th className="text-center px-4 py-2.5 font-medium">Status</th>
-                                        <th className="text-left px-4 py-2.5 font-medium">Location</th>
+                                        <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Location</th>
                                         <th className="text-right px-4 py-2.5 font-medium">Budget</th>
-                                        <th className="text-right px-4 py-2.5 font-medium">Created</th>
+                                        <th className="text-right px-4 py-2.5 font-medium hidden md:table-cell">Created</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -149,20 +149,21 @@ export function AdminProjects() {
                                             <tr key={p.id} className="border-t border-border/40 hover:bg-muted/20 transition-colors">
                                                 <td className="px-4 py-2.5">
                                                     <p className="font-medium text-xs">{p.title}</p>
+                                                    <p className="text-[10px] sm:hidden text-muted-foreground">{p.owner_name}</p>
                                                 </td>
-                                                <td className="px-4 py-2.5">
+                                                <td className="px-4 py-2.5 hidden sm:table-cell">
                                                     <p className="text-xs">{p.owner_name}</p>
                                                     <p className="text-[11px] text-muted-foreground">{p.owner_email}</p>
                                                 </td>
                                                 <td className="px-4 py-2.5 text-center">
-                                                    <Badge className={`${cfg.bg} ${cfg.color} text-[10px] gap-1`}>
+                                                    <Badge className={`${cfg.bg} ${cfg.color} text-[10px] gap-1 px-1.5 py-0`}>
                                                         <Icon name={cfg.icon} className="h-3 w-3" />
-                                                        {p.status.replace('_', ' ')}
+                                                        <span className="truncate max-w-[60px] sm:max-w-none">{p.status.replace('_', ' ')}</span>
                                                     </Badge>
                                                 </td>
-                                                <td className="px-4 py-2.5 text-xs text-muted-foreground truncate max-w-[180px]">{p.location}</td>
+                                                <td className="px-4 py-2.5 text-xs text-muted-foreground truncate max-w-[180px] hidden lg:table-cell">{p.location}</td>
                                                 <td className="px-4 py-2.5 text-right font-mono text-xs font-medium">${p.budget.toLocaleString()}</td>
-                                                <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">{timeAgo(p.created_at)}</td>
+                                                <td className="px-4 py-2.5 text-right text-xs text-muted-foreground hidden md:table-cell">{timeAgo(p.created_at)}</td>
                                             </tr>
                                         )
                                     })}
