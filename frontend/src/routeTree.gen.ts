@@ -43,9 +43,13 @@ import { Route as AuthenticatedBuilderFloorPlansRouteImport } from './routes/_au
 import { Route as AuthenticatedBuilderDesignDraftingRouteImport } from './routes/_authenticated/builder/design-drafting'
 import { Route as AuthenticatedBuilderBuildingRouteImport } from './routes/_authenticated/builder/building'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
+import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
+import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin/projects'
 import { Route as AuthenticatedAdminKnowledgeBaseRouteImport } from './routes/_authenticated/admin/knowledge-base'
 import { Route as AuthenticatedAdminFloorPlansRouteImport } from './routes/_authenticated/admin/floor-plans'
+import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin/billing'
 import { Route as AuthenticatedAdminAiCommandCenterRouteImport } from './routes/_authenticated/admin/ai-command-center'
+import { Route as AuthenticatedAdminActivityLogRouteImport } from './routes/_authenticated/admin/activity-log'
 import { Route as AuthenticatedBuilderProjectProjectIdRouteImport } from './routes/_authenticated/builder/project.$projectId'
 import { Route as AuthenticatedBuilderProjectProjectIdSignaturesRouteImport } from './routes/_authenticated/builder/project.$projectId.signatures'
 import { Route as AuthenticatedBuilderProjectProjectIdMaterialsRouteImport } from './routes/_authenticated/builder/project.$projectId.materials'
@@ -233,6 +237,18 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminSettingsRoute =
+  AuthenticatedAdminSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminProjectsRoute =
+  AuthenticatedAdminProjectsRouteImport.update({
+    id: '/projects',
+    path: '/projects',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminKnowledgeBaseRoute =
   AuthenticatedAdminKnowledgeBaseRouteImport.update({
     id: '/knowledge-base',
@@ -245,10 +261,22 @@ const AuthenticatedAdminFloorPlansRoute =
     path: '/floor-plans',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminBillingRoute =
+  AuthenticatedAdminBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAiCommandCenterRoute =
   AuthenticatedAdminAiCommandCenterRouteImport.update({
     id: '/ai-command-center',
     path: '/ai-command-center',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminActivityLogRoute =
+  AuthenticatedAdminActivityLogRouteImport.update({
+    id: '/activity-log',
+    path: '/activity-log',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedBuilderProjectProjectIdRoute =
@@ -296,9 +324,13 @@ export interface FileRoutesByFullPath {
   '/sqb-team': typeof AuthenticatedSqbTeamRoute
   '/supplier': typeof AuthenticatedSupplierRoute
   '/': typeof AuthenticatedIndexRoute
+  '/admin/activity-log': typeof AuthenticatedAdminActivityLogRoute
   '/admin/ai-command-center': typeof AuthenticatedAdminAiCommandCenterRoute
+  '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/floor-plans': typeof AuthenticatedAdminFloorPlansRoute
   '/admin/knowledge-base': typeof AuthenticatedAdminKnowledgeBaseRoute
+  '/admin/projects': typeof AuthenticatedAdminProjectsRoute
+  '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/builder/building': typeof AuthenticatedBuilderBuildingRoute
   '/builder/design-drafting': typeof AuthenticatedBuilderDesignDraftingRoute
@@ -335,9 +367,13 @@ export interface FileRoutesByTo {
   '/sqb-team': typeof AuthenticatedSqbTeamRoute
   '/supplier': typeof AuthenticatedSupplierRoute
   '/': typeof AuthenticatedIndexRoute
+  '/admin/activity-log': typeof AuthenticatedAdminActivityLogRoute
   '/admin/ai-command-center': typeof AuthenticatedAdminAiCommandCenterRoute
+  '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/floor-plans': typeof AuthenticatedAdminFloorPlansRoute
   '/admin/knowledge-base': typeof AuthenticatedAdminKnowledgeBaseRoute
+  '/admin/projects': typeof AuthenticatedAdminProjectsRoute
+  '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/builder/building': typeof AuthenticatedBuilderBuildingRoute
   '/builder/design-drafting': typeof AuthenticatedBuilderDesignDraftingRoute
@@ -379,9 +415,13 @@ export interface FileRoutesById {
   '/_authenticated/sqb-team': typeof AuthenticatedSqbTeamRoute
   '/_authenticated/supplier': typeof AuthenticatedSupplierRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/admin/activity-log': typeof AuthenticatedAdminActivityLogRoute
   '/_authenticated/admin/ai-command-center': typeof AuthenticatedAdminAiCommandCenterRoute
+  '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/_authenticated/admin/floor-plans': typeof AuthenticatedAdminFloorPlansRoute
   '/_authenticated/admin/knowledge-base': typeof AuthenticatedAdminKnowledgeBaseRoute
+  '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRoute
+  '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/builder/building': typeof AuthenticatedBuilderBuildingRoute
   '/_authenticated/builder/design-drafting': typeof AuthenticatedBuilderDesignDraftingRoute
@@ -423,9 +463,13 @@ export interface FileRouteTypes {
     | '/sqb-team'
     | '/supplier'
     | '/'
+    | '/admin/activity-log'
     | '/admin/ai-command-center'
+    | '/admin/billing'
     | '/admin/floor-plans'
     | '/admin/knowledge-base'
+    | '/admin/projects'
+    | '/admin/settings'
     | '/admin/users'
     | '/builder/building'
     | '/builder/design-drafting'
@@ -462,9 +506,13 @@ export interface FileRouteTypes {
     | '/sqb-team'
     | '/supplier'
     | '/'
+    | '/admin/activity-log'
     | '/admin/ai-command-center'
+    | '/admin/billing'
     | '/admin/floor-plans'
     | '/admin/knowledge-base'
+    | '/admin/projects'
+    | '/admin/settings'
     | '/admin/users'
     | '/builder/building'
     | '/builder/design-drafting'
@@ -505,9 +553,13 @@ export interface FileRouteTypes {
     | '/_authenticated/sqb-team'
     | '/_authenticated/supplier'
     | '/_authenticated/'
+    | '/_authenticated/admin/activity-log'
     | '/_authenticated/admin/ai-command-center'
+    | '/_authenticated/admin/billing'
     | '/_authenticated/admin/floor-plans'
     | '/_authenticated/admin/knowledge-base'
+    | '/_authenticated/admin/projects'
+    | '/_authenticated/admin/settings'
     | '/_authenticated/admin/users'
     | '/_authenticated/builder/building'
     | '/_authenticated/builder/design-drafting'
@@ -783,6 +835,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/settings': {
+      id: '/_authenticated/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/projects': {
+      id: '/_authenticated/admin/projects'
+      path: '/projects'
+      fullPath: '/admin/projects'
+      preLoaderRoute: typeof AuthenticatedAdminProjectsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/knowledge-base': {
       id: '/_authenticated/admin/knowledge-base'
       path: '/knowledge-base'
@@ -797,11 +863,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFloorPlansRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/billing': {
+      id: '/_authenticated/admin/billing'
+      path: '/billing'
+      fullPath: '/admin/billing'
+      preLoaderRoute: typeof AuthenticatedAdminBillingRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/ai-command-center': {
       id: '/_authenticated/admin/ai-command-center'
       path: '/ai-command-center'
       fullPath: '/admin/ai-command-center'
       preLoaderRoute: typeof AuthenticatedAdminAiCommandCenterRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/activity-log': {
+      id: '/_authenticated/admin/activity-log'
+      path: '/activity-log'
+      fullPath: '/admin/activity-log'
+      preLoaderRoute: typeof AuthenticatedAdminActivityLogRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/builder/project/$projectId': {
@@ -857,18 +937,26 @@ const AuthenticatedSettingsRouteRouteWithChildren =
   )
 
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminActivityLogRoute: typeof AuthenticatedAdminActivityLogRoute
   AuthenticatedAdminAiCommandCenterRoute: typeof AuthenticatedAdminAiCommandCenterRoute
+  AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
   AuthenticatedAdminFloorPlansRoute: typeof AuthenticatedAdminFloorPlansRoute
   AuthenticatedAdminKnowledgeBaseRoute: typeof AuthenticatedAdminKnowledgeBaseRoute
+  AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRoute
+  AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminActivityLogRoute: AuthenticatedAdminActivityLogRoute,
   AuthenticatedAdminAiCommandCenterRoute:
     AuthenticatedAdminAiCommandCenterRoute,
+  AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
   AuthenticatedAdminFloorPlansRoute: AuthenticatedAdminFloorPlansRoute,
   AuthenticatedAdminKnowledgeBaseRoute: AuthenticatedAdminKnowledgeBaseRoute,
+  AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRoute,
+  AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }

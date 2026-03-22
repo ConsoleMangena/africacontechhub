@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { adminApi } from '@/services/api'
 import { toast } from 'sonner'
+
 interface AccountRequest {
     id: number
     user_id: number
@@ -20,8 +21,8 @@ interface AccountRequest {
 
 const STATUS_CONFIG = {
     PENDING: { label: 'Pending', color: 'bg-amber-50 text-amber-700 border-amber-200', icon: 'schedule' },
-    APPROVED: { label: 'Approved', color: 'bg-green-50 text-green-700 border-green-200', icon: 'check_circle' },
-    REJECTED: { label: 'Rejected', color: 'bg-red-50 text-red-700 border-red-200', icon: 'cancel' },
+    APPROVED: { label: 'Approved', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: 'check_circle' },
+    REJECTED: { label: 'Rejected', color: 'bg-red-50 text-red-600 border-red-200', icon: 'cancel' },
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -31,10 +32,31 @@ const ROLE_COLORS: Record<string, string> = {
     ADMIN: 'bg-rose-50 text-rose-700 border-rose-200',
 }
 
+function timeAgo(dateStr: string): string {
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'Just now'
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    const days = Math.floor(hrs / 24)
+    if (days === 1) return 'Yesterday'
+    if (days < 30) return `${days}d ago`
+    return new Date(dateStr).toLocaleDateString()
+}
+
+function getInitials(first?: string, last?: string, email?: string): string {
+    if (first && last) return `${first[0]}${last[0]}`.toUpperCase()
+    if (first) return first.slice(0, 2).toUpperCase()
+    if (email) return email[0].toUpperCase()
+    return '?'
+}
+
 export function AccountRequests() {
     const [requests, setRequests] = useState<AccountRequest[]>([])
     const [loading, setLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState<number | null>(null)
+    const [showHistory, setShowHistory] = useState(false)
 
     const fetchRequests = async (isPoll = false) => {
         try {
@@ -83,72 +105,78 @@ export function AccountRequests() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-foreground uppercase tracking-wide">
-                        Pending
+                    <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                        Pending Review
                     </span>
                     {pending.length > 0 && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
+                        <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold bg-amber-500 text-white leading-none">
                             {pending.length}
                         </span>
                     )}
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => fetchRequests()} className="gap-1.5 text-xs text-muted-foreground h-7">
-                    <Icon name="refresh_cw" className="h-3 w-3" />
+                <Button variant="ghost" size="sm" onClick={() => fetchRequests()} className="gap-1.5 text-xs text-muted-foreground h-7 hover:text-foreground">
+                    <Icon name="refresh" className="h-3 w-3" />
                     Refresh
                 </Button>
             </div>
 
             {/* Pending Requests */}
             {pending.length === 0 ? (
-                <div className="text-center py-10 border border-dashed border-border rounded-lg text-muted-foreground">
-                    <Icon name="check_circle" className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                    <p className="text-xs font-medium">No pending requests</p>
+                <div className="text-center py-10 border border-dashed border-border/60 rounded-xl text-muted-foreground bg-muted/10">
+                    <div className="h-8 w-8 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-2">
+                        <Icon name="check_circle" className="h-4 w-4 text-emerald-500" />
+                    </div>
+                    <p className="text-sm font-medium text-foreground">All caught up!</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">No pending account requests.</p>
                 </div>
             ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                     {pending.map((req) => (
-                        <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-50/50 border border-amber-100 hover:border-amber-200 transition-colors">
-                            <div className="flex items-center gap-3">
-                                <div className="h-9 w-9 rounded-full bg-white border border-amber-200 flex items-center justify-center shrink-0">
-                                    <Icon name="person" className="h-4 w-4 text-amber-600" />
+                        <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-lg bg-amber-50/40 border border-amber-100/80 hover:border-amber-200 hover:shadow-sm transition-all">
+                            <div className="flex items-center gap-2.5">
+                                <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-700 text-[10px] font-bold">
+                                    {getInitials(req.first_name, req.last_name, req.email)}
                                 </div>
                                 <div>
-                                    <p className="text-sm font-semibold text-foreground">
+                                    <p className="text-[13px] font-semibold text-foreground">
                                         {req.first_name || req.last_name
                                             ? `${req.first_name} ${req.last_name}`.trim()
                                             : 'Unnamed User'
                                         }
                                     </p>
-                                    <p className="text-xs text-muted-foreground">{req.email}</p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <Badge className={`text-[10px] px-1.5 py-0 border ${ROLE_COLORS[req.requested_role] || 'bg-muted text-muted-foreground border-border'}`}>
-                                            <Icon name="work" className="h-2.5 w-2.5 mr-0.5" />
+                                    <p className="text-[11px] text-muted-foreground">{req.email}</p>
+                                    <div className="flex items-center gap-2 mt-1.5">
+                                        <Badge className={`text-[10px] px-1.5 py-0 border rounded-md ${ROLE_COLORS[req.requested_role] || 'bg-muted text-muted-foreground border-border'}`}>
                                             {req.requested_role}
                                         </Badge>
-                                        <span className="text-[10px] text-muted-foreground">
-                                            {new Date(req.created_at).toLocaleDateString()}
+                                        <span className="text-[10px] text-muted-foreground/70">
+                                            {timeAgo(req.created_at)}
                                         </span>
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-2 shrink-0">
                                 <Button
                                     size="sm"
-                                    className="bg-green-600 hover:bg-green-700 text-white rounded-lg gap-1 text-xs h-7 px-3"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-md gap-1 text-[11px] h-7 px-2.5 shadow-sm"
                                     disabled={actionLoading === req.id}
                                     onClick={() => handleReview(req.id, 'approve')}
                                 >
-                                    <Icon name="check_circle" className="h-3 w-3" />
+                                    {actionLoading === req.id ? (
+                                        <Icon name="progress_activity" className="h-2.5 w-2.5 animate-spin" />
+                                    ) : (
+                                        <Icon name="check" className="h-3 w-3" />
+                                    )}
                                     Approve
                                 </Button>
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="border-red-200 text-red-600 hover:bg-red-50 rounded-lg gap-1 text-xs h-7 px-3"
+                                    className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-md gap-1 text-[11px] h-7 px-2.5"
                                     disabled={actionLoading === req.id}
                                     onClick={() => handleReview(req.id, 'reject')}
                                 >
-                                    <Icon name="x_circle" className="h-3 w-3" />
+                                    <Icon name="close" className="h-3 w-3" />
                                     Reject
                                 </Button>
                             </div>
@@ -157,41 +185,48 @@ export function AccountRequests() {
                 </div>
             )}
 
-            {/* Review History */}
+            {/* Review History — Collapsible */}
             {reviewed.length > 0 && (
-                <>
-                    <div className="flex items-center gap-2 pt-1">
-                        <div className="h-px flex-1 bg-border" />
-                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                            History
+                <div className="pt-1">
+                    <button
+                        onClick={() => setShowHistory(!showHistory)}
+                        className="flex items-center gap-2 w-full group"
+                    >
+                        <div className="h-px flex-1 bg-border/60" />
+                        <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider group-hover:text-foreground transition-colors">
+                            <Icon name={showHistory ? 'keyboard_arrow_up' : 'keyboard_arrow_down'} className="h-3.5 w-3.5" />
+                            History ({reviewed.length})
                         </span>
-                        <div className="h-px flex-1 bg-border" />
-                    </div>
-                    <div className="space-y-1.5">
-                        {reviewed.map((req) => {
-                            const cfg = STATUS_CONFIG[req.status]
-                            return (
-                                <div key={req.id} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                                    <div className="flex items-center gap-2.5">
-                                        {req.status === 'APPROVED'
-                                            ? <Icon name="check_circle" className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                                            : <Icon name="x_circle" className="h-3.5 w-3.5 text-red-500 shrink-0" />}
-                                        <div>
-                                            <p className="text-xs font-medium text-foreground">{req.email}</p>
-                                            <p className="text-[10px] text-muted-foreground">
-                                                {req.reviewed_at ? new Date(req.reviewed_at).toLocaleDateString() : '—'}
-                                                {req.reviewed_by ? ` · ${req.reviewed_by}` : ''}
-                                            </p>
+                        <div className="h-px flex-1 bg-border/60" />
+                    </button>
+
+                    {showHistory && (
+                        <div className="space-y-1.5 mt-3 max-h-64 overflow-y-auto">
+                            {reviewed.map((req) => {
+                                const cfg = STATUS_CONFIG[req.status]
+                                return (
+                                    <div key={req.id} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors">
+                                        <div className="flex items-center gap-2.5">
+                                            {req.status === 'APPROVED'
+                                                ? <span className="h-5 w-5 rounded-full bg-emerald-50 flex items-center justify-center shrink-0"><Icon name="check" className="h-3 w-3 text-emerald-600" /></span>
+                                                : <span className="h-5 w-5 rounded-full bg-red-50 flex items-center justify-center shrink-0"><Icon name="close" className="h-3 w-3 text-red-500" /></span>}
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-medium text-foreground truncate">{req.email}</p>
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    {req.reviewed_at ? timeAgo(req.reviewed_at) : '—'}
+                                                    {req.reviewed_by ? ` · by ${req.reviewed_by}` : ''}
+                                                </p>
+                                            </div>
                                         </div>
+                                        <Badge className={`text-[10px] border rounded-md ${cfg.color}`}>
+                                            {cfg.label}
+                                        </Badge>
                                     </div>
-                                    <Badge className={`text-[10px] border ${cfg.color}`}>
-                                        {cfg.label}
-                                    </Badge>
-                                </div>
-                            )
-                        })}
-                    </div>
-                </>
+                                )
+                            })}
+                        </div>
+                    )}
+                </div>
             )}
         </div>
     )

@@ -396,7 +396,7 @@ def _search_floor_plans(query: str, limit: int = 6) -> list:
     Search FloorPlanDataset by title, description, and category name.
     Returns a list of dicts with plan details and image URLs.
     """
-    from apps.builder_dashboard.models import FloorPlanDataset
+    from apps.admin_dashboard.models import FloorPlanDataset
 
     if not query:
         # No search terms — return the latest plans

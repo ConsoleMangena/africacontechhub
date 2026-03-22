@@ -1,7 +1,8 @@
 import { Icon } from '@/components/ui/material-icon'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { adminApi } from '@/services/api'
 import { Badge } from '@/components/ui/badge'
@@ -32,11 +33,35 @@ const ROLE_LABELS: Record<string, string> = {
     SUPPLIER: 'Supplier',
 }
 
+function getInitials(first?: string, last?: string, email?: string): string {
+    if (first && last) return `${first[0]}${last[0]}`.toUpperCase()
+    if (first) return first.slice(0, 2).toUpperCase()
+    if (email) return email[0].toUpperCase()
+    return '?'
+}
+
+function timeAgo(dateStr: string): string {
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const days = Math.floor(diff / 86400000)
+    if (days === 0) return 'Today'
+    if (days === 1) return 'Yesterday'
+    if (days < 30) return `${days}d ago`
+    if (days < 365) return `${Math.floor(days / 30)}mo ago`
+    return `${Math.floor(days / 365)}y ago`
+}
+
+const AVATAR_COLORS = [
+    'bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500',
+    'bg-emerald-500', 'bg-teal-500', 'bg-amber-500', 'bg-orange-500',
+]
+
 export function UserManagement() {
     const [users, setUsers] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)
-    const [actionLoading, setActionLoading] = useState<string | null>(null) // "role-{id}" | "status-{id}" | "delete-{id}"
+    const [actionLoading, setActionLoading] = useState<string | null>(null)
     const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null)
+    const [search, setSearch] = useState('')
+    const [roleFilter, setRoleFilter] = useState<string>('ALL')
 
     const currentUser = useAuthStore((state) => state.auth.user)
 
@@ -55,6 +80,22 @@ export function UserManagement() {
             setIsLoading(false)
         }
     }
+
+    const filteredUsers = useMemo(() => {
+        let result = users
+        if (roleFilter !== 'ALL') {
+            result = result.filter(u => u.role === roleFilter)
+        }
+        if (search.trim()) {
+            const q = search.toLowerCase()
+            result = result.filter(u =>
+                u.email?.toLowerCase().includes(q) ||
+                u.first_name?.toLowerCase().includes(q) ||
+                u.last_name?.toLowerCase().includes(q)
+            )
+        }
+        return result
+    }, [users, search, roleFilter])
 
     const handleRoleChange = async (userId: number, newRole: string) => {
         setActionLoading(`role-${userId}`)
@@ -121,101 +162,170 @@ export function UserManagement() {
 
     return (
         <>
-            <div className="rounded-lg border border-border/60 overflow-hidden">
+            {/* Search & Filter Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-4">
+                <div className="relative flex-1">
+                    <Icon name="search" className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60" />
+                    <Input
+                        placeholder="Search by name or email..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-8 h-8 text-xs bg-muted/30 border-border/50 focus-visible:bg-white"
+                    />
+                </div>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                    <SelectTrigger className="h-8 w-full sm:w-[140px] text-[11px] font-medium border-border/50 bg-muted/30">
+                        <SelectValue placeholder="All Roles" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="ALL">All Roles</SelectItem>
+                        <SelectItem value="ADMIN">Administrators</SelectItem>
+                        <SelectItem value="BUILDER">Builders</SelectItem>
+                        <SelectItem value="CONTRACTOR">Contractors</SelectItem>
+                        <SelectItem value="SUPPLIER">Suppliers</SelectItem>
+                    </SelectContent>
+                </Select>
+                <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
+                        {filteredUsers.length} of {users.length} users
+                    </span>
+                    <Button variant="ghost" size="icon" onClick={() => fetchUsers()} className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Refresh">
+                        <Icon name="refresh" className="h-3 w-3" />
+                    </Button>
+                </div>
+            </div>
+
+            {/* User Table */}
+            <div className="rounded-xl border border-border/50 overflow-hidden">
                 <Table>
                     <TableHeader>
-                        <TableRow className="bg-muted/40">
-                            <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Name</TableHead>
-                            <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email</TableHead>
-                            <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Role</TableHead>
-                            <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
-                            <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground text-right">Actions</TableHead>
+                        <TableRow className="bg-muted/30 hover:bg-muted/30">
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-[280px]">User</TableHead>
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Role</TableHead>
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</TableHead>
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Joined</TableHead>
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-right w-[60px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {users.map(user => (
-                            <TableRow key={user.id} className="hover:bg-muted/30">
-                                <TableCell className="text-sm font-medium text-foreground">
-                                    {user.first_name || user.last_name ? `${user.first_name} ${user.last_name}` : 'Unknown User'}
-                                    {isSelf(user.id) && (
-                                        <span className="ml-1.5 text-[10px] font-medium text-muted-foreground">(You)</span>
-                                    )}
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{user.email}</TableCell>
-                                <TableCell>
-                                    <Select
-                                        key={`role-${user.id}-${user.role}`}
-                                        value={user.role}
-                                        onValueChange={(val) => handleRoleChange(user.id, val)}
-                                        disabled={actionLoading === `role-${user.id}`}
-                                    >
-                                        <SelectTrigger className={`h-7 w-[130px] text-xs font-medium border ${ROLE_STYLES[user.role] || 'bg-muted text-muted-foreground border-border'}`}>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="ADMIN">Administrator</SelectItem>
-                                            <SelectItem value="BUILDER">Builder</SelectItem>
-                                            <SelectItem value="CONTRACTOR">Contractor</SelectItem>
-                                            <SelectItem value="SUPPLIER">Supplier</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </TableCell>
-                                <TableCell>
-                                    <Badge
-                                        className={`text-xs font-medium cursor-pointer ${user.is_active
-                                            ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
-                                            : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-                                        } ${actionLoading === `status-${user.id}` ? 'opacity-50 pointer-events-none' : ''}`}
-                                        onClick={() => {
-                                            if (actionLoading !== `status-${user.id}`) {
-                                                handleStatusChange(user.id, !user.is_active)
-                                            }
-                                        }}
-                                    >
-                                        {actionLoading === `status-${user.id}` ? (
-                                            <Icon name="progress_activity" className="h-3 w-3 animate-spin mr-1" />
-                                        ) : null}
-                                        {user.is_active ? 'Active' : 'Suspended'}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 h-7 w-7 disabled:opacity-30"
-                                        disabled={isSelf(user.id) || actionLoading === `delete-${user.id}`}
-                                        title={isSelf(user.id) ? 'You cannot delete your own account' : 'Delete user'}
-                                        onClick={() => setDeleteTarget({
-                                            id: user.id,
-                                            name: user.first_name || user.last_name
-                                                ? `${user.first_name} ${user.last_name}`.trim()
-                                                : user.email,
-                                        })}
-                                    >
-                                        {actionLoading === `delete-${user.id}` ? (
-                                            <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin" />
-                                        ) : (
-                                            <Icon name="delete" className="h-3.5 w-3.5" />
-                                        )}
-                                    </Button>
+                        {filteredUsers.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                    <Icon name="search_off" className="h-6 w-6 mx-auto mb-1.5 opacity-40" />
+                                    <p className="text-xs font-medium">No users match your search</p>
                                 </TableCell>
                             </TableRow>
-                        ))}
+                        ) : (
+                            filteredUsers.map((user) => {
+                                const avatarColor = AVATAR_COLORS[user.id % AVATAR_COLORS.length]
+                                return (
+                                    <TableRow key={user.id} className="hover:bg-muted/20 group">
+                                        <TableCell>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`h-7 w-7 rounded-full ${avatarColor} flex items-center justify-center text-white text-[10px] font-bold shrink-0`}>
+                                                    {getInitials(user.first_name, user.last_name, user.email)}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-[13px] font-medium text-foreground truncate">
+                                                        {user.first_name || user.last_name
+                                                            ? `${user.first_name} ${user.last_name}`.trim()
+                                                            : 'Unnamed User'}
+                                                        {isSelf(user.id) && (
+                                                            <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 font-medium text-muted-foreground border-border">
+                                                                You
+                                                            </Badge>
+                                                        )}
+                                                    </p>
+                                                    <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Select
+                                                key={`role-${user.id}-${user.role}`}
+                                                value={user.role}
+                                                onValueChange={(val) => handleRoleChange(user.id, val)}
+                                                disabled={actionLoading === `role-${user.id}`}
+                                            >
+                                                <SelectTrigger className={`h-6 w-[115px] text-[10px] font-medium border rounded-md ${ROLE_STYLES[user.role] || 'bg-muted text-muted-foreground border-border'}`}>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="ADMIN">Administrator</SelectItem>
+                                                    <SelectItem value="BUILDER">Builder</SelectItem>
+                                                    <SelectItem value="CONTRACTOR">Contractor</SelectItem>
+                                                    <SelectItem value="SUPPLIER">Supplier</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge
+                                                className={`text-[11px] font-medium cursor-pointer rounded-lg px-2 ${user.is_active
+                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                                    : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                                                } ${actionLoading === `status-${user.id}` ? 'opacity-50 pointer-events-none' : ''}`}
+                                                onClick={() => {
+                                                    if (actionLoading !== `status-${user.id}`) {
+                                                        handleStatusChange(user.id, !user.is_active)
+                                                    }
+                                                }}
+                                            >
+                                                {actionLoading === `status-${user.id}` ? (
+                                                    <Icon name="progress_activity" className="h-3 w-3 animate-spin mr-1" />
+                                                ) : (
+                                                    <span className={`inline-block h-1.5 w-1.5 rounded-full mr-1.5 ${user.is_active ? 'bg-emerald-500' : 'bg-red-400'}`} />
+                                                )}
+                                                {user.is_active ? 'Active' : 'Suspended'}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="text-[11px] text-muted-foreground" title={new Date(user.date_joined).toLocaleString()}>
+                                                {timeAgo(user.date_joined)}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-muted-foreground/40 hover:text-red-600 hover:bg-red-50 h-7 w-7 disabled:opacity-20 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                disabled={isSelf(user.id) || actionLoading === `delete-${user.id}`}
+                                                title={isSelf(user.id) ? 'You cannot delete your own account' : 'Delete user'}
+                                                onClick={() => setDeleteTarget({
+                                                    id: user.id,
+                                                    name: user.first_name || user.last_name
+                                                        ? `${user.first_name} ${user.last_name}`.trim()
+                                                        : user.email,
+                                                })}
+                                            >
+                                                {actionLoading === `delete-${user.id}` ? (
+                                                    <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                    <Icon name="delete" className="h-3.5 w-3.5" />
+                                                )}
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                )
+                            })
+                        )}
                     </TableBody>
                 </Table>
             </div>
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
-                <AlertDialogContent>
+                <AlertDialogContent className="sm:max-w-md">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete User</AlertDialogTitle>
-                        <AlertDialogDescription>
+                        <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-2">
+                            <Icon name="delete" className="h-5 w-5 text-red-600" />
+                        </div>
+                        <AlertDialogTitle className="text-center">Delete User</AlertDialogTitle>
+                        <AlertDialogDescription className="text-center">
                             Are you sure you want to permanently delete <strong>{deleteTarget?.name}</strong>?
-                            This action cannot be undone and will remove all associated data.
+                            This action cannot be undone.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter>
+                    <AlertDialogFooter className="sm:justify-center gap-2">
                         <AlertDialogCancel disabled={actionLoading?.startsWith('delete-')}>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                             className="bg-red-600 hover:bg-red-700 text-white"
@@ -225,7 +335,7 @@ export function UserManagement() {
                             {actionLoading?.startsWith('delete-') ? (
                                 <><Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin mr-1.5" /> Deleting...</>
                             ) : (
-                                'Delete'
+                                'Delete User'
                             )}
                         </AlertDialogAction>
                     </AlertDialogFooter>

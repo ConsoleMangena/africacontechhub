@@ -1,5 +1,10 @@
 from django.urls import path
-from .views import AdminUserManagementView, AccountRequestView, SystemMetricsView, AIAnalyticsView
+from .views import (
+    AdminUserManagementView, AccountRequestView, SystemMetricsView, AIAnalyticsView,
+    FloorPlanCategoryView, FloorPlanDatasetView,
+    AdminProjectsView, AdminBillingView,
+    PlatformSettingsView, AdminActivityLogView,
+)
 
 urlpatterns = [
     path('metrics/', SystemMetricsView.as_view(), name='admin-metrics'),
@@ -8,4 +13,17 @@ urlpatterns = [
     path('requests/', AccountRequestView.as_view(), name='account-requests'),
     path('requests/<int:pk>/', AccountRequestView.as_view(), name='account-requests-detail'),
     path('ai-analytics/', AIAnalyticsView.as_view(), name='admin-ai-analytics'),
+    # Floor Plans
+    path('floor-plan-categories/', FloorPlanCategoryView.as_view(), name='admin-floor-plan-categories'),
+    path('floor-plan-categories/<int:pk>/', FloorPlanCategoryView.as_view(), name='admin-floor-plan-categories-detail'),
+    path('floor-plans/', FloorPlanDatasetView.as_view(), name='admin-floor-plans'),
+    path('floor-plans/<int:pk>/', FloorPlanDatasetView.as_view(), name='admin-floor-plans-detail'),
+    # Projects
+    path('projects/', AdminProjectsView.as_view(), name='admin-projects'),
+    # Billing
+    path('billing/', AdminBillingView.as_view(), name='admin-billing'),
+    # Settings
+    path('settings/', PlatformSettingsView.as_view(), name='admin-settings'),
+    # Activity Log
+    path('activity-log/', AdminActivityLogView.as_view(), name='admin-activity-log'),
 ]

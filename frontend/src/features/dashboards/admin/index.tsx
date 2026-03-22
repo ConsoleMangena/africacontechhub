@@ -8,47 +8,47 @@ import {
     CardTitle,
 } from '@/components/ui/card'
 
-import { Header } from '@/components/layout/header'
-import { Main } from '@/components/layout/main'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
 import { SystemOverview } from './components/system-overview'
 import { TransactionVolume } from './components/transaction-volume'
+import { UserStats } from './components/user-stats'
 import { useQuery } from '@tanstack/react-query'
 import { adminApi } from '@/services/api'
+import { Link } from '@tanstack/react-router'
 
 function StatCard({
     title,
     value,
     sub,
     icon,
-    iconBg,
-    iconColor,
+    gradientFrom,
+    gradientTo,
 }: {
     title: string
     value: string | number
     sub: string
     icon: string
-    iconBg: string
-    iconColor: string
+    gradientFrom: string
+    gradientTo: string
 }) {
     return (
-        <Card className="border-border/60 bg-card hover:shadow-sm transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
-                    {title}
-                </CardTitle>
-                <div className={`h-10 w-10 rounded-xl ${iconBg} flex items-center justify-center shrink-0 shadow-sm border border-white/20`}>
-                    <Icon name={icon} size={20} className={iconColor} />
+        <div className="relative overflow-hidden rounded-xl border border-border/60 bg-card p-5 hover:shadow-md transition-all duration-200 group">
+            <div className="flex items-start justify-between">
+                <div className="space-y-2">
+                    <p className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                        {title}
+                    </p>
+                    <p className="text-2xl font-bold font-display tracking-tight text-foreground">
+                        {value}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{sub}</p>
                 </div>
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold font-display tracking-tight text-foreground">
-                    {value}
+                <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${gradientFrom} ${gradientTo} flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform`}>
+                    <Icon name={icon} size={22} className="text-white" />
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
-            </CardContent>
-        </Card>
+            </div>
+            {/* Decorative gradient glow */}
+            <div className={`absolute -bottom-4 -right-4 h-20 w-20 rounded-full bg-gradient-to-br ${gradientFrom} ${gradientTo} opacity-[0.06] blur-2xl`} />
+        </div>
     )
 }
 
@@ -61,89 +61,124 @@ export function AdminDashboard() {
         }
     })
 
+    if (isLoading) {
+        return <Loading fullPage text="Preparing your dashboard..." />
+    }
+
+    const overview = metrics?.system_overview ?? {}
+
     return (
-        <>
-            <Header>
-                <div className='ms-auto flex items-center space-x-4'>
-                    <Search />
-                    <ProfileDropdown />
-                </div>
-            </Header>
-            <Main>
-                {isLoading ? (
-                    <Loading fullPage text="Preparing your dashboard..." />
-                ) : (
-                    <div className="w-full max-w-7xl mx-auto space-y-6">
-
-
-                        {/* Stats */}
-                        <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-                            <StatCard
-                                title="Total Users"
-                                value={metrics?.total_users ?? "—"}
-                                sub="Registered accounts"
-                                icon="group"
-                                iconBg="bg-indigo-50"
-                                iconColor="text-indigo-600"
-                            />
-                            <StatCard
-                                title="Active Projects"
-                                value={metrics?.active_projects ?? "—"}
-                                sub="Projects in progress"
-                                icon="business"
-                                iconBg="bg-blue-50"
-                                iconColor="text-blue-600"
-                            />
-                            <StatCard
-                                title="Active Suppliers"
-                                value={metrics?.active_suppliers ?? "—"}
-                                sub="Verified vendors"
-                                icon="inventory_2"
-                                iconBg="bg-purple-50"
-                                iconColor="text-purple-600"
-                            />
-                            <StatCard
-                                title="Total Volume"
-                                value={`$${(metrics?.total_volume ?? 0).toLocaleString()}`}
-                                sub="Platform transactions"
-                                icon="monetization_on"
-                                iconBg="bg-green-50"
-                                iconColor="text-green-600"
-                            />
-                        </div>
-
-                        {/* Charts Row */}
-                        <div className='grid grid-cols-1 gap-4 lg:grid-cols-7'>
-                            <Card className='col-span-1 lg:col-span-4 border-border/60 bg-card'>
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-sm font-semibold font-display flex items-center gap-2 text-foreground">
-                                        <Icon name="trending_up" className="h-4 w-4 text-indigo-600" />
-                                        Transaction Volume
-                                    </CardTitle>
-                                    <CardDescription className="text-xs">Monthly platform activity</CardDescription>
-                                </CardHeader>
-                                <CardContent className='ps-2'>
-                                    <TransactionVolume />
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        {/* System Analytics */}
-                        <Card className="border-border/60 bg-card">
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-semibold font-display flex items-center gap-2 text-foreground">
-                                    <Icon name="monitoring" className="h-4 w-4 text-blue-600" />
-                                    System Performance Analytics
-                                </CardTitle>
-                                <CardDescription className="text-xs">Platform performance and technical insights</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <SystemOverview />
-                            </CardContent>
-                        </Card>
+        <div className="w-full max-w-7xl mx-auto space-y-6">
+            {/* Page Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                        <Icon name="space_dashboard" className="h-5 w-5 text-white" />
                     </div>
+                    <div>
+                        <h1 className="text-2xl font-bold font-display tracking-tight">Platform Overview</h1>
+                        <p className="text-sm text-muted-foreground">
+                            Real-time metrics, activity trends, and system health.
+                        </p>
+                    </div>
+                </div>
+                {/* Quick actions */}
+                {(overview.pending_requests ?? 0) > 0 && (
+                    <Link
+                        to="/admin/users"
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium hover:bg-amber-100 transition-colors"
+                    >
+                        <Icon name="pending_actions" className="h-3.5 w-3.5" />
+                        {overview.pending_requests} pending request{overview.pending_requests !== 1 ? 's' : ''}
+                        <Icon name="arrow_forward" className="h-3 w-3" />
+                    </Link>
                 )}
-            </Main>
-        </>
+            </div>
+
+            {/* Stats */}
+            <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+                <StatCard
+                    title="Total Users"
+                    value={metrics?.total_users ?? "—"}
+                    sub="Registered accounts"
+                    icon="group"
+                    gradientFrom="from-indigo-500"
+                    gradientTo="to-indigo-600"
+                />
+                <StatCard
+                    title="Active Projects"
+                    value={metrics?.active_projects ?? "—"}
+                    sub="Projects in progress"
+                    icon="business"
+                    gradientFrom="from-blue-500"
+                    gradientTo="to-cyan-500"
+                />
+                <StatCard
+                    title="Active Suppliers"
+                    value={metrics?.active_suppliers ?? "—"}
+                    sub="Verified vendors"
+                    icon="inventory_2"
+                    gradientFrom="from-purple-500"
+                    gradientTo="to-violet-600"
+                />
+                <StatCard
+                    title="Total Volume"
+                    value={`$${(metrics?.total_volume ?? 0).toLocaleString()}`}
+                    sub="Platform transactions"
+                    icon="monetization_on"
+                    gradientFrom="from-emerald-500"
+                    gradientTo="to-green-600"
+                />
+            </div>
+
+            {/* Charts Row */}
+            <div className='grid grid-cols-1 gap-5 lg:grid-cols-7'>
+                <Card className='col-span-1 lg:col-span-4 border-border/60 bg-card shadow-sm'>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-semibold font-display flex items-center gap-2 text-foreground">
+                            <div className="h-6 w-6 rounded-md bg-indigo-50 flex items-center justify-center">
+                                <Icon name="trending_up" className="h-3.5 w-3.5 text-indigo-600" />
+                            </div>
+                            Platform Activity
+                        </CardTitle>
+                        <CardDescription className="text-xs">Signups, projects & AI usage (last 6 months)</CardDescription>
+                    </CardHeader>
+                    <CardContent className='ps-2'>
+                        <TransactionVolume />
+                    </CardContent>
+                </Card>
+
+                <Card className='col-span-1 lg:col-span-3 border-border/60 bg-card shadow-sm'>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-semibold font-display flex items-center gap-2 text-foreground">
+                            <div className="h-6 w-6 rounded-md bg-purple-50 flex items-center justify-center">
+                                <Icon name="pie_chart" className="h-3.5 w-3.5 text-purple-600" />
+                            </div>
+                            User Distribution
+                        </CardTitle>
+                        <CardDescription className="text-xs">Breakdown by user type</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <UserStats />
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* System Analytics */}
+            <Card className="border-border/60 bg-card shadow-sm">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold font-display flex items-center gap-2 text-foreground">
+                        <div className="h-6 w-6 rounded-md bg-blue-50 flex items-center justify-center">
+                            <Icon name="monitoring" className="h-3.5 w-3.5 text-blue-600" />
+                        </div>
+                        System Metrics
+                    </CardTitle>
+                    <CardDescription className="text-xs">Key platform health indicators</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <SystemOverview />
+                </CardContent>
+            </Card>
+        </div>
     )
 }

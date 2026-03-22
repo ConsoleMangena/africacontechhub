@@ -1,7 +1,7 @@
 import { Icon } from '@/components/ui/material-icon'
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { adminApi, builderApi } from '@/services/api'
+import { adminApi } from '@/services/api'
 import { FloorPlanCategory, FloorPlanDataset } from '@/types/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,7 +29,7 @@ export function AdminFloorPlans() {
     const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
         queryKey: ['floor-plan-categories'],
         queryFn: async () => {
-            const res = await builderApi.getFloorPlanCategories()
+            const res = await adminApi.getFloorPlanCategories()
             return res.data.results
         }
     })
@@ -37,7 +37,7 @@ export function AdminFloorPlans() {
     const { data: plansData, isLoading: plansLoading } = useQuery({
         queryKey: ['floor-plans'],
         queryFn: async () => {
-            const res = await builderApi.getFloorPlans()
+            const res = await adminApi.getFloorPlans()
             return res.data.results
         }
     })

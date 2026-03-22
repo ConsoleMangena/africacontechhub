@@ -439,3 +439,22 @@ export interface ProjectDocument {
     created_at: string;
     updated_at: string;
 }
+
+export interface FloorPlanCategory {
+    id: number;
+    name: string;
+    description: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface FloorPlanDataset {
+    id: number;
+    title: string;
+    description: string;
+    image: string;
+    category: number;
+    category_name?: string;
+    created_at: string;
+    updated_at: string;
+}

@@ -1,15 +1,20 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, BasePermission
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import status
 from apps.authentication.models import Profile, AccountRequest
 from django.contrib.auth.models import User
 from django.utils import timezone
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q, Avg
 from django.db.models.functions import TruncDate
 from apps.builder_dashboard.models import Project
 from apps.contractor_dashboard.models import Bid
 from apps.supplier_dashboard.models import MaterialOrder
+from .models import (
+    FloorPlanCategory, FloorPlanDataset, PlatformSettings,
+    AdminActivityLog, log_admin_action,
+)
 
 
 class IsAdminRole(BasePermission):
@@ -49,15 +54,19 @@ class AdminUserManagementView(APIView):
 
             if role or is_approved is not None:
                 profile, _ = Profile.objects.get_or_create(user=user)
+                old_role = profile.role
                 if role:
                     profile.role = role
                 if is_approved is not None:
                     profile.is_approved = is_approved
                 profile.save()
+                if role and role != old_role:
+                    log_admin_action(request, 'USER_ROLE_CHANGED', 'User', user.id, user.email, f'{old_role} → {role}')
 
             if is_active is not None:
                 user.is_active = is_active
                 user.save()
+                log_admin_action(request, 'USER_TOGGLED', 'User', user.id, user.email, f"{'Activated' if is_active else 'Deactivated'}")
 
             return Response({'success': True})
         except User.DoesNotExist:
@@ -73,7 +82,9 @@ class AdminUserManagementView(APIView):
             )
         try:
             user = User.objects.get(pk=pk)
+            email = user.email
             user.delete()
+            log_admin_action(request, 'USER_DELETED', 'User', pk, email)
             return Response({'success': True})
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
@@ -88,20 +99,121 @@ class SystemMetricsView(APIView):
     permission_classes = [IsAuthenticated, IsAdminRole]
 
     def get(self, request):
+        from datetime import timedelta
+        from django.db.models import Avg, Q
+        from django.db.models.functions import TruncMonth
+
+        now = timezone.now()
+        thirty_days_ago = now - timedelta(days=30)
+
         total_users = User.objects.count()
-        active_projects = Project.objects.filter(status='ACTIVE').count()
+        active_projects = Project.objects.filter(
+            status__in=['ACTIVE', 'IN_PROGRESS']
+        ).count()
         active_suppliers = Profile.objects.filter(role='SUPPLIER').count()
-        
-        # Calculate Volume from Accepted Bids and Delivered Orders
-        bids_volume = sum(float(bid.total_amount) for bid in Bid.objects.filter(status='ACCEPTED'))
-        orders_volume = sum(float(order.total_cost) for order in MaterialOrder.objects.filter(status='DELIVERED') if order.total_cost)
-        total_volume = bids_volume + orders_volume
+
+        # Calculate Volume from Accepted Bids, Delivered Orders, and Project Budgets
+        bids_volume = Bid.objects.filter(status='ACCEPTED').aggregate(
+            total=Sum('total_amount')
+        )['total'] or 0
+        orders_volume = MaterialOrder.objects.filter(
+            status='DELIVERED'
+        ).aggregate(total=Sum('total_cost'))['total'] or 0
+        projects_volume = Project.objects.aggregate(
+            total=Sum('budget')
+        )['total'] or 0
+        total_volume = float(bids_volume) + float(orders_volume) + float(projects_volume)
+
+        # ── User distribution by role ──
+        role_counts = (
+            Profile.objects.values('role')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        user_distribution = [
+            {'role': rc['role'], 'count': rc['count']}
+            for rc in role_counts
+        ]
+        # Include users without profiles as BUILDER
+        profiled_count = Profile.objects.count()
+        if total_users > profiled_count:
+            no_profile = total_users - profiled_count
+            found_builder = False
+            for ud in user_distribution:
+                if ud['role'] == 'BUILDER':
+                    ud['count'] += no_profile
+                    found_builder = True
+                    break
+            if not found_builder:
+                user_distribution.append({'role': 'BUILDER', 'count': no_profile})
+
+        # ── Monthly platform activity (last 6 months) ──
+        six_months_ago = now - timedelta(days=180)
+
+        from apps.ai_architecture.models import ChatMessage
+
+        # User signups per month
+        signups_monthly = (
+            User.objects.filter(date_joined__gte=six_months_ago)
+            .annotate(month=TruncMonth('date_joined'))
+            .values('month')
+            .annotate(total=Count('id'))
+            .order_by('month')
+        )
+        # Projects created per month
+        projects_monthly = (
+            Project.objects.filter(created_at__gte=six_months_ago)
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(total=Count('id'))
+            .order_by('month')
+        )
+        # AI messages per month
+        messages_monthly = (
+            ChatMessage.objects.filter(created_at__gte=six_months_ago)
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(total=Count('id'))
+            .order_by('month')
+        )
+
+        # Merge into a single timeline
+        volume_map = {}
+        for row in signups_monthly:
+            key = row['month'].strftime('%Y-%m')
+            volume_map.setdefault(key, {'month': key, 'signups': 0, 'projects': 0, 'ai_messages': 0})
+            volume_map[key]['signups'] = row['total']
+        for row in projects_monthly:
+            key = row['month'].strftime('%Y-%m')
+            volume_map.setdefault(key, {'month': key, 'signups': 0, 'projects': 0, 'ai_messages': 0})
+            volume_map[key]['projects'] = row['total']
+        for row in messages_monthly:
+            key = row['month'].strftime('%Y-%m')
+            volume_map.setdefault(key, {'month': key, 'signups': 0, 'projects': 0, 'ai_messages': 0})
+            volume_map[key]['ai_messages'] = row['total']
+        monthly_volume = sorted(volume_map.values(), key=lambda x: x['month'])
+
+        # ── System overview metrics ──
+        all_projects = Project.objects.all()
+        total_projects = all_projects.count()
+        avg_budget = all_projects.aggregate(avg=Avg('budget'))['avg'] or 0
+
+        new_users_30d = User.objects.filter(date_joined__gte=thirty_days_ago).count()
+        pending_requests = AccountRequest.objects.filter(status='PENDING').count()
 
         return Response({
             'total_users': total_users,
             'active_projects': active_projects,
             'active_suppliers': active_suppliers,
             'total_volume': total_volume,
+            'user_distribution': user_distribution,
+            'monthly_volume': monthly_volume,
+            'system_overview': {
+                'avg_project_budget': round(float(avg_budget), 2),
+                'total_projects': total_projects,
+                'new_users_30d': new_users_30d,
+                'pending_requests': pending_requests,
+            },
         })
 
 
@@ -184,6 +296,7 @@ class AccountRequestView(APIView):
             profile.is_approved = True
             profile.role = account_request.requested_role
             profile.save()
+            log_admin_action(request, 'REQUEST_APPROVED', 'AccountRequest', pk, account_request.user.email, f'Role: {account_request.requested_role}')
             return Response({'success': True, 'status': 'APPROVED'})
         else:
             account_request.status = 'REJECTED'
@@ -192,6 +305,7 @@ class AccountRequestView(APIView):
             profile, _ = Profile.objects.get_or_create(user=account_request.user)
             profile.is_approved = False
             profile.save()
+            log_admin_action(request, 'REQUEST_REJECTED', 'AccountRequest', pk, account_request.user.email, notes)
             return Response({'success': True, 'status': 'REJECTED'})
 
 
@@ -369,3 +483,251 @@ class AIAnalyticsView(APIView):
             'model_breakdown': list(model_breakdown),
             'messages_by_role': list(messages_by_role),
         })
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# FLOOR PLAN VIEWS
+# ═══════════════════════════════════════════════════════════════════════
+
+class FloorPlanCategoryView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        cats = FloorPlanCategory.objects.all()
+        data = [{'id': c.id, 'name': c.name, 'description': c.description or '', 'created_at': c.created_at} for c in cats]
+        return Response({'results': data})
+
+    def post(self, request):
+        name = request.data.get('name', '').strip()
+        desc = request.data.get('description', '')
+        if not name:
+            return Response({'error': 'Name required'}, status=400)
+        cat = FloorPlanCategory.objects.create(name=name, description=desc)
+        return Response({'id': cat.id, 'name': cat.name}, status=201)
+
+    def delete(self, request, pk=None):
+        if not pk:
+            return Response({'error': 'ID required'}, status=400)
+        try:
+            FloorPlanCategory.objects.get(pk=pk).delete()
+            return Response({'success': True})
+        except FloorPlanCategory.DoesNotExist:
+            return Response({'error': 'Not found'}, status=404)
+
+
+class FloorPlanDatasetView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminRole]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request):
+        plans = FloorPlanDataset.objects.select_related('category').all()
+        data = []
+        for p in plans:
+            img_url = request.build_absolute_uri(p.image.url) if p.image else None
+            data.append({
+                'id': p.id, 'title': p.title, 'description': p.description or '',
+                'image': img_url, 'category': p.category_id,
+                'category_name': p.category.name if p.category else '',
+                'created_at': p.created_at,
+            })
+        return Response({'results': data})
+
+    def post(self, request):
+        title = request.data.get('title', '').strip()
+        category_id = request.data.get('category')
+        image = request.FILES.get('image')
+        description = request.data.get('description', '')
+        if not title or not category_id or not image:
+            return Response({'error': 'title, category, and image are required'}, status=400)
+        try:
+            cat = FloorPlanCategory.objects.get(pk=category_id)
+        except FloorPlanCategory.DoesNotExist:
+            return Response({'error': 'Category not found'}, status=404)
+        plan = FloorPlanDataset.objects.create(
+            title=title, description=description, image=image,
+            category=cat, uploaded_by=request.user,
+        )
+        return Response({'id': plan.id, 'title': plan.title}, status=201)
+
+    def delete(self, request, pk=None):
+        if not pk:
+            return Response({'error': 'ID required'}, status=400)
+        try:
+            FloorPlanDataset.objects.get(pk=pk).delete()
+            return Response({'success': True})
+        except FloorPlanDataset.DoesNotExist:
+            return Response({'error': 'Not found'}, status=404)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ADMIN PROJECTS OVERVIEW
+# ═══════════════════════════════════════════════════════════════════════
+
+class AdminProjectsView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        from datetime import timedelta
+        from django.db.models.functions import TruncMonth
+
+        search = request.query_params.get('search', '').strip()
+        status_filter = request.query_params.get('status', '').strip()
+
+        qs = Project.objects.select_related('owner').all()
+        if search:
+            qs = qs.filter(Q(title__icontains=search) | Q(owner__email__icontains=search) | Q(location__icontains=search))
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        projects = []
+        for p in qs.order_by('-created_at')[:200]:
+            projects.append({
+                'id': p.id,
+                'title': p.title,
+                'location': p.location,
+                'status': p.status,
+                'budget': float(p.budget) if p.budget else 0,
+                'owner_email': p.owner.email,
+                'owner_name': f"{p.owner.first_name} {p.owner.last_name}".strip() or p.owner.username,
+                'created_at': p.created_at,
+            })
+
+        # Summary stats
+        total = Project.objects.count()
+        by_status = dict(Project.objects.values_list('status').annotate(c=Count('id')).values_list('status', 'c'))
+        total_budget = Project.objects.aggregate(s=Sum('budget'))['s'] or 0
+
+        return Response({
+            'projects': projects,
+            'summary': {
+                'total': total,
+                'by_status': by_status,
+                'total_budget': float(total_budget),
+            },
+        })
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ADMIN BILLING / SUBSCRIPTIONS
+# ═══════════════════════════════════════════════════════════════════════
+
+class AdminBillingView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        from apps.billing.models import SubscriptionPlan, Subscription, Invoice
+
+        plans = list(SubscriptionPlan.objects.all().values('id', 'name', 'display_name', 'price', 'is_active', 'max_projects', 'storage_gb', 'support_level'))
+        subscriptions = []
+        for sub in Subscription.objects.select_related('user', 'plan').order_by('-created_at')[:200]:
+            subscriptions.append({
+                'id': sub.id,
+                'user_email': sub.user.email,
+                'user_name': f"{sub.user.first_name} {sub.user.last_name}".strip() or sub.user.username,
+                'plan_name': sub.plan.name,
+                'status': sub.status,
+                'current_period_start': sub.current_period_start,
+                'current_period_end': sub.current_period_end,
+                'created_at': sub.created_at,
+            })
+
+        invoices = []
+        for inv in Invoice.objects.select_related('user', 'subscription__plan').order_by('-created_at')[:100]:
+            invoices.append({
+                'id': inv.id,
+                'user_email': inv.user.email,
+                'amount': float(inv.total),
+                'status': inv.status,
+                'plan_name': inv.subscription.plan.name if inv.subscription else '—',
+                'created_at': inv.created_at,
+            })
+
+        # Summary
+        active_subs = Subscription.objects.filter(status='ACTIVE').count()
+        total_revenue = Invoice.objects.filter(status='PAID').aggregate(s=Sum('total'))['s'] or 0
+
+        return Response({
+            'plans': plans,
+            'subscriptions': subscriptions,
+            'invoices': invoices,
+            'summary': {
+                'active_subscriptions': active_subs,
+                'total_revenue': float(total_revenue),
+                'total_plans': len(plans),
+                'total_invoices': Invoice.objects.count(),
+            },
+        })
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# PLATFORM SETTINGS
+# ═══════════════════════════════════════════════════════════════════════
+
+class PlatformSettingsView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        s = PlatformSettings.load()
+        return Response({
+            'site_name': s.site_name,
+            'tagline': s.tagline,
+            'support_email': s.support_email,
+            'registration_open': s.registration_open,
+            'require_approval': s.require_approval,
+            'maintenance_mode': s.maintenance_mode,
+            'maintenance_message': s.maintenance_message,
+            'default_role': s.default_role,
+            'max_projects_per_user': s.max_projects_per_user,
+            'max_file_upload_mb': s.max_file_upload_mb,
+        })
+
+    def patch(self, request):
+        s = PlatformSettings.load()
+        changed = []
+        for field in [
+            'site_name', 'tagline', 'support_email', 'registration_open',
+            'require_approval', 'maintenance_mode', 'maintenance_message',
+            'default_role', 'max_projects_per_user', 'max_file_upload_mb',
+        ]:
+            if field in request.data:
+                old = getattr(s, field)
+                new = request.data[field]
+                if str(old) != str(new):
+                    changed.append(f"{field}: {old} → {new}")
+                setattr(s, field, new)
+        s.save()
+        if changed:
+            log_admin_action(request, 'SETTINGS_CHANGED', 'PlatformSettings', 1, 'Platform Settings', '; '.join(changed))
+        return Response({'success': True})
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ACTIVITY LOG
+# ═══════════════════════════════════════════════════════════════════════
+
+class AdminActivityLogView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        limit = min(int(request.query_params.get('limit', 100)), 500)
+        action_filter = request.query_params.get('action', '').strip()
+
+        qs = AdminActivityLog.objects.select_related('actor').all()
+        if action_filter:
+            qs = qs.filter(action=action_filter)
+
+        logs = []
+        for entry in qs[:limit]:
+            logs.append({
+                'id': entry.id,
+                'actor_email': entry.actor.email if entry.actor else '—',
+                'actor_name': f"{entry.actor.first_name} {entry.actor.last_name}".strip() if entry.actor else '—',
+                'action': entry.action,
+                'action_display': entry.get_action_display(),
+                'target_type': entry.target_type,
+                'target_id': entry.target_id,
+                'target_label': entry.target_label,
+                'detail': entry.detail,
+                'created_at': entry.created_at,
+            })
+        return Response(logs)

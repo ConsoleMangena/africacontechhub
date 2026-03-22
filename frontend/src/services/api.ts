@@ -430,6 +430,10 @@ export const builderApi = {
     }),
     deleteDocument: (id: number) => api.delete(`/project-documents/${id}/`),
     downloadDocument: (id: number) => api.get(`/project-documents/${id}/`, { responseType: 'blob' }),
+
+    // Floor Plans (served from admin endpoints)
+    getFloorPlanCategories: () => api.get<any>('/admin/floor-plan-categories/'),
+    getFloorPlans: () => api.get<any>('/admin/floor-plans/'),
 };
 
 export const aiApi = {
@@ -553,6 +557,24 @@ export const adminApi = {
     createMaterialPrice: (data: any) => api.post<{success: boolean, id: number}>('/ai/material-prices/', data),
     updateMaterialPrice: (id: number, data: any) => api.patch(`/ai/material-prices/${id}/`, data),
     deleteMaterialPrice: (id: number) => api.delete(`/ai/material-prices/${id}/`),
+    // Floor Plan CRUD
+    getFloorPlanCategories: () => api.get<any>('/admin/floor-plan-categories/'),
+    createFloorPlanCategory: (data: any) => api.post('/admin/floor-plan-categories/', data),
+    deleteFloorPlanCategory: (id: number) => api.delete(`/admin/floor-plan-categories/${id}/`),
+    getFloorPlans: () => api.get<any>('/admin/floor-plans/'),
+    createFloorPlan: (data: FormData) => api.post('/admin/floor-plans/', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+    deleteFloorPlan: (id: number) => api.delete(`/admin/floor-plans/${id}/`),
+    // Projects Overview
+    getProjects: (params?: { search?: string; status?: string }) => api.get<any>('/admin/projects/', { params }),
+    // Billing
+    getBilling: () => api.get<any>('/admin/billing/'),
+    // Platform Settings
+    getSettings: () => api.get<any>('/admin/settings/'),
+    updateSettings: (data: any) => api.patch('/admin/settings/', data),
+    // Activity Log
+    getActivityLog: (params?: { limit?: number; action?: string }) => api.get<any[]>('/admin/activity-log/', { params }),
 };
 
 export const contractorApi = {
