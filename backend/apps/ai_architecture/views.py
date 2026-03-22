@@ -1616,14 +1616,15 @@ class ChatCompletionView(APIView):
             f"The user wants a professional 2D ARCHITECTURAL FLOOR PLAN."
             f"{project_context}\n"
             f"{additional_directive}\n"
-            f"Generate a concise, vivid text-to-image prompt (max 150 words) that will produce "
-            f"a strictly 2D, top-down CAD-style floor plan that MUST ALIGN with the project requirements above.\n\n"
-            f"CRITICAL REQUIREMENTS:\n"
-            f"- FORMAT: Strictly 2D top-down view. NO 3D perspective, NO isometric views, NO realistic renders.\n"
-            f"- STYLE: {style_hint}, professional technical drawing, thick cut walls.\n"
-            f"- DETAILS: Include room labels matching the bedroom/bathroom counts, door swings, window symbols.\n"
-            f"- TECHNICAL: Include metric scale bar, north arrow, and clear dimension lines in millimeters (mm).\n"
-            f"- AESTHETIC: Clean black linework on a crisp white background, no gradients, no photorealism.\n"
+            f"Generate a concise, vivid text-to-image prompt (max 120 words) that will produce "
+            f"a STRICTLY 2D, top-down technical architectural floor plan. "
+            f"The image must ONLY contain the building layout."
+            f"\n\nCRITICAL REQUIREMENTS:\n"
+            f"- VIEW: Strictly top-down orthographic 2D view. ABSOLUTELY NO 3D, perspective, or isometric elements.\n"
+            f"- FORBIDDEN: Do NOT include title blocks, legends, keys, boarders, frames, or text lists outside the plan.\n"
+            f"- STYLE: {style_hint}, clean black lines on crisp white background, professional CAD blueprint aesthetic.\n"
+            f"- DETAILS: Precise wall thicknesses, door swings, window symbols, and minimal room labels inside the rooms.\n"
+            f"- TEXT: NO text outside the building footprint. NO metadata or 'Key' sections.\n"
             f"\nOutput ONLY the prompt text, nothing else."
         )
 
@@ -1670,11 +1671,12 @@ class ChatCompletionView(APIView):
         final_image_prompt = image_prompt
         logger.info("[AI Image] Final prompt: %s", image_prompt)
 
-        negative = matched_preset.negative_prompt if matched_preset else (
-            "blurry, low quality, realistic photo, watermark, text overlay"
+        negative = (matched_preset.negative_prompt if matched_preset else "") + (
+            ", 3d, perspective, realistic, photorealistic, blurred, messy, "
+            "legend, key, title block, border, frame, margin text, chart, table, metadata"
         )
-        guidance = matched_preset.guidance_scale if matched_preset else 7.5
-
+        guidance = 12.0  # Increased for stricter adherence to the simplified prompt
+        
         image_url, gen_error = _generate_image_from_gemini(
             prompt=image_prompt,
             negative_prompt=negative,
@@ -1778,20 +1780,16 @@ class ChatCompletionView(APIView):
         prompt_system = (
             "You are an expert architectural prompt engineer. You have just received a detailed "
             "description of a hand-drawn floor plan. Your job is to convert this description into "
-            "a concise, vivid text-to-image prompt (max 200 words) that will generate a "
-            "professional-quality architectural floor plan drawing.\n\n"
+            "a concise, vivid text-to-image prompt (max 150 words) that will generate a "
+            "STRICTLY 2D professional architectural floor plan.\n"
             f"{project_context}\n"
             "REQUIREMENTS:\n"
-            "- Strictly 2D TOP-DOWN view. Forbidden: 3D perspective, realistic renders, or messy sketches.\n"
-            "- The final drawing MUST respect the Project Requirements listed above.\n"
-            "- Produce a clean, professional 2D floor plan in CAD/blueprint style\n"
-            "- Include room labels, door swings, and window markers\n"
-            "- Use clean black lines on white background with proper line weights\n"
-            "- Include a scale bar and north arrow if orientation was noted\n"
-            "- Show wall thicknesses, ALL dimensions MUST be in millimeters (mm)\n"
-            "- Add architectural hatching for wet areas (kitchen, bathroom)\n"
-            "- Style: professional technical drawing, architectural blueprint\n\n"
-            "Output ONLY the prompt text, nothing else."
+            "- Strictly 2D TOP-DOWN flat orthographic view. NO 3D, perspective, or realistic shading.\n"
+            "- FORBIDDEN: Do NOT include legends, keys, title blocks, margin text, or borders.\n"
+            "- The image MUST ONLY show the floor plan layout itself.\n"
+            "- Style: clean black CAD lines on plain white background, architectural blueprint style.\n"
+            "- Details: Wall thicknesses, door swings, window symbols, and minimal room labels INSIDE the plan.\n"
+            "\nOutput ONLY the prompt text, nothing else."
         )
 
         user_context = f"Hand-drawn plan analysis:\n{plan_analysis}"
@@ -1820,9 +1818,9 @@ class ChatCompletionView(APIView):
 
         logger.info("[Scan] Step 3: Generating professional drawing via Gemini...")
         image_url, gen_error = _generate_image_from_gemini(
-            prompt=image_prompt + " Ensure it is a STRICT 2D top-down floor plan only, with extremely high architectural accuracy.",
-            negative_prompt="photorealistic, 3d, perspective, shaded, render, blurry, low quality, hand-drawn, sketch, messy lines",
-            guidance_scale=9.0,
+            prompt=image_prompt,
+            negative_prompt="3d, perspective, shaded, render, blurry, messy, legend, key, title block, border, text list, chart",
+            guidance_scale=12.0,
         )
 
         if gen_error:
