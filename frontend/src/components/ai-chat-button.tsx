@@ -844,10 +844,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
                       <div className="mt-3 rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
                         <div 
                           className="relative group cursor-zoom-in"
-                          onContextMenu={(e) => {
-                            e.preventDefault()
-                            setPreviewImage(resolveImageUrl(message.imageUrl!))
-                          }}
+                          onClick={() => setPreviewImage(resolveImageUrl(message.imageUrl!))}
                         >
                           <img 
                             src={resolveImageUrl(message.imageUrl)}
@@ -858,7 +855,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
                           <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                             <div className="text-white flex flex-col items-center gap-1">
                               <Icon name="maximize2" className="h-5 w-5" />
-                              <span className="text-[10px] font-medium">Right-click to enlarge</span>
+                              <span className="text-[10px] font-medium">Click to enlarge</span>
                             </div>
                           </div>
                         </div>
@@ -940,10 +937,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
                               {plan.image_url ? (
                                 <div 
                                   className="aspect-[4/3] bg-gray-100 overflow-hidden relative cursor-zoom-in"
-                                  onContextMenu={(e) => {
-                                    e.preventDefault()
-                                    setPreviewImage(resolveImageUrl(plan.image_url!))
-                                  }}
+                                  onClick={() => setPreviewImage(resolveImageUrl(plan.image_url!))}
                                 >
                                   <img
                                     src={resolveImageUrl(plan.image_url)}
@@ -1283,7 +1277,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
 
       {/* Image Preview Dialog */}
       <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
-        <DialogContent className="max-w-5xl w-full p-1 bg-transparent border-0 shadow-none overflow-hidden [&>button]:text-white [&>button]:bg-black/50 [&>button]:rounded-full [&>button]:p-2 [&>button]:hover:bg-black/80 z-[100]">
+        <DialogContent className="max-w-5xl w-full p-1 bg-transparent border-0 shadow-none overflow-hidden [&>button]:text-white [&>button]:bg-black/50 [&>button]:rounded-full [&>button]:p-2 [&>button]:hover:bg-black/80 z-[10000]">
           <DialogTitle className="sr-only">Image preview</DialogTitle>
           <DialogDescription className="sr-only">Enlarged view of the chat attachment.</DialogDescription>
           <div className="relative w-full h-[85vh] flex items-center justify-center bg-black/60 rounded-xl backdrop-blur-md">
