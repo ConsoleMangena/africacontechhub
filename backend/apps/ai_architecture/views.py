@@ -1603,8 +1603,19 @@ class ChatCompletionView(APIView):
             )
 
         additional_directive = ""
+        # Handle stair/level enforcement
+        floor_count = 1
+        try:
+            if project and project.floors:
+                floor_count = int(float(str(project.floors)))
+        except (ValueError, TypeError):
+            pass
+
+        if floor_count == 1:
+            additional_directive += "\nCRITICAL: This is a SINGLE-STORY building. DO NOT include any stairs, staircases, or second-floor indicators. "
+        
         if is_commercial:
-            additional_directive = (
+            additional_directive += (
                 "\nCRITICAL: This is a COMMERCIAL/NON-RESIDENTIAL plan. "
                 "DO NOT included typical residential features like living rooms, kitchens, or family spaces "
                 "unless they are part of the 'Special Spaces'. Focus on efficient commercial/office/public layout. "
@@ -1624,6 +1635,7 @@ class ChatCompletionView(APIView):
             f"- FORBIDDEN: Do NOT include title blocks, legends, keys, boarders, frames, or text lists outside the plan.\n"
             f"- STYLE: {style_hint}, clean black lines on crisp white background, professional CAD blueprint aesthetic.\n"
             f"- DETAILS: Precise wall thicknesses, door swings, window symbols, and minimal room labels inside the rooms.\n"
+            f"- MEASUREMENTS: ALL architecture dimensions MUST be clearly labeled in METERS (m), e.g. '4.2m x 5.1m'.\n"
             f"- TEXT: NO text outside the building footprint. NO metadata or 'Key' sections.\n"
             f"\nOutput ONLY the prompt text, nothing else."
         )
@@ -1671,9 +1683,11 @@ class ChatCompletionView(APIView):
         final_image_prompt = image_prompt
         logger.info("[AI Image] Final prompt: %s", image_prompt)
 
+        # Strengthen negative prompt based on floor count
+        neg_stairs = ", stairs, staircase, elevator" if floor_count == 1 else ""
         negative = (matched_preset.negative_prompt if matched_preset else "") + (
-            ", 3d, perspective, realistic, photorealistic, blurred, messy, "
-            "legend, key, title block, border, frame, margin text, chart, table, metadata"
+            f", 3d, perspective, realistic, photorealistic, blurred, messy, "
+            f"legend, key, title block, border, frame, margin text, chart, table, metadata{neg_stairs}"
         )
         guidance = 12.0  # Increased for stricter adherence to the simplified prompt
         
@@ -1789,6 +1803,7 @@ class ChatCompletionView(APIView):
             "- The image MUST ONLY show the floor plan layout itself.\n"
             "- Style: clean black CAD lines on plain white background, architectural blueprint style.\n"
             "- Details: Wall thicknesses, door swings, window symbols, and minimal room labels INSIDE the plan.\n"
+            "- Measurements: ALL dimensions MUST be in METERS (m), e.g. '3.5m'.\n"
             "\nOutput ONLY the prompt text, nothing else."
         )
 
@@ -1825,6 +1840,12 @@ class ChatCompletionView(APIView):
 
         if gen_error:
             return None, final_prompt, gen_error
+
+        # Update negative prompt for /scan as well
+        # If the analysis says single storey, avoid stairs
+        neg_scan = "3d, perspective, shaded, render, blurry, messy, legend, key, title block, border, text list, chart"
+        if "single story" in plan_analysis.lower() or "single-story" in plan_analysis.lower() or "one story" in plan_analysis.lower():
+            neg_scan += ", stairs, staircase, elevator"
 
         return image_url, final_prompt, None
 
