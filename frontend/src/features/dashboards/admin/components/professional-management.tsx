@@ -44,9 +44,9 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 const AVAILABILITY_STYLES: Record<string, string> = {
-    available: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    busy: 'bg-amber-50 text-amber-700 border-amber-200',
-    unavailable: 'bg-red-50 text-red-700 border-red-200',
+    available: 'bg-slate-50 text-slate-700 border-slate-200',
+    busy: 'bg-slate-50 text-slate-700 border-slate-200',
+    unavailable: 'bg-slate-50 text-slate-700 border-slate-200',
 }
 
 export function ProfessionalManagement() {
@@ -206,7 +206,7 @@ export function ProfessionalManagement() {
                 </div>
                 <div className="flex items-center gap-2">
                     <Select value={roleFilter} onValueChange={setRoleFilter}>
-                        <SelectTrigger className="h-10 w-[160px] text-xs font-medium border-border/50 bg-muted/30">
+                        <SelectTrigger className="h-10 w-[150px] text-[11px] font-bold border-border/50 bg-muted/20">
                             <SelectValue placeholder="All Roles" />
                         </SelectTrigger>
                         <SelectContent className="max-h-[300px]">
@@ -219,8 +219,8 @@ export function ProfessionalManagement() {
 
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
-                            <Button className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white gap-2 px-4 shadow-sm shadow-indigo-200">
-                                <Icon name="person_add" className="h-4 w-4" />
+                            <Button variant="outline" className="h-10 gap-2 px-4 border-border/60 hover:bg-muted/50 hover:text-slate-900 font-bold transition-all shadow-none">
+                                <Icon name="add_circle" className="h-4 w-4" />
                                 <span>Add to Team</span>
                             </Button>
                         </DialogTrigger>
@@ -238,14 +238,14 @@ export function ProfessionalManagement() {
                                     <button
                                         type="button"
                                         onClick={() => setCreateMode('link')}
-                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${createMode === 'link' ? 'bg-white shadow-sm text-indigo-600' : 'text-muted-foreground'}`}
+                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${createMode === 'link' ? 'bg-white shadow-sm text-slate-900 border border-slate-200' : 'text-muted-foreground'}`}
                                     >
                                         Link Existing User
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setCreateMode('new')}
-                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${createMode === 'new' ? 'bg-white shadow-sm text-indigo-600' : 'text-muted-foreground'}`}
+                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${createMode === 'new' ? 'bg-white shadow-sm text-slate-900 border border-slate-200' : 'text-muted-foreground'}`}
                                     >
                                         Create New Professional
                                     </button>
@@ -343,11 +343,11 @@ export function ProfessionalManagement() {
                                         </div>
                                     </div>
                                 </div>
-                                <DialogFooter>
-                                    <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+                                <DialogFooter className="gap-2">
+                                    <Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)}>
                                         Cancel
                                     </Button>
-                                    <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700" disabled={actionLoading === 'create'}>
+                                    <Button type="submit" className="bg-slate-900 hover:bg-slate-800 font-bold text-white px-6 shadow-none" disabled={actionLoading === 'create'}>
                                         {actionLoading === 'create' ? <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
                                         Add to Portal
                                     </Button>
@@ -389,8 +389,8 @@ export function ProfessionalManagement() {
                                     <TableRow key={prof.id} className="hover:bg-muted/20 transition-colors group">
                                         <TableCell>
                                             <div className="flex items-center gap-3">
-                                                <div className="h-9 w-9 rounded-full bg-indigo-50 flex items-center justify-center shrink-0 border border-indigo-100/50">
-                                                    <Icon name="person" className="h-5 w-5 text-indigo-600" />
+                                                <div className="h-9 w-9 rounded-full bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                                                    <Icon name="person" className="h-5 w-5 text-slate-400" />
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className="text-[13px] font-bold text-foreground truncate">{prof.full_name}</p>
@@ -411,7 +411,7 @@ export function ProfessionalManagement() {
                                         <TableCell>
                                             <Badge
                                                 variant="outline"
-                                                className={`text-[10px] font-bold group-hover:shadow-sm transition-all cursor-pointer ${prof.is_verified ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-muted text-muted-foreground border-border'}`}
+                                                className={`text-[10px] font-bold group-hover:shadow-sm transition-all cursor-pointer ${prof.is_verified ? 'bg-slate-50 text-slate-700 border-slate-200' : 'bg-muted text-muted-foreground border-border'}`}
                                                 onClick={() => toggleVerification(prof.id, prof.is_verified)}
                                             >
                                                 {actionLoading === `verify-${prof.id}` ? (
@@ -437,7 +437,7 @@ export function ProfessionalManagement() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-muted-foreground/30 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                className="h-8 w-8 text-muted-foreground/30 hover:text-slate-900 hover:bg-slate-50 disabled:opacity-30 opacity-0 group-hover:opacity-100 transition-opacity"
                                                 onClick={() => setDeleteTarget(prof)}
                                                 disabled={!!actionLoading}
                                             >
@@ -466,7 +466,7 @@ export function ProfessionalManagement() {
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleDelete}
-                            className="bg-red-600 hover:bg-red-700 text-white"
+                            className="bg-slate-900 hover:bg-slate-800 text-white shadow-none"
                         >
                             {actionLoading?.startsWith('delete-') ? (
                                 <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin mr-1.5" />

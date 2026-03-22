@@ -9,11 +9,11 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 
 const STATUS_STYLES: Record<string, string> = {
-    PENDING: 'bg-amber-50 text-amber-700 border-amber-200',
-    APPROVED: 'bg-blue-50 text-blue-700 border-blue-200',
-    ORDERED: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    DELIVERED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    CANCELLED: 'bg-red-50 text-red-700 border-red-200',
+    PENDING: 'bg-slate-50 text-slate-700 border-slate-200',
+    APPROVED: 'bg-slate-50 text-slate-700 border-slate-200',
+    ORDERED: 'bg-slate-50 text-slate-700 border-slate-200',
+    DELIVERED: 'bg-slate-50 text-slate-700 border-slate-200',
+    CANCELLED: 'bg-slate-50 text-slate-400 border-slate-100',
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -82,22 +82,42 @@ export function ProcurementManagement() {
         <div className="space-y-4">
             {/* Stats Summary */}
             {summary && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-card border border-border/50 p-4 rounded-xl shadow-sm">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Total Requests</p>
-                        <p className="text-xl font-bold">{summary.total_requests}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <div className="bg-card border border-border/60 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <Icon name="receipt_long" className="h-4 w-4 text-slate-600" />
+                            </div>
+                            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-bold">Total Requests</p>
+                        </div>
+                        <p className="text-2xl font-bold font-display tracking-tight tabular-nums">{summary.total_requests}</p>
                     </div>
-                    <div className="bg-card border border-border/50 p-4 rounded-xl shadow-sm">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Pending Approval</p>
-                        <p className="text-xl font-bold text-amber-600">{summary.pending_requests}</p>
+                    <div className="bg-card border border-border/60 p-5 rounded-2xl shadow-none hover:border-slate-400 transition-all">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100">
+                                <Icon name="pending_actions" className="h-4 w-4 text-slate-400" />
+                            </div>
+                            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-bold">Pending Approval</p>
+                        </div>
+                        <p className="text-2xl font-bold font-display tracking-tight tabular-nums text-slate-900">{summary.pending_requests}</p>
                     </div>
-                    <div className="bg-card border border-border/50 p-4 rounded-xl shadow-sm">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Total Value</p>
-                        <p className="text-xl font-bold text-emerald-600">${summary.total_cost.toLocaleString()}</p>
+                    <div className="bg-card border border-border/60 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                                <Icon name="payments" className="h-4 w-4 text-emerald-600" />
+                            </div>
+                            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-bold">Total Value</p>
+                        </div>
+                        <p className="text-2xl font-bold font-display tracking-tight tabular-nums text-emerald-600">${summary.total_cost.toLocaleString()}</p>
                     </div>
-                    <div className="bg-card border border-border/50 p-4 rounded-xl shadow-sm">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">System Health</p>
-                        <p className="text-xl font-bold text-indigo-600">Stable</p>
+                    <div className="bg-card border border-border/60 p-5 rounded-2xl shadow-none hover:border-slate-400 transition-all">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100">
+                                <Icon name="bolt" className="h-4 w-4 text-slate-400" />
+                            </div>
+                            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-bold">System Health</p>
+                        </div>
+                        <p className="text-2xl font-bold font-display tracking-tight text-slate-900">Stable</p>
                     </div>
                 </div>
             )}
@@ -115,7 +135,7 @@ export function ProcurementManagement() {
                 </div>
                 <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 lg:pb-0">
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="h-10 w-[140px] text-xs font-medium border-border/50 bg-muted/30">
+                        <SelectTrigger className="h-10 w-[130px] text-[11px] font-bold border-border/50 bg-muted/20">
                             <SelectValue placeholder="All Status" />
                         </SelectTrigger>
                         <SelectContent>
@@ -128,7 +148,7 @@ export function ProcurementManagement() {
                         </SelectContent>
                     </Select>
                     <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                        <SelectTrigger className="h-10 w-[160px] text-xs font-medium border-border/50 bg-muted/30">
+                        <SelectTrigger className="h-10 w-[150px] text-[11px] font-bold border-border/50 bg-muted/20">
                             <SelectValue placeholder="All Categories" />
                         </SelectTrigger>
                         <SelectContent>
@@ -140,7 +160,7 @@ export function ProcurementManagement() {
                             <SelectItem value="ADMIN">Admin & Expense</SelectItem>
                         </SelectContent>
                     </Select>
-                    <Button variant="outline" size="icon" onClick={() => fetchRequests()} className="h-10 w-10 shrink-0 text-muted-foreground">
+                    <Button variant="ghost" size="icon" onClick={() => fetchRequests()} className="h-10 w-10 shrink-0 text-muted-foreground hover:bg-muted/40 transition-colors">
                         <Icon name="refresh" className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                     </Button>
                 </div>
@@ -173,7 +193,7 @@ export function ProcurementManagement() {
                                     <TableRow key={req.id} className="hover:bg-muted/20 transition-colors group">
                                         <TableCell>
                                             <div className="space-y-0.5">
-                                                <p className="text-[13px] font-bold text-foreground group-hover:text-indigo-600 transition-colors">
+                                                <p className="text-[13px] font-bold text-foreground">
                                                     {req.material_name}
                                                 </p>
                                                 <p className="text-[11px] text-muted-foreground">

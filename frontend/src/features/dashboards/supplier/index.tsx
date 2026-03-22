@@ -21,47 +21,39 @@ function StatCard({
     value,
     sub,
     icon,
-    accentFrom,
-    accentTo,
-    iconBg,
-    iconColor,
 }: {
     title: string
     value: string | number
     sub: string
     icon: string
-    accentFrom: string
-    accentTo: string
-    iconBg: string
-    iconColor: string
 }) {
     return (
-        <Card className="relative overflow-hidden group hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 border-border/60 bg-card">
-            <div className={`absolute top-0 left-0 w-1 h-full bg-gradient-to-b ${accentFrom} ${accentTo}`} />
+        <Card className="relative overflow-hidden group hover:border-slate-900 transition-all duration-300 border-slate-200 bg-white shadow-none">
+            <div className={`absolute top-0 left-0 w-1 h-full bg-slate-900`} />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
                     {title}
                 </CardTitle>
-                <div className={`h-9 w-9 rounded-lg ${iconBg} flex items-center justify-center`}>
-                    <Icon name={icon} className={`h-4 w-4 ${iconColor}`} />
+                <div className={`h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100`}>
+                    <Icon name={icon} className={`h-4 w-4 text-slate-400`} />
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold font-display tracking-tight text-foreground">
+                <div className="text-2xl font-bold tracking-tight text-slate-900">
                     {value}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{sub}</p>
+                <p className="text-[10px] text-slate-400 mt-1 font-medium">{sub}</p>
             </CardContent>
         </Card>
     )
 }
 
 const ORDER_STATUS_COLORS: Record<string, string> = {
-    PENDING: 'bg-amber-100 text-amber-700',
-    PROCESSING: 'bg-blue-100 text-blue-700',
-    SHIPPED: 'bg-indigo-100 text-indigo-700',
-    DELIVERED: 'bg-green-100 text-green-700',
-    CANCELLED: 'bg-red-100 text-red-700',
+    PENDING: 'bg-slate-100 text-slate-900',
+    PROCESSING: 'bg-slate-900 text-white',
+    SHIPPED: 'bg-slate-100 text-slate-700',
+    DELIVERED: 'bg-slate-200 text-slate-800',
+    CANCELLED: 'bg-slate-50 text-slate-400',
 }
 
 export default function SupplierDashboard() {
@@ -76,8 +68,10 @@ export default function SupplierDashboard() {
                     supplierApi.getOrders(),
                     supplierApi.getProducts()
                 ])
-                setOrders(ordersRes.data)
-                setProducts(productsRes.data)
+                const ordersData = ordersRes.data
+                const productsData = productsRes.data
+                setOrders(Array.isArray(ordersData) ? ordersData : (ordersData?.results ?? []))
+                setProducts(Array.isArray(productsData) ? productsData : (productsData?.results ?? []))
             } catch (error) {
                 console.error("Failed to fetch supplier data:", error)
             } finally {
@@ -105,27 +99,27 @@ export default function SupplierDashboard() {
             <Main>
                 {loading ? (
                     <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                        <Icon name="progress_activity" size={40} className="animate-spin text-primary mb-3" />
+                        <Icon name="progress_activity" size={40} className="animate-spin text-slate-900 mb-3" />
                         <p className="mt-3 text-sm text-muted-foreground font-medium">Loading your dashboard...</p>
                     </div>
                 ) : (
                     <div className="w-full max-w-7xl mx-auto space-y-6">
-                        {/* Hero Banner */}
-                        <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-50 via-violet-50/80 to-fuchsia-50/50 px-5 py-3.5 border border-purple-200/50 flex items-center justify-between gap-4">
+                        {/* Hero Section */}
+                        <div className="relative overflow-hidden rounded-xl bg-white px-6 py-5 border border-slate-200 flex items-center justify-between gap-4 shadow-sm">
                             <div className="relative z-10">
-                                <h2 className="text-lg font-bold font-display tracking-tight text-foreground">
-                                    Supplier Dashboard
+                                <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                                    Supplier Portal
                                 </h2>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Manage inventory, orders & delivery performance
+                                <p className="text-xs text-slate-500 mt-1 font-medium">
+                                    Manage inventory, orders & fulfillment logistics
                                 </p>
                             </div>
                             <div className="relative z-10">
                                 <Button
                                     size="sm"
-                                    className="rounded-lg bg-purple-600 text-white hover:bg-purple-700 shadow-sm"
+                                    className="bg-slate-900 hover:bg-slate-800 text-white rounded-lg px-4 h-9 font-bold uppercase tracking-wider text-[10px] transition-all shadow-none"
                                 >
-                                    <Icon name="add" className="h-3.5 w-3.5 mr-1.5" />
+                                    <Icon name="add_circle" className="h-4 w-4 mr-1.5" />
                                     Add Product
                                 </Button>
                             </div>
@@ -138,68 +132,52 @@ export default function SupplierDashboard() {
                                 value={activeOrders}
                                 sub="Processing or shipping"
                                 icon="package"
-                                accentFrom="from-purple-400"
-                                accentTo="to-purple-600"
-                                iconBg="bg-purple-100"
-                                iconColor="text-purple-600"
                             />
                             <StatCard
                                 title="On-Time Rate"
                                 value={`${onTimeRate}%`}
                                 sub="Based on completed orders"
                                 icon="local_shipping"
-                                accentFrom="from-green-400"
-                                accentTo="to-green-600"
-                                iconBg="bg-green-100"
-                                iconColor="text-green-600"
                             />
                             <StatCard
                                 title="Total Sales"
                                 value={`$${totalSales.toLocaleString()}`}
                                 sub="Guaranteed payment"
                                 icon="trending_up"
-                                accentFrom="from-amber-400"
-                                accentTo="to-amber-600"
-                                iconBg="bg-amber-100"
-                                iconColor="text-amber-600"
                             />
                             <StatCard
                                 title="TCO Score"
                                 value={`${tcoScore} / 5.0`}
                                 sub="Computed rating"
                                 icon="star"
-                                accentFrom="from-pink-400"
-                                accentTo="to-pink-600"
-                                iconBg="bg-pink-100"
-                                iconColor="text-pink-600"
                             />
                         </div>
 
                         {/* Recent Orders & Top Products */}
                         <div className="grid gap-6 lg:grid-cols-7">
-                            <Card className="lg:col-span-4 border-border/60 bg-card">
-                                <CardHeader>
-                                    <CardTitle className="text-base font-semibold font-display flex items-center gap-2">
-                                        <Icon name="assignment" className="h-4 w-4 text-purple-600" />
+                            <Card className="lg:col-span-4 border-slate-200 bg-white shadow-none">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                                        <Icon name="assignment" className="h-4 w-4 text-slate-400" />
                                         Recent Orders
                                     </CardTitle>
-                                    <CardDescription>Latest material requests from builders.</CardDescription>
+                                    <CardDescription className="text-[11px] text-slate-400 uppercase font-medium">Latest material requests from builders.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="space-y-3">
+                                    <div className="space-y-2">
                                         {orders.length === 0 ? (
-                                            <div className="text-center py-10 text-muted-foreground">
-                                                <Icon name="package" className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                                                <p className="text-sm">No orders yet.</p>
+                                            <div className="text-center py-10 text-slate-400">
+                                                <Icon name="package" className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                                                <p className="text-xs font-medium">No orders yet.</p>
                                             </div>
                                         ) : (
                                             orders.slice(0, 5).map((order) => (
-                                                <div key={order.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                                                <div key={order.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-slate-300 transition-all group">
                                                     <div className="space-y-0.5 min-w-0">
-                                                        <p className="text-sm font-medium text-foreground">Order #{order.id}</p>
-                                                        <p className="text-xs text-muted-foreground">${parseFloat(order.total_cost || '0').toLocaleString()}</p>
+                                                        <p className="text-sm font-bold text-slate-900">Order #{order.id}</p>
+                                                        <p className="text-xs text-slate-500 font-medium">${parseFloat(order.total_cost || '0').toLocaleString()}</p>
                                                     </div>
-                                                    <Badge className={`text-xs shrink-0 ${ORDER_STATUS_COLORS[order.status] || 'bg-muted text-muted-foreground'}`}>
+                                                    <Badge className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border-none shadow-none ${ORDER_STATUS_COLORS[order.status] || 'bg-slate-100 text-slate-600'}`}>
                                                         {order.status}
                                                     </Badge>
                                                 </div>
@@ -209,13 +187,13 @@ export default function SupplierDashboard() {
                                 </CardContent>
                             </Card>
 
-                            <Card className="lg:col-span-3 border-border/60 bg-card">
-                                <CardHeader>
-                                    <CardTitle className="text-base font-semibold font-display flex items-center gap-2">
-                                        <Icon name="bar_chart" className="h-4 w-4 text-pink-600" />
-                                        Top Products
+                            <Card className="lg:col-span-3 border-slate-200 bg-white shadow-none">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                                        <Icon name="bar_chart" className="h-4 w-4 text-slate-400" />
+                                        Inventory Audit
                                     </CardTitle>
-                                    <CardDescription>Best-selling items this month.</CardDescription>
+                                    <CardDescription className="text-[11px] text-slate-400 uppercase font-medium">High turnover velocity items.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="space-y-3">
@@ -226,15 +204,15 @@ export default function SupplierDashboard() {
                                             </div>
                                         ) : (
                                             products.slice(0, 5).map((product, idx) => (
-                                                <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                                                <div key={product.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-slate-300 transition-all group">
                                                     <div className="flex items-center gap-3 min-w-0">
-                                                        <span className="text-xs font-bold text-muted-foreground w-4">#{idx + 1}</span>
+                                                        <span className="text-[10px] font-bold text-slate-400 w-4 tracking-tighter">#{idx + 1}</span>
                                                         <div className="min-w-0">
-                                                            <p className="text-sm font-medium text-foreground truncate">{product.name}</p>
-                                                            <p className="text-xs text-muted-foreground">${parseFloat(product.unit_price || '0').toLocaleString()}</p>
+                                                            <p className="text-sm font-bold text-slate-900 truncate">{product.name}</p>
+                                                            <p className="text-xs text-slate-500 font-medium">${parseFloat(product.unit_price || '0').toLocaleString()}</p>
                                                         </div>
                                                     </div>
-                                                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium shrink-0">
+                                                    <span className="text-[9px] px-2.5 py-1 rounded-full bg-slate-900 text-white font-bold uppercase tracking-widest shadow-sm">
                                                         High Demand
                                                     </span>
                                                 </div>
@@ -245,20 +223,19 @@ export default function SupplierDashboard() {
                             </Card>
                         </div>
 
-                        {/* Quality Assurance Strip */}
                         <div className="grid gap-4 sm:grid-cols-3">
                             {[
-                                { label: 'Verified Supplier', icon: 'verified_user', iconColor: 'text-green-600', bg: 'bg-green-50', text: 'Certified & Trusted' },
-                                { label: 'On-Time Delivery', icon: 'local_shipping', iconColor: 'text-blue-600', bg: 'bg-blue-50', text: `${onTimeRate}% performance` },
-                                { label: 'Quality Score', icon: 'star', iconColor: 'text-amber-600', bg: 'bg-amber-50', text: `${tcoScore} / 5.0 rating` },
-                            ].map(({ label, icon: iconName, iconColor, bg, text }) => (
-                                <div key={label} className={`flex items-center gap-4 p-4 rounded-xl border border-border/60 ${bg}`}>
-                                    <div className="h-9 w-9 rounded-lg bg-card flex items-center justify-center shadow-sm">
-                                        <Icon name={iconName} className={`h-4 w-4 ${iconColor}`} />
+                                { label: 'Verified Supplier', icon: 'verified_user', text: 'Certified & Trusted' },
+                                { label: 'On-Time Delivery', icon: 'local_shipping', text: `${onTimeRate}% performance` },
+                                { label: 'Quality Score', icon: 'star', text: `${tcoScore} / 5.0 rating` },
+                            ].map(({ label, icon: iconName, text }) => (
+                                <div key={label} className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+                                    <div className="h-10 w-10 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100">
+                                        <Icon name={iconName} className="h-5 w-5 text-slate-500" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-semibold text-foreground">{label}</p>
-                                        <p className="text-xs text-muted-foreground">{text}</p>
+                                        <p className="text-sm font-bold text-slate-900">{label}</p>
+                                        <p className="text-[11px] text-slate-500 font-medium">{text}</p>
                                     </div>
                                 </div>
                             ))}

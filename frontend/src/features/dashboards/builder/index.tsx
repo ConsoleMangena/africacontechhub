@@ -84,25 +84,22 @@ export default function BuilderDashboard() {
                                     <h1 className="text-2xl font-bold text-slate-900 font-display">
                                         Overview
                                     </h1>
-                                    <div className="hidden sm:flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full border border-emerald-200 shadow-sm">
-                                        <Icon name="gpp_good" size={14} /> 
-                                        Title Armor: Verified
-                                    </div>
                                 </div>
-                                <p className="text-xs sm:text-sm text-slate-500 flex items-center gap-2 mt-1 font-medium">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-400"></span>
+                                <p className="text-xs sm:text-sm text-slate-500 flex items-center gap-2 mt-1 font-semibold">
+                                    <span className="w-2 h-2 rounded-full bg-slate-300"></span>
                                     {projects.length} Active Projects
                                 </p>
                             </div>
-                            <Button
+                             <Button
                                 onClick={() => {
                                     setSelectedProject(null)
                                     setIsCreateDialogOpen(true)
                                 }}
-                                className="w-full sm:w-auto h-8 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all active:scale-[0.98] flex items-center justify-center text-xs gap-1.5"
+                                variant="outline"
+                                className="w-full sm:w-auto h-9 px-4 rounded-lg border-slate-200 hover:bg-slate-900 hover:text-white transition-all active:scale-[0.98] flex items-center justify-center text-[10px] gap-1.5 shadow-none font-bold uppercase tracking-widest"
                             >
-                                <Icon name="add" size={18} className="-ml-1" />
-                                <span className="font-bold">New Project</span>
+                                <Icon name="add_circle" size={16} className="-ml-1" />
+                                <span>Create Project</span>
                             </Button>
                         </div>
 
@@ -114,30 +111,29 @@ export default function BuilderDashboard() {
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                             <Tabs defaultValue="in-progress" className="w-full">
                                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-                                    <h2 className="text-lg font-bold font-display text-slate-900 flex items-center gap-2">
-                                        <Icon name="folder_open" size={20} className="text-blue-500" />
-                                        Project Portfolio
+                                     <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-900 flex items-center gap-2">
+                                        <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                            <Icon name="folder_open" size={14} className="text-slate-400" />
+                                        </div>
+                                        Portfolio
                                     </h2>
                                     <div className="w-full overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
-                                        <TabsList className="bg-slate-50 border border-slate-200 p-1 flex">
-                                            <TabsTrigger value="planning" className="gap-2 px-3 sm:px-4 text-xs sm:text-sm whitespace-nowrap flex-1">
-                                                <Icon name="assignment" size={14} className="text-blue-500" />
+                                         <TabsList className="bg-slate-50 border border-slate-100 p-1 flex rounded-lg">
+                                            <TabsTrigger value="planning" className="gap-2 px-3 sm:px-4 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap flex-1 data-[state=active]:bg-white data-[state=active]:shadow-sm">
                                                 Planning
-                                                <span className="ml-1 flex h-4 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[10px] font-bold text-slate-700">
+                                                <span className="ml-1 flex h-4 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[9px] font-bold text-slate-700">
                                                     {planningProjects.length}
                                                 </span>
                                             </TabsTrigger>
-                                            <TabsTrigger value="in-progress" className="gap-2 px-3 sm:px-4 text-xs sm:text-sm whitespace-nowrap flex-1">
-                                                <Icon name="engineering" size={14} className="text-amber-500" />
-                                                In Progress
-                                                <span className="ml-1 flex h-4 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[10px] font-bold text-slate-700">
+                                            <TabsTrigger value="in-progress" className="gap-2 px-3 sm:px-4 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap flex-1 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                                                Active
+                                                <span className="ml-1 flex h-4 items-center justify-center rounded-full bg-slate-900 px-1.5 text-[9px] font-bold text-white">
                                                     {inProgressProjects.length}
                                                 </span>
                                             </TabsTrigger>
-                                            <TabsTrigger value="completed" className="gap-2 px-3 sm:px-4 text-xs sm:text-sm whitespace-nowrap flex-1">
-                                                <Icon name="check_circle" size={14} className="text-emerald-500" />
-                                                Completed
-                                                <span className="ml-1 flex h-4 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[10px] font-bold text-slate-700">
+                                            <TabsTrigger value="completed" className="gap-2 px-3 sm:px-4 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap flex-1 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                                                Done
+                                                <span className="ml-1 flex h-4 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[9px] font-bold text-slate-700">
                                                     {completedProjects.length}
                                                 </span>
                                             </TabsTrigger>

@@ -20,16 +20,16 @@ function timeAgo(date: string) {
 }
 
 const actionConfig: Record<string, { icon: string; color: string; bg: string }> = {
-    USER_CREATED: { icon: 'person_add', color: 'text-emerald-700', bg: 'bg-emerald-100' },
-    USER_DELETED: { icon: 'person_remove', color: 'text-red-700', bg: 'bg-red-100' },
-    USER_ROLE_CHANGED: { icon: 'swap_horiz', color: 'text-blue-700', bg: 'bg-blue-100' },
-    USER_TOGGLED: { icon: 'toggle_on', color: 'text-amber-700', bg: 'bg-amber-100' },
-    REQUEST_APPROVED: { icon: 'check_circle', color: 'text-emerald-700', bg: 'bg-emerald-100' },
-    REQUEST_REJECTED: { icon: 'cancel', color: 'text-red-700', bg: 'bg-red-100' },
-    SETTINGS_CHANGED: { icon: 'settings', color: 'text-purple-700', bg: 'bg-purple-100' },
-    DOCUMENT_UPLOADED: { icon: 'upload_file', color: 'text-indigo-700', bg: 'bg-indigo-100' },
-    DOCUMENT_DELETED: { icon: 'delete', color: 'text-red-700', bg: 'bg-red-100' },
-    OTHER: { icon: 'info', color: 'text-gray-600', bg: 'bg-gray-100' },
+    USER_CREATED: { icon: 'person_add', color: 'text-slate-900', bg: 'bg-slate-100' },
+    USER_DELETED: { icon: 'person_remove', color: 'text-slate-500', bg: 'bg-slate-50' },
+    USER_ROLE_CHANGED: { icon: 'swap_horiz', color: 'text-slate-900', bg: 'bg-slate-100' },
+    USER_TOGGLED: { icon: 'toggle_on', color: 'text-slate-900', bg: 'bg-slate-100' },
+    REQUEST_APPROVED: { icon: 'check_circle', color: 'text-white', bg: 'bg-slate-900' },
+    REQUEST_REJECTED: { icon: 'cancel', color: 'text-slate-500', bg: 'bg-slate-100' },
+    SETTINGS_CHANGED: { icon: 'settings', color: 'text-slate-900', bg: 'bg-slate-100' },
+    DOCUMENT_UPLOADED: { icon: 'upload_file', color: 'text-slate-900', bg: 'bg-slate-100' },
+    DOCUMENT_DELETED: { icon: 'delete', color: 'text-slate-500', bg: 'bg-slate-100' },
+    OTHER: { icon: 'info', color: 'text-slate-400', bg: 'bg-slate-50' },
 }
 
 export function AdminActivityLog() {
@@ -53,7 +53,7 @@ export function AdminActivityLog() {
         <div className="w-full max-w-5xl mx-auto space-y-6">
             {/* Page Header */}
             <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
+                <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm">
                     <Icon name="history" className="h-5 w-5 text-white" />
                 </div>
                 <div>
@@ -67,11 +67,11 @@ export function AdminActivityLog() {
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <div className="h-6 w-6 rounded-md bg-orange-50 flex items-center justify-center">
-                                    <Icon name="filter_list" className="h-3.5 w-3.5 text-orange-600" />
+                            <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                                <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                    <Icon name="filter_list" className="h-3.5 w-3.5 text-slate-400" />
                                 </div>
-                                Recent Activity
+                                System Audit Log
                             </CardTitle>
                             <CardDescription className="text-xs">{logs.length} log entr{logs.length !== 1 ? 'ies' : 'y'}</CardDescription>
                         </div>

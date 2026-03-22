@@ -62,7 +62,7 @@ export function AICommandCenter() {
     <div className="w-full max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+        <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm">
           <Icon name="psychology" className="h-5 w-5 text-white" />
         </div>
         <div>
@@ -168,7 +168,7 @@ function BOQTemplatesSection({ templates, loading }: { templates: BOQTemplate[];
             Define how the AI structures extracted BOQ data. The active template is injected into every /analyse call.
           </p>
         </div>
-        <Button onClick={openCreate} className="gap-1.5 bg-indigo-600 hover:bg-indigo-700">
+        <Button onClick={openCreate} className="gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold uppercase tracking-wider text-[10px] shadow-none">
           <Icon name="add" className="h-4 w-4" /> New Template
         </Button>
       </div>
@@ -184,19 +184,19 @@ function BOQTemplatesSection({ templates, loading }: { templates: BOQTemplate[];
                   <div className="flex items-center gap-3">
                     <CardTitle className="text-sm font-semibold">{t.name}</CardTitle>
                     {t.is_active ? (
-                      <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">Active</Badge>
+                      <Badge className="bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest border-none shadow-none">Active</Badge>
                     ) : (
-                      <Badge variant="secondary" className="text-[10px]">Inactive</Badge>
+                      <Badge variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-slate-100 text-slate-500 border-none shadow-none">Inactive</Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}>
                       {expandedId === t.id ? <Icon name="keyboard_arrow_up" className="h-4 w-4" /> : <Icon name="keyboard_arrow_down" className="h-4 w-4" />}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-indigo-600" onClick={() => openEdit(t)}>
-                      <Icon name="pencil" className="h-3.5 w-3.5" />
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-900" onClick={() => openEdit(t)}>
+                      <Icon name="edit" className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => {
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-900" onClick={() => {
                       if (confirm('Delete this template?')) deleteMutation.mutate(t.id)
                     }}>
                       <Icon name="delete" className="h-3.5 w-3.5" />
@@ -251,9 +251,9 @@ function BOQTemplatesSection({ templates, loading }: { templates: BOQTemplate[];
       <Dialog open={creating} onOpenChange={(o) => { if (!o) { setCreating(false); setEditing(null) } }}>
         <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Icon name="assignment" className="h-5 w-5 text-indigo-500" />
-              {editing ? 'Edit BOQ Template' : 'Create BOQ Template'}
+            <DialogTitle className="flex items-center gap-2 text-slate-900 font-bold uppercase tracking-widest text-sm">
+              <Icon name="assignment" className="h-5 w-5 text-slate-400" />
+              {editing ? 'Modify BOQ Template' : 'Configure BOQ Template'}
             </DialogTitle>
             <DialogDescription>
               Define the format, categories, rules and examples for AI-generated Bills of Quantities.
@@ -314,7 +314,7 @@ function BOQTemplatesSection({ templates, loading }: { templates: BOQTemplate[];
 
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => { setCreating(false); setEditing(null) }}>Cancel</Button>
-            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-indigo-600 hover:bg-indigo-700 gap-1.5">
+            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-slate-900 hover:bg-slate-800 text-white font-bold uppercase tracking-wider text-[10px] gap-1.5 shadow-none">
               {saveMutation.isPending ? <Icon name="progress_activity" className="h-4 w-4 animate-spin" /> : <Icon name="save" className="h-4 w-4" />}
               {editing ? 'Update' : 'Create'}
             </Button>
@@ -389,7 +389,7 @@ function MaterialPricesSection({ prices, loading }: { prices: MaterialPriceItem[
             These prices feed the AI's _get_material_prices tool — used when generating BOQs and answering cost queries.
           </p>
         </div>
-        <Button onClick={() => { setForm(blankPrice); setEditing(null); setCreating(true) }} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={() => { setForm(blankPrice); setEditing(null); setCreating(true) }} className="gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold uppercase tracking-wider text-[10px] shadow-none">
           <Icon name="add" className="h-4 w-4" /> Add Price
         </Button>
       </div>
@@ -425,10 +425,10 @@ function MaterialPricesSection({ prices, loading }: { prices: MaterialPriceItem[
                       <td className="px-4 py-2 text-muted-foreground truncate max-w-[150px]">{p.supplier_name || '—'}</td>
                       <td className="px-4 py-2 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-indigo-600" onClick={() => openEdit(p)}>
-                            <Icon name="pencil" className="h-3.5 w-3.5" />
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-900" onClick={() => openEdit(p)}>
+                            <Icon name="edit" className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => {
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-900" onClick={() => {
                             if (confirm('Delete this price entry?')) deleteMutation.mutate(p.id)
                           }}>
                             <Icon name="delete" className="h-3.5 w-3.5" />
@@ -448,9 +448,9 @@ function MaterialPricesSection({ prices, loading }: { prices: MaterialPriceItem[
       <Dialog open={creating} onOpenChange={(o) => { if (!o) { setCreating(false); setEditing(null) } }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Icon name="attach_money" className="h-5 w-5 text-emerald-500" />
-              {editing ? 'Edit Material Price' : 'Add Material Price'}
+            <DialogTitle className="flex items-center gap-2 text-slate-900 font-bold uppercase tracking-widest text-sm">
+              <Icon name="attach_money" className="h-5 w-5 text-slate-400" />
+              {editing ? 'Modify Price' : 'Add Price'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-2">
@@ -493,7 +493,7 @@ function MaterialPricesSection({ prices, loading }: { prices: MaterialPriceItem[
           </div>
           <DialogFooter className="mt-3">
             <Button variant="outline" onClick={() => { setCreating(false); setEditing(null) }}>Cancel</Button>
-            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 gap-1.5">
+            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-slate-900 hover:bg-slate-800 text-white font-bold uppercase tracking-wider text-[10px] gap-1.5 shadow-none">
               {saveMutation.isPending ? <Icon name="progress_activity" className="h-4 w-4 animate-spin" /> : <Icon name="save" className="h-4 w-4" />}
               {editing ? 'Update' : 'Add'}
             </Button>

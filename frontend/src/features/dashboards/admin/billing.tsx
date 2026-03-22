@@ -19,31 +19,32 @@ function timeAgo(date: string) {
     return new Date(date).toLocaleDateString()
 }
 
-function StatCard({ title, value, icon, color }: { title: string; value: string | number; icon: string; color: string }) {
+function StatCard({ title, value, icon }: { title: string; value: string | number; icon: string }) {
     return (
-        <div className="relative overflow-hidden rounded-xl border border-border/60 bg-card p-4 hover:shadow-md transition-all group">
+        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-900 transition-all duration-300 group shadow-none">
             <div className="flex items-center gap-3">
-                <div className={`h-9 w-9 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform`}>
-                    <Icon name={icon} size={18} className="text-white" />
+                <div className={`h-9 w-9 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100 shrink-0`}>
+                    <Icon name={icon} size={18} className="text-slate-400" />
                 </div>
                 <div>
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{title}</p>
-                    <p className="text-lg font-bold tracking-tight">{value}</p>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{title}</p>
+                    <p className="text-lg font-bold tracking-tight text-slate-900">{value}</p>
                 </div>
             </div>
+            <div className="absolute top-0 left-0 w-1 h-full bg-slate-900 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
     )
 }
 
 const statusColors: Record<string, string> = {
-    ACTIVE: 'bg-emerald-100 text-emerald-700',
-    CANCELLED: 'bg-red-100 text-red-700',
-    PAST_DUE: 'bg-amber-100 text-amber-700',
-    TRIALING: 'bg-blue-100 text-blue-700',
-    PAID: 'bg-emerald-100 text-emerald-700',
-    PENDING: 'bg-amber-100 text-amber-700',
-    FAILED: 'bg-red-100 text-red-700',
-    REFUNDED: 'bg-gray-100 text-gray-600',
+    ACTIVE: 'bg-slate-900 text-white',
+    CANCELLED: 'bg-slate-100 text-slate-500',
+    PAST_DUE: 'bg-slate-500 text-white',
+    TRIALING: 'bg-slate-100 text-slate-900',
+    PAID: 'bg-slate-900 text-white',
+    PENDING: 'bg-slate-100 text-slate-900',
+    FAILED: 'bg-slate-200 text-slate-700',
+    REFUNDED: 'bg-slate-50 text-slate-400',
 }
 
 export function AdminBilling() {
@@ -68,7 +69,7 @@ export function AdminBilling() {
         <div className="w-full max-w-7xl mx-auto space-y-6">
             {/* Page Header */}
             <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm">
                     <Icon name="payments" className="h-5 w-5 text-white" />
                 </div>
                 <div>
@@ -79,20 +80,20 @@ export function AdminBilling() {
 
             {/* Summary Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="Active Subs" value={summary.active_subscriptions ?? 0} icon="credit_card" color="from-emerald-500 to-emerald-600" />
-                <StatCard title="Total Revenue" value={`$${(summary.total_revenue ?? 0).toLocaleString()}`} icon="attach_money" color="from-blue-500 to-indigo-600" />
-                <StatCard title="Plans" value={summary.total_plans ?? 0} icon="loyalty" color="from-purple-500 to-violet-600" />
-                <StatCard title="Total Invoices" value={summary.total_invoices ?? 0} icon="receipt_long" color="from-amber-500 to-orange-600" />
+                <StatCard title="Active Subs" value={summary.active_subscriptions ?? 0} icon="credit_card" />
+                <StatCard title="Total Revenue" value={`$${(summary.total_revenue ?? 0).toLocaleString()}`} icon="attach_money" />
+                <StatCard title="Plans" value={summary.total_plans ?? 0} icon="loyalty" />
+                <StatCard title="Total Invoices" value={summary.total_invoices ?? 0} icon="receipt_long" />
             </div>
 
             {/* Plans */}
             <Card className="border-border/60 shadow-sm">
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-md bg-purple-50 flex items-center justify-center">
-                            <Icon name="loyalty" className="h-3.5 w-3.5 text-purple-600" />
+                    <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                        <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                            <Icon name="loyalty" className="h-3.5 w-3.5 text-slate-400" />
                         </div>
-                        Subscription Plans
+                        Subscription Tiers
                     </CardTitle>
                     <CardDescription className="text-xs">{plans.length} plan{plans.length !== 1 ? 's' : ''} configured</CardDescription>
                 </CardHeader>
@@ -132,9 +133,9 @@ export function AdminBilling() {
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <div className="h-6 w-6 rounded-md bg-emerald-50 flex items-center justify-center">
-                                    <Icon name="credit_card" className="h-3.5 w-3.5 text-emerald-600" />
+                            <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                                <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                    <Icon name="credit_card" className="h-3.5 w-3.5 text-slate-400" />
                                 </div>
                                 Active Subscriptions
                             </CardTitle>
@@ -194,11 +195,11 @@ export function AdminBilling() {
             {/* Invoices */}
             <Card className="border-border/60 shadow-sm">
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-md bg-amber-50 flex items-center justify-center">
-                            <Icon name="receipt_long" className="h-3.5 w-3.5 text-amber-600" />
+                    <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                        <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                            <Icon name="receipt_long" className="h-3.5 w-3.5 text-slate-400" />
                         </div>
-                        Recent Invoices
+                        Financial Records
                     </CardTitle>
                     <CardDescription className="text-xs">Last {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}</CardDescription>
                 </CardHeader>

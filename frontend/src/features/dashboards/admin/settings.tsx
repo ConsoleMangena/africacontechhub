@@ -21,9 +21,9 @@ function ToggleRow({ label, description, checked, onChange }: {
             </div>
             <button
                 onClick={() => onChange(!checked)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors border-none ${checked ? 'bg-slate-900' : 'bg-slate-200'}`}
             >
-                <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+                <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform shadow-none ${checked ? 'translate-x-5.5' : 'translate-x-1'}`} />
             </button>
         </div>
     )
@@ -62,7 +62,7 @@ export function AdminSettings() {
             {/* Page Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-gray-600 to-gray-800 flex items-center justify-center shadow-lg shadow-gray-500/20">
+                    <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm">
                         <Icon name="settings" className="h-5 w-5 text-white" />
                     </div>
                     <div>
@@ -73,25 +73,25 @@ export function AdminSettings() {
                 <Button
                     onClick={() => saveMutation.mutate()}
                     disabled={saveMutation.isPending || !hasChanges}
-                    className="bg-indigo-600 hover:bg-indigo-700 shadow-sm gap-1.5"
+                    className="bg-slate-900 hover:bg-slate-800 text-white font-bold uppercase tracking-wider text-[10px] shadow-none gap-1.5"
                 >
                     {saveMutation.isPending ? (
                         <Icon name="progress_activity" className="h-4 w-4 animate-spin" />
                     ) : (
                         <Icon name="save" className="h-4 w-4" />
                     )}
-                    Save Changes
+                    Apply Changes
                 </Button>
             </div>
 
             {/* General Settings */}
             <Card className="border-border/60 shadow-sm">
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-md bg-indigo-50 flex items-center justify-center">
-                            <Icon name="info" className="h-3.5 w-3.5 text-indigo-600" />
+                    <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                        <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                            <Icon name="info" className="h-3.5 w-3.5 text-slate-400" />
                         </div>
-                        General
+                        Platform Identity
                     </CardTitle>
                     <CardDescription className="text-xs">Basic platform identity and contact information.</CardDescription>
                 </CardHeader>
@@ -116,11 +116,11 @@ export function AdminSettings() {
             {/* Registration & Access */}
             <Card className="border-border/60 shadow-sm">
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-md bg-emerald-50 flex items-center justify-center">
-                            <Icon name="person_add" className="h-3.5 w-3.5 text-emerald-600" />
+                    <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                        <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                            <Icon name="person_add" className="h-3.5 w-3.5 text-slate-400" />
                         </div>
-                        Registration & Access
+                        Onboarding Policy
                     </CardTitle>
                     <CardDescription className="text-xs">Control how users can sign up and access the platform.</CardDescription>
                 </CardHeader>
@@ -156,11 +156,11 @@ export function AdminSettings() {
             {/* Limits */}
             <Card className="border-border/60 shadow-sm">
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-md bg-amber-50 flex items-center justify-center">
-                            <Icon name="tune" className="h-3.5 w-3.5 text-amber-600" />
+                    <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                        <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                            <Icon name="tune" className="h-3.5 w-3.5 text-slate-400" />
                         </div>
-                        Limits
+                        Resource Governance
                     </CardTitle>
                     <CardDescription className="text-xs">Set resource limits for platform users.</CardDescription>
                 </CardHeader>
@@ -191,11 +191,11 @@ export function AdminSettings() {
             {/* Maintenance Mode */}
             <Card className="border-border/60 shadow-sm">
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-md bg-red-50 flex items-center justify-center">
-                            <Icon name="engineering" className="h-3.5 w-3.5 text-red-600" />
+                    <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                        <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                            <Icon name="engineering" className="h-3.5 w-3.5 text-slate-400" />
                         </div>
-                        Maintenance Mode
+                        System Maintenance
                     </CardTitle>
                     <CardDescription className="text-xs">Take the platform offline for maintenance.</CardDescription>
                 </CardHeader>

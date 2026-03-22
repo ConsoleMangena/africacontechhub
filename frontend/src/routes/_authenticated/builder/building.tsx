@@ -44,25 +44,25 @@ const ARTISAN_ROLES: { value: ProjectTeam['role']; label: string; icon: string }
 ]
 
 const PROJECT_STATUSES: { value: Project['status']; label: string; icon: string; triggerCls: string }[] = [
-  { value: 'PLANNING', label: 'Planning', icon: 'assignment', triggerCls: 'bg-blue-50 border-blue-200 text-blue-700' },
-  { value: 'IN_PROGRESS', label: 'In Progress', icon: 'engineering', triggerCls: 'bg-amber-50 border-amber-200 text-amber-700' },
-  { value: 'ON_HOLD', label: 'On Hold', icon: 'pause_circle', triggerCls: 'bg-slate-50 border-slate-200 text-slate-700' },
-  { value: 'COMPLETED', label: 'Completed', icon: 'check_circle', triggerCls: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+  { value: 'PLANNING', label: 'Planning', icon: 'assignment', triggerCls: 'bg-slate-50 border-slate-200 text-slate-700' },
+  { value: 'IN_PROGRESS', label: 'In Progress', icon: 'engineering', triggerCls: 'bg-slate-50 border-slate-200 text-slate-700 font-bold' },
+  { value: 'ON_HOLD', label: 'On Hold', icon: 'pause_circle', triggerCls: 'bg-slate-50 border-slate-200 text-slate-500' },
+  { value: 'COMPLETED', label: 'Completed', icon: 'check_circle', triggerCls: 'bg-slate-900 border-slate-900 text-white shadow-none' },
 ]
 
 const PROC_STATUS_CFG: Record<string, { label: string; borderCls: string; bgCls: string; textCls: string }> = {
-  PENDING:   { label: 'Pending',   borderCls: 'border-amber-200',   bgCls: 'bg-amber-50/50',   textCls: 'text-amber-600' },
-  APPROVED:  { label: 'Approved',  borderCls: 'border-blue-200',    bgCls: 'bg-blue-50/50',    textCls: 'text-blue-600' },
-  ORDERED:   { label: 'Ordered',   borderCls: 'border-violet-200',  bgCls: 'bg-violet-50/50',  textCls: 'text-violet-600' },
-  DELIVERED: { label: 'Delivered', borderCls: 'border-emerald-200', bgCls: 'bg-emerald-50/50', textCls: 'text-emerald-600' },
-  CANCELLED: { label: 'Cancelled', borderCls: 'border-slate-200',   bgCls: 'bg-slate-50/50',   textCls: 'text-slate-600' },
+  PENDING:   { label: 'Pending',   borderCls: 'border-slate-200', bgCls: 'bg-slate-50/50', textCls: 'text-slate-500' },
+  APPROVED:  { label: 'Approved',  borderCls: 'border-slate-200', bgCls: 'bg-slate-50/50', textCls: 'text-slate-600' },
+  ORDERED:   { label: 'Ordered',   borderCls: 'border-slate-200', bgCls: 'bg-slate-50/50', textCls: 'text-slate-700' },
+  DELIVERED: { label: 'Delivered', borderCls: 'border-slate-200', bgCls: 'bg-slate-50/50', textCls: 'text-slate-900 font-bold' },
+  CANCELLED: { label: 'Cancelled', borderCls: 'border-slate-100',   bgCls: 'bg-slate-50/50',   textCls: 'text-slate-400' },
 }
 
 const ICON_COLOR: Record<string, { bg: string; text: string }> = {
-  blue:    { bg: 'bg-blue-50',    text: 'text-blue-600' },
-  emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
-  violet:  { bg: 'bg-violet-50',  text: 'text-violet-600' },
-  amber:   { bg: 'bg-amber-50',   text: 'text-amber-600' },
+  blue:    { bg: 'bg-slate-50', text: 'text-slate-600' },
+  emerald: { bg: 'bg-slate-50', text: 'text-slate-600' },
+  violet:  { bg: 'bg-slate-50', text: 'text-slate-600' },
+  amber:   { bg: 'bg-slate-50', text: 'text-slate-600' },
 }
 
 function StatCard({ icon, iconColor, label, value, sub, href, progress }: { icon: string; iconColor: string; label: string; value: string | number; sub?: string; href?: string; progress?: number }) {
@@ -76,7 +76,7 @@ function StatCard({ icon, iconColor, label, value, sub, href, progress }: { icon
     >
       {progress !== undefined && (
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100">
-          <div className={`h-full rounded-r-full transition-all duration-500 ${ic.bg.replace('bg-', 'bg-').replace('/50', '')}`} style={{ width: `${Math.min(progress, 100)}%`, backgroundColor: ic.text.includes('blue') ? '#3b82f6' : ic.text.includes('emerald') ? '#10b981' : ic.text.includes('violet') ? '#8b5cf6' : '#f59e0b' }} />
+          <div className="h-full bg-slate-900 rounded-r-full transition-all duration-500 shadow-none border-none" style={{ width: `${Math.min(progress, 100)}%` }} />
         </div>
       )}
       <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 ${ic.bg} transition-transform duration-200 group-hover:scale-110`}>
@@ -304,16 +304,14 @@ function RouteComponent() {
         <div className="max-w-7xl mx-auto px-3 py-4 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6">
 
           {/* ── Hero Header ── */}
-          <div className="rounded-xl sm:rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 p-4 sm:p-5 md:p-6 text-white relative overflow-hidden">
-            {/* Decorative background elements */}
-            <div className="absolute top-0 right-0 w-40 sm:w-64 h-40 sm:h-64 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/4" />
-            <div className="hidden sm:block absolute bottom-0 left-1/3 w-48 h-48 bg-emerald-500/10 rounded-full translate-y-1/2" />
+          <div className="rounded-xl sm:rounded-2xl bg-slate-900 p-4 sm:p-5 md:p-6 text-white relative overflow-hidden border border-slate-800 shadow-none">
+            {/* Decorative background elements (subtle) */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/[0.02] rounded-full -translate-y-1/2 translate-x-1/4" />
             
             <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <Icon name="construction" size={20} className="text-blue-400 sm:hidden" />
-                  <Icon name="construction" size={24} className="text-blue-400 hidden sm:block" />
+                  <Icon name="construction" size={24} className="text-slate-400 group-hover:text-slate-200 transition-colors" />
                   <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight">Project Management</h1>
                 </div>
                 {currentProject && (
@@ -327,7 +325,7 @@ function RouteComponent() {
                   <select
                     value={selectedProject ?? ''}
                     onChange={e => setSelectedProject(Number(e.target.value))}
-                    className="h-9 sm:h-10 px-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg sm:rounded-xl text-sm text-white focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400/50 outline-none flex-1 sm:flex-none sm:w-56 [&>option]:text-slate-900"
+                    className="h-9 sm:h-10 px-4 bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest text-white focus:ring-0 outline-none flex-1 sm:flex-none sm:w-60 [&>option]:text-slate-900 transition-all cursor-pointer"
                   >
                     {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
                   </select>
@@ -360,9 +358,9 @@ function RouteComponent() {
                   <span>Overall Progress</span>
                   <span className="text-white font-semibold">{scheduleTasks.length > 0 ? Math.round((scheduleTasks.filter(t => t.est_cost).length / scheduleTasks.length) * 100) : 0}%</span>
                 </div>
-                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-1 bg-white/5 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-blue-400 to-emerald-400 rounded-full transition-all duration-700 ease-out"
+                    className="h-full bg-slate-400 rounded-full transition-all duration-1000 ease-out"
                     style={{ width: `${scheduleTasks.length > 0 ? Math.round((scheduleTasks.filter(t => t.est_cost).length / scheduleTasks.length) * 100) : 0}%` }}
                   />
                 </div>
@@ -411,8 +409,8 @@ function RouteComponent() {
               <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
                 <button type="button" onClick={() => toggle('timeline')} className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 border-b border-slate-100 hover:bg-slate-50/50 transition-colors rounded-t-xl sm:rounded-t-2xl">
                   <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-blue-50 flex items-center justify-center">
-                      <Icon name="timeline" size={16} className="text-blue-600" />
+                    <div className="h-7 w-7 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center">
+                      <Icon name="timeline" size={16} className="text-slate-400" />
                     </div>
                     Project Timeline
                   </h2>
@@ -443,8 +441,8 @@ function RouteComponent() {
               <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
                 <button type="button" onClick={() => toggle('tasks')} className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 border-b border-slate-100 hover:bg-slate-50/50 transition-colors rounded-t-xl sm:rounded-t-2xl">
                   <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-amber-50 flex items-center justify-center">
-                      <Icon name="schedule" size={16} className="text-amber-600" />
+                    <div className="h-7 w-7 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center">
+                      <Icon name="schedule" size={16} className="text-slate-400" />
                     </div>
                     <span className="hidden xs:inline">Schedule</span> Tasks
                     <Badge variant="secondary" className="text-[10px] ml-1 rounded-full px-2">{scheduleTasks.length}</Badge>
@@ -501,8 +499,8 @@ function RouteComponent() {
               <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
                 <button type="button" onClick={() => toggle('procurement')} className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 border-b border-slate-100 hover:bg-slate-50/50 transition-colors rounded-t-xl sm:rounded-t-2xl">
                   <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-violet-50 flex items-center justify-center">
-                      <Icon name="inventory_2" size={16} className="text-violet-600" />
+                    <div className="h-7 w-7 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center">
+                      <Icon name="inventory_2" size={16} className="text-slate-400" />
                     </div>
                     Procurement
                     <Badge variant="secondary" className="text-[10px] ml-1 rounded-full px-2">{totalProc}</Badge>
@@ -568,8 +566,8 @@ function RouteComponent() {
                 <div className="flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 border-b border-slate-100 rounded-t-xl sm:rounded-t-2xl">
                   <button type="button" onClick={() => toggle('team')} className="flex items-center gap-2">
                     <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-lg bg-emerald-50 flex items-center justify-center">
-                        <Icon name="groups" size={16} className="text-emerald-600" />
+                      <div className="h-7 w-7 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center">
+                        <Icon name="groups" size={16} className="text-slate-400" />
                       </div>
                       Team
                       <Badge variant="secondary" className="text-[10px] ml-1 rounded-full px-2">{artisans.length}</Badge>

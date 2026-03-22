@@ -300,10 +300,9 @@ export function CreateProjectDialog({
             >
                 <div className="flex items-start gap-3">
                     <div className="relative">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-lime-500 text-white shadow-lg animate-pulse">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 border border-slate-200 shadow-sm">
                             <Icon name="smart_toy" className="h-6 w-6" />
                         </div>
-                        <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-white shadow animate-ping" />
                     </div>
                     <DialogHeader className="flex-1">
                     <DialogTitle>{isEditing ? 'Edit Project' : 'Create New Project'}</DialogTitle>
@@ -319,7 +318,7 @@ export function CreateProjectDialog({
                                 <div className="flex items-center gap-3">
                                     <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                                         <div
-                                            className="h-full bg-green-600 transition-all duration-500"
+                                            className="h-full bg-slate-900 transition-all duration-500 shadow-none border-none"
                                             style={{ width: `${((step + 1) / steps.length) * 100}%` }}
                                         />
                                     </div>
@@ -332,7 +331,7 @@ export function CreateProjectDialog({
                                     {steps.map((s, idx) => (
                                         <div
                                             key={s.key}
-                                            className={`rounded-md border px-2.5 py-2 transition-all duration-200 ${idx === step ? 'border-green-500 bg-green-50 text-green-700 shadow-sm' : 'border-muted bg-background'}`}
+                                            className={`rounded-md border px-2.5 py-2 transition-all duration-200 ${idx === step ? 'border-slate-900 bg-slate-900 text-white shadow-none font-bold' : 'border-slate-100 bg-slate-50 text-slate-500'}`}
                                         >
                                             {s.label}
                                         </div>

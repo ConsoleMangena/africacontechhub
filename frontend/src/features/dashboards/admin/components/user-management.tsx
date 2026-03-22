@@ -29,12 +29,6 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 
-const ROLE_STYLES: Record<string, string> = {
-    ADMIN: 'bg-purple-50 text-purple-700 border-purple-200',
-    BUILDER: 'bg-blue-50 text-blue-700 border-blue-200',
-    CONTRACTOR: 'bg-amber-50 text-amber-700 border-amber-200',
-    SUPPLIER: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-}
 
 const ROLE_LABELS: Record<string, string> = {
     ADMIN: 'Administrator',
@@ -61,8 +55,8 @@ function timeAgo(dateStr: string): string {
 }
 
 const AVATAR_COLORS = [
-    'bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500',
-    'bg-emerald-500', 'bg-teal-500', 'bg-amber-500', 'bg-orange-500',
+    'bg-slate-400', 'bg-slate-500', 'bg-zinc-400', 'bg-zinc-500',
+    'bg-gray-400', 'bg-gray-500',
 ]
 
 export function UserManagement() {
@@ -222,8 +216,8 @@ export function UserManagement() {
                 <div className="flex items-center gap-2">
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
-                            <Button size="sm" className="h-9 gap-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200">
-                                <Icon name="person_add" className="h-4 w-4" />
+                            <Button variant="outline" size="sm" className="h-9 gap-2 px-3 border-border/60 hover:bg-muted/50 hover:text-indigo-600 font-bold transition-all shadow-none">
+                                <Icon name="add_circle" className="h-4 w-4" />
                                 <span className="hidden sm:inline">Add User</span>
                             </Button>
                         </DialogTrigger>
@@ -313,7 +307,7 @@ export function UserManagement() {
                     </Dialog>
 
                     <Select value={roleFilter} onValueChange={setRoleFilter}>
-                        <SelectTrigger className="h-9 flex-1 lg:w-[160px] text-[11px] sm:text-xs font-medium border-border/50 bg-muted/30">
+                        <SelectTrigger className="h-9 flex-1 lg:w-[150px] text-[11px] font-bold border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors">
                             <SelectValue placeholder="All Roles" />
                         </SelectTrigger>
                         <SelectContent>
@@ -387,7 +381,7 @@ export function UserManagement() {
                                                 onValueChange={(val) => handleRoleChange(user.id, val)}
                                                 disabled={actionLoading === `role-${user.id}`}
                                             >
-                                                <SelectTrigger className={`h-6 w-[115px] text-[10px] font-medium border rounded-md ${ROLE_STYLES[user.role] || 'bg-muted text-muted-foreground border-border'}`}>
+                                                <SelectTrigger className={`h-7 w-[125px] text-[10px] font-bold border-0 bg-muted/20 hover:bg-muted/40 transition-all rounded-md`}>
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -400,10 +394,7 @@ export function UserManagement() {
                                         </TableCell>
                                         <TableCell>
                                             <Badge
-                                                className={`text-[11px] font-medium cursor-pointer rounded-lg px-2 ${user.is_active
-                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                                                    : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
-                                                } ${actionLoading === `status-${user.id}` ? 'opacity-50 pointer-events-none' : ''}`}
+                                                className={`text-[11px] font-bold cursor-pointer rounded-lg px-2 border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition-colors ${actionLoading === `status-${user.id}` ? 'opacity-50 pointer-events-none' : ''}`}
                                                 onClick={() => {
                                                     if (actionLoading !== `status-${user.id}`) {
                                                         handleStatusChange(user.id, !user.is_active)

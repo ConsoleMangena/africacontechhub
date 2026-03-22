@@ -21,24 +21,25 @@ function timeAgo(date: string) {
 }
 
 const statusConfig: Record<string, { color: string; icon: string; bg: string }> = {
-    PLANNING: { color: 'text-blue-700', icon: 'edit_note', bg: 'bg-blue-100' },
-    IN_PROGRESS: { color: 'text-amber-700', icon: 'construction', bg: 'bg-amber-100' },
-    COMPLETED: { color: 'text-emerald-700', icon: 'check_circle', bg: 'bg-emerald-100' },
-    ON_HOLD: { color: 'text-gray-600', icon: 'pause_circle', bg: 'bg-gray-100' },
+    PLANNING: { color: 'text-slate-900', icon: 'edit_note', bg: 'bg-slate-100' },
+    IN_PROGRESS: { color: 'text-slate-900', icon: 'construction', bg: 'bg-slate-50' },
+    COMPLETED: { color: 'text-white', icon: 'check_circle', bg: 'bg-slate-900' },
+    ON_HOLD: { color: 'text-slate-500', icon: 'pause_circle', bg: 'bg-slate-100' },
 }
 
-function StatCard({ title, value, icon, color }: { title: string; value: string | number; icon: string; color: string }) {
+function StatCard({ title, value, icon }: { title: string; value: string | number; icon: string }) {
     return (
-        <div className="relative overflow-hidden rounded-xl border border-border/60 bg-card p-4 hover:shadow-md transition-all group">
+        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-900 transition-all duration-300 group shadow-none">
             <div className="flex items-center gap-3">
-                <div className={`h-9 w-9 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform`}>
-                    <Icon name={icon} size={18} className="text-white" />
+                <div className={`h-9 w-9 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100 shrink-0`}>
+                    <Icon name={icon} size={18} className="text-slate-400" />
                 </div>
                 <div>
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{title}</p>
-                    <p className="text-lg font-bold tracking-tight">{value}</p>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{title}</p>
+                    <p className="text-lg font-bold tracking-tight text-slate-900">{value}</p>
                 </div>
             </div>
+            <div className="absolute top-0 left-0 w-1 h-full bg-slate-900 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
     )
 }
@@ -67,7 +68,7 @@ export function AdminProjects() {
         <div className="w-full max-w-7xl mx-auto space-y-6">
             {/* Page Header */}
             <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm">
                     <Icon name="business" className="h-5 w-5 text-white" />
                 </div>
                 <div>
@@ -78,11 +79,11 @@ export function AdminProjects() {
 
             {/* Summary Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                <StatCard title="Total Projects" value={summary.total ?? 0} icon="folder" color="from-blue-500 to-blue-600" />
-                <StatCard title="Planning" value={byStatus.PLANNING ?? 0} icon="edit_note" color="from-sky-500 to-sky-600" />
-                <StatCard title="In Progress" value={byStatus.IN_PROGRESS ?? 0} icon="construction" color="from-amber-500 to-amber-600" />
-                <StatCard title="Completed" value={byStatus.COMPLETED ?? 0} icon="check_circle" color="from-emerald-500 to-emerald-600" />
-                <StatCard title="Total Budget" value={`$${(summary.total_budget ?? 0).toLocaleString()}`} icon="attach_money" color="from-purple-500 to-violet-600" />
+                <StatCard title="Total Projects" value={summary.total ?? 0} icon="folder" />
+                <StatCard title="Planning" value={byStatus.PLANNING ?? 0} icon="edit_note" />
+                <StatCard title="In Progress" value={byStatus.IN_PROGRESS ?? 0} icon="construction" />
+                <StatCard title="Completed" value={byStatus.COMPLETED ?? 0} icon="check_circle" />
+                <StatCard title="Total Budget" value={`$${(summary.total_budget ?? 0).toLocaleString()}`} icon="attach_money" />
             </div>
 
             {/* Projects Table */}
@@ -90,11 +91,11 @@ export function AdminProjects() {
                 <CardHeader className="pb-3">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div>
-                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <div className="h-6 w-6 rounded-md bg-blue-50 flex items-center justify-center">
-                                    <Icon name="list" className="h-3.5 w-3.5 text-blue-600" />
+                            <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                                <div className="h-6 w-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                    <Icon name="list" className="h-3.5 w-3.5 text-slate-400" />
                                 </div>
-                                All Projects
+                                Project Directory
                             </CardTitle>
                             <CardDescription className="text-xs">{projects.length} project{projects.length !== 1 ? 's' : ''} found</CardDescription>
                         </div>

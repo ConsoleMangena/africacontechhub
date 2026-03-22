@@ -31,10 +31,10 @@ interface DifyDashboardProps {
 }
 
 const statusConfig = {
-    PLANNING: { label: 'Planning', className: 'bg-muted text-foreground', icon: 'schedule' },
-    IN_PROGRESS: { label: 'In Progress', className: 'bg-muted text-foreground', icon: 'schedule' },
-    ON_HOLD: { label: 'On Hold', className: 'bg-muted text-foreground', icon: 'pause_circle' },
-    COMPLETED: { label: 'Completed', className: 'bg-muted text-foreground', icon: 'check_circle' },
+    PLANNING: { label: 'Planning', className: 'bg-slate-100 text-slate-900', icon: 'schedule' },
+    IN_PROGRESS: { label: 'In Progress', className: 'bg-slate-900 text-white', icon: 'schedule' },
+    ON_HOLD: { label: 'On Hold', className: 'bg-slate-50 text-slate-400', icon: 'pause_circle' },
+    COMPLETED: { label: 'Completed', className: 'bg-slate-100 text-slate-700', icon: 'check_circle' },
 }
 
 const displayValue = (value?: string | number | boolean | null) => {
@@ -152,7 +152,7 @@ export function DifyDashboard({ project }: DifyDashboardProps) {
             {/* Hero Banner */}
             <div className="relative overflow-hidden rounded-xl bg-muted/40 px-5 py-3 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3 relative z-10">
-                    <Button variant="outline" size="icon" onClick={() => navigate({ to: '/builder' })} className="h-8 w-8 rounded-lg hover:bg-white border-teal-200/60 text-teal-700 shrink-0">
+                    <Button variant="outline" size="icon" onClick={() => navigate({ to: '/builder' })} className="h-8 w-8 rounded-lg hover:bg-slate-100 border-slate-200 text-slate-600 shrink-0">
                         <Icon name="arrow_back" size={14} />
                     </Button>
                     <div>
@@ -179,75 +179,74 @@ export function DifyDashboard({ project }: DifyDashboardProps) {
 
             {/* Compact Stats Row */}
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
-                <Card className="border-border/60 bg-gradient-to-br from-teal-50/50 to-white">
+                <Card className="border-slate-200 bg-white shadow-none">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-2 mb-2">
-                            <div className="h-8 w-8 rounded-lg bg-teal-100 flex items-center justify-center">
-                                <Icon name="attach_money" size={16} className="text-teal-600" />
+                            <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200">
+                                <Icon name="attach_money" size={16} className="text-slate-600" />
                             </div>
-                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Budget (Managed)</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Budget</p>
                         </div>
                         <div className="flex items-baseline gap-1.5">
-                            <span className="text-2xl font-bold font-display tracking-tight text-foreground">
+                            <span className="text-2xl font-bold font-display tracking-tight text-slate-900">
                                 ${parseFloat(project.budget).toLocaleString('en-US', { minimumFractionDigits: 0 })}
                             </span>
-                            <Icon name="lock" size={12} className="text-muted-foreground" />
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="border-border/60 bg-gradient-to-br from-slate-50 to-white">
+                <Card className="border-slate-200 bg-white shadow-none">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-2 mb-2">
-                            <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                            <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200">
                                 <Icon name="calendar_today" size={16} className="text-slate-600" />
                             </div>
-                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Created</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Created</p>
                         </div>
-                        <span className="text-2xl font-bold font-display tracking-tight text-foreground">
+                        <span className="text-2xl font-bold font-display tracking-tight text-slate-900">
                             {format(new Date(project.created_at), 'MMM d, yyyy')}
                         </span>
                     </CardContent>
                 </Card>
-                <Card className="border-border/60 bg-gradient-to-br from-emerald-50/50 to-white">
+                <Card className="border-slate-200 bg-white shadow-none">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-2 mb-2">
-                            <div className="h-8 w-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                                <Icon name="location_on" size={16} className="text-emerald-600" />
+                            <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200">
+                                <Icon name="location_on" size={16} className="text-slate-600" />
                             </div>
-                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Location</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Location</p>
                         </div>
-                        <span className="text-base font-semibold text-foreground line-clamp-2">
+                        <span className="text-base font-bold text-slate-900 line-clamp-2">
                             {project.location || 'Not specified'}
                         </span>
                     </CardContent>
                 </Card>
-                <Card className="border-border/60 bg-gradient-to-br from-green-50/50 to-white">
+                <Card className="border-slate-200 bg-white shadow-none">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-2 mb-2">
-                            <div className="h-8 w-8 rounded-lg bg-green-100 flex items-center justify-center">
-                                <Icon name="credit_card" size={16} className="text-green-600" />
+                            <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200">
+                                <Icon name="credit_card" size={16} className="text-slate-600" />
                             </div>
-                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Escrow</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Escrow</p>
                         </div>
-                        <span className="text-2xl font-bold font-display tracking-tight text-green-600">
+                        <span className="text-2xl font-bold font-display tracking-tight text-slate-900">
                             $45,000
                         </span>
-                        <p className="text-[10px] text-muted-foreground mt-1">Funds held in escrow</p>
+                        <p className="text-[10px] text-slate-500 mt-1 font-medium">Funds held in escrow</p>
                     </CardContent>
                 </Card>
-                <Card className={`border-border/60 ${project.si56_verified ? 'bg-gradient-to-br from-green-50/50 to-white' : 'bg-gradient-to-br from-slate-50 to-white'}`}>
+                <Card className="border-slate-200 bg-white shadow-none">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-2 mb-2">
-                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${project.si56_verified ? 'bg-green-100' : 'bg-slate-100'}`}>
-                                <Icon name="check_circle" size={16} className={project.si56_verified ? 'text-green-600' : 'text-slate-500'} />
+                            <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200">
+                                <Icon name="check_circle" size={16} className="text-slate-600" />
                             </div>
-                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Compliance</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Compliance</p>
                         </div>
-                        <span className="text-base font-semibold text-foreground">
+                        <span className="text-base font-bold text-slate-900">
                             {project.si56_verified ? 'SI 56 Verified' : 'Pending Verification'}
                         </span>
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                            {project.si56_verified ? 'Complies with SI 56 of 2025.' : 'Verification is in progress.'}
+                        <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                            {project.si56_verified ? 'Complies with SI 56 of 2025.' : 'Verification in progress.'}
                         </p>
                     </CardContent>
                 </Card>
@@ -256,8 +255,8 @@ export function DifyDashboard({ project }: DifyDashboardProps) {
             {project.ai_brief && (
                 <Card className="border-border/60 bg-card">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-semibold font-display flex items-center gap-2">
-                            <Icon name="auto_awesome" size={16} className="text-primary" />
+                        <CardTitle className="text-sm font-bold font-display flex items-center gap-2 text-slate-900">
+                            <Icon name="auto_awesome" size={16} className="text-slate-400" />
                             Project Brief
                         </CardTitle>
                     </CardHeader>
@@ -366,8 +365,8 @@ export function DifyDashboard({ project }: DifyDashboardProps) {
 
             <Card className="border-border/60 bg-card">
                 <CardHeader className="pb-2 flex flex-col gap-1">
-                    <CardTitle className="text-sm font-semibold font-display flex items-center gap-2">
-                        <Icon name="explore" size={16} className="text-primary" />
+                    <CardTitle className="text-sm font-bold font-display flex items-center gap-2 text-slate-900">
+                        <Icon name="explore" size={16} className="text-slate-400" />
                         Site Intel
                     </CardTitle>
                     <p className="text-xs text-muted-foreground">
@@ -426,11 +425,11 @@ export function DifyDashboard({ project }: DifyDashboardProps) {
                                             <td className="px-4 py-3 align-top font-semibold text-foreground whitespace-nowrap">{row.aspect || '-'}</td>
                                             <td className="px-4 py-3 align-top text-muted-foreground">{row.finding || '-'}</td>
                                             <td className="px-4 py-3 align-top">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] sm:text-xs font-medium whitespace-nowrap ${
-                                                  row.risk?.toLowerCase().includes('high') ? 'bg-red-100 text-red-700' :
-                                                  row.risk?.toLowerCase().includes('medium') ? 'bg-amber-100 text-amber-700' :
-                                                  row.risk?.toLowerCase().includes('low') ? 'bg-green-100 text-green-700' :
-                                                  'bg-slate-100 text-slate-700'
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] sm:text-xs font-bold whitespace-nowrap border ${
+                                                  row.risk?.toLowerCase().includes('high') ? 'bg-slate-100 text-slate-900 border-slate-200' :
+                                                  row.risk?.toLowerCase().includes('medium') ? 'bg-slate-50 text-slate-700 border-slate-200' :
+                                                  row.risk?.toLowerCase().includes('low') ? 'bg-slate-50 text-slate-700 border-slate-200' :
+                                                  'bg-slate-50 text-slate-700 border-slate-200'
                                                 }`}>
                                                     {row.risk || '-'}
                                                 </span>
@@ -456,8 +455,8 @@ export function DifyDashboard({ project }: DifyDashboardProps) {
             {/* Location Map */}
             <Card className="border-border/60 bg-card">
                 <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold font-display flex items-center gap-2">
-                        <Icon name="location_on" size={16} className="text-primary" />
+                    <CardTitle className="text-sm font-bold font-display flex items-center gap-2 text-slate-900">
+                        <Icon name="location_on" size={16} className="text-slate-400" />
                         Project Location
                     </CardTitle>
                 </CardHeader>

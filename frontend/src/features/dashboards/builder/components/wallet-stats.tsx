@@ -19,55 +19,52 @@ export function WalletRates({ totalBudget }: WalletStatsProps) {
             className="rounded-xl border border-slate-200 p-3 sm:px-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 text-slate-900 cursor-pointer hover:shadow-sm transition-all group bg-white relative overflow-hidden"
             onClick={() => setShowWalletDetails(!showWalletDetails)}
         >
-            {/* Real-time Sync Indicator */}
+            {/* Static Sync Reference */}
             <div className="absolute top-0 right-0 p-1">
-                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100/50">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[8px] font-bold text-emerald-600 uppercase tracking-tighter">Live Sync</span>
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-50 border border-slate-100">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">Synced</span>
                 </div>
             </div>
 
             <div className="flex items-center gap-2 sm:min-w-[160px]">
-                <div className="p-1.5 bg-blue-50/80 rounded-lg border border-blue-100/50">
-                    <Icon name="public" size={16} className="text-blue-600 animate-[spin_8s_linear_infinite]" />
+                <div className="p-1.5 bg-slate-50 rounded-lg border border-slate-100">
+                    <Icon name="public" size={16} className="text-slate-400" />
                 </div>
                 <div>
-                    <h3 className="text-slate-800 text-[10px] font-bold uppercase tracking-wider leading-none mb-0.5">Wallet Rates</h3>
-                    <p className="text-slate-500 text-[9px] leading-none">Click to convert</p>
+                    <h3 className="text-slate-900 text-[10px] font-bold uppercase tracking-widest leading-none mb-0.5">FX Oracle</h3>
+                    <p className="text-slate-500 text-[9px] leading-none uppercase tracking-tighter">Real-time parity</p>
                 </div>
             </div>
 
             <div className="flex flex-1 items-center gap-4 sm:gap-6 flex-wrap">
                 <div className="flex items-baseline gap-1.5 group/val">
-                    <span className="text-[10px] font-bold text-blue-600">USD</span>
+                    <span className="text-[10px] font-bold text-slate-400">USD</span>
                     <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900 flex items-center gap-1">
                         ${balances.USD.toLocaleString()}
-                        <span className="w-1 h-3 bg-emerald-400/20 rounded-full animate-pulse hidden group-hover/val:block" />
                     </span>
                 </div>
                 <div className="flex items-baseline gap-1.5 group/val">
-                    <span className="text-[10px] font-bold text-blue-600">GBP</span>
-                    <span className="text-xs sm:text-sm font-semibold tracking-tight text-slate-700 flex items-center gap-1">
+                    <span className="text-[10px] font-bold text-slate-400">GBP</span>
+                    <span className="text-xs sm:text-sm font-semibold tracking-tight text-slate-700">
                         £{balances.GBP.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        <span className="w-1 h-3 bg-emerald-400/20 rounded-full animate-pulse hidden group-hover/val:block" />
                     </span>
                 </div>
                 <div className="flex items-baseline gap-1.5 group/val">
-                    <span className="text-[10px] font-bold text-blue-600">ZiG</span>
-                    <span className="text-xs sm:text-sm font-semibold tracking-tight text-slate-700 flex items-center gap-1">
+                    <span className="text-[10px] font-bold text-slate-400">ZiG</span>
+                    <span className="text-xs sm:text-sm font-semibold tracking-tight text-slate-700">
                         Z${balances.ZiG.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        <span className="w-1 h-3 bg-emerald-400/20 rounded-full animate-pulse hidden group-hover/val:block" />
                     </span>
                 </div>
             </div>
 
             {showWalletDetails && (
                 <div className="flex gap-1.5 mt-2 sm:mt-0 sm:ml-auto">
-                    <button className="bg-blue-50/80 hover:bg-blue-100 text-blue-700 border border-blue-200/50 rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-all uppercase tracking-wider">
-                        USD → ZiG
+                    <button className="bg-slate-900 border-none text-white rounded-md px-3 py-1.5 text-[9px] font-bold transition-all uppercase tracking-widest hover:bg-slate-800">
+                        Convert Currency
                     </button>
-                    <button className="bg-blue-50/80 hover:bg-blue-100 text-blue-700 border border-blue-200/50 rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-all uppercase tracking-wider">
-                        GBP → USD
+                    <button className="bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 rounded-md px-3 py-1.5 text-[9px] font-bold transition-all uppercase tracking-widest">
+                        Exch. History
                     </button>
                 </div>
             )}
@@ -82,54 +79,54 @@ export function WalletStats({ totalBudget }: WalletStatsProps) {
 
     return (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="bg-white border-slate-200 overflow-hidden shadow-none">
-                <CardContent className="p-3 flex items-start gap-4">
-                    <div className="h-9 w-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                        <Icon name="wallet" size={20} className="text-blue-600" />
+            <Card className="bg-white border-slate-200 overflow-hidden shadow-none rounded-xl">
+                <CardContent className="p-4 flex items-start gap-4">
+                    <div className="h-9 w-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                        <Icon name="wallet" size={20} className="text-slate-400" />
                     </div>
                     <div className="space-y-0.5 min-w-0">
-                        <p className="text-[11px] font-medium text-slate-500 leading-tight">Total Budget (WIPAA)</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Liquidity Pool</p>
                         <div className="text-xl font-bold text-slate-900 leading-tight">${balances.USD.toLocaleString()}</div>
-                        <p className="text-[10px] text-slate-400 font-medium">85% Funded</p>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">85% Allotment</p>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card className="bg-white border-slate-200 overflow-hidden shadow-none">
-                <CardContent className="p-3 flex items-start gap-4">
-                    <div className="h-9 w-9 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
-                        <Icon name="monitoring" size={20} className="text-emerald-600" />
+            <Card className="bg-white border-slate-200 overflow-hidden shadow-none rounded-xl">
+                <CardContent className="p-4 flex items-start gap-4">
+                    <div className="h-9 w-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                        <Icon name="monitoring" size={20} className="text-slate-400" />
                     </div>
                     <div className="space-y-0.5 min-w-0">
-                        <p className="text-[11px] font-medium text-slate-500 leading-tight">Current Burn Rate</p>
-                        <div className="text-xl font-bold text-emerald-600 leading-tight">Healthy</div>
-                        <p className="text-[10px] text-slate-400 font-medium truncate">Matches monthly saving capacity</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Burn Velocity</p>
+                        <div className="text-xl font-bold text-slate-900 leading-tight">Nominal</div>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Matches capacity</p>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card className="bg-white border-slate-200 overflow-hidden shadow-none">
-                <CardContent className="p-3 flex items-start gap-4">
-                    <div className="h-9 w-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
-                        <Icon name="schedule" size={20} className="text-slate-500" />
+            <Card className="bg-white border-slate-200 overflow-hidden shadow-none rounded-xl">
+                <CardContent className="p-4 flex items-start gap-4">
+                    <div className="h-9 w-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                        <Icon name="schedule" size={20} className="text-slate-400" />
                     </div>
                     <div className="space-y-0.5 min-w-0">
-                        <p className="text-[11px] font-medium text-slate-500 leading-tight">Slippage Cost Ticker</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Slippage Audit</p>
                         <div className="text-xl font-bold text-slate-900 leading-tight">$0.00</div>
-                        <p className="text-[10px] text-slate-400 font-medium truncate">On Schedule (0 Days Delay)</p>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Zero Variance</p>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card className="bg-white border-slate-200 overflow-hidden shadow-none">
-                <CardContent className="p-3 flex items-start gap-4">
-                    <div className="h-9 w-9 rounded-lg bg-emerald-100/50 flex items-center justify-center shrink-0">
-                        <Icon name="trending_down" size={20} className="text-emerald-700" />
+            <Card className="bg-white border-slate-200 overflow-hidden shadow-none rounded-xl">
+                <CardContent className="p-4 flex items-start gap-4">
+                    <div className="h-9 w-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                        <Icon name="trending_down" size={20} className="text-slate-400" />
                     </div>
                     <div className="space-y-0.5 min-w-0">
-                        <p className="text-[11px] font-medium text-slate-500 leading-tight">Capital Saved (VE & Audit)</p>
-                        <div className="text-xl font-bold text-slate-900 leading-tight">$4,250</div>
-                        <p className="text-[10px] text-slate-400 font-medium truncate">Through Direct Procurement</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Capital Salvage</p>
+                        <div className="text-xl font-bold text-slate-900 leading-tight text-emerald-900">$4,250</div>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Direct Sourcing</p>
                     </div>
                 </CardContent>
             </Card>

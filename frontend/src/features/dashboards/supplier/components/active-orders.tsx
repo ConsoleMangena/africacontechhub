@@ -40,19 +40,18 @@ export function ActiveOrders() {
             {orders.map((order) => (
                 <div key={order.id} className='flex items-start gap-4'>
                     {order.status === 'completed' ? (
-                        <Icon name="check_circle" className='h-5 w-5 text-green-600 mt-0.5' />
+                        <Icon name="check_circle" className='h-5 w-5 text-slate-400 mt-0.5' />
                     ) : order.status === 'in-transit' ? (
-                        <Icon name="truck" className='h-5 w-5 text-blue-600 mt-0.5' />
+                        <Icon name="local_shipping" className='h-5 w-5 text-slate-400 mt-0.5' />
                     ) : (
-                        <Icon name="schedule" className='h-5 w-5 text-orange-600 mt-0.5' />
+                        <Icon name="schedule" className='h-5 w-5 text-slate-400 mt-0.5' />
                     )}
-                    <div className='flex-1 space-y-1'>
+                    <div className='flex-1 space-y-1 min-w-0'>
                         <div className='flex items-center justify-between'>
-                            <p className='text-sm font-medium leading-none'>{order.item}</p>
-                            <span className='font-medium text-sm'>{order.amount}</span>
+                            <p className='text-sm font-bold text-slate-900 truncate'>{order.item}</p>
+                            <span className='font-bold text-sm text-slate-900'>{order.amount}</span>
                         </div>
-                        <p className='text-muted-foreground text-xs'>{order.contractor}</p>
-                        <p className='text-muted-foreground text-xs'>{order.delivery}</p>
+                        <p className='text-slate-500 text-[11px] font-medium'>{order.contractor} • {order.delivery}</p>
                     </div>
                 </div>
             ))}

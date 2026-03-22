@@ -48,7 +48,7 @@ export function BiddingEngine() {
                             </div>
                         </div>
                     </div>
-                    <Button className='w-full'>Calculate Bid Amount</Button>
+                    <Button className='w-full bg-slate-900 hover:bg-slate-800 text-white font-bold uppercase tracking-wider text-xs shadow-none'>Calculate Bid Amount</Button>
                 </CardContent>
             </Card>
 
@@ -71,8 +71,8 @@ export function BiddingEngine() {
                             <span className='font-medium'>$0.00</span>
                         </div>
                         <div className='border-t pt-3 flex justify-between items-center'>
-                            <span className='text-lg font-bold'>Recommended Bid:</span>
-                            <span className='text-2xl font-bold text-primary'>$0.00</span>
+                            <span className='text-lg font-bold text-slate-900'>Recommended Bid:</span>
+                            <span className='text-2xl font-bold text-slate-900'>$0.00</span>
                         </div>
                     </div>
                 </CardContent>

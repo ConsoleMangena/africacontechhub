@@ -44,10 +44,10 @@ const DRAWING_TYPES: { value: string; label: string; icon: string }[] = [
 ]
 
 const STATUS_CLS: Record<string, string> = {
-  PENDING: 'bg-amber-100 text-amber-700',
-  IN_PROGRESS: 'bg-blue-100 text-blue-700',
-  COMPLETED: 'bg-emerald-100 text-emerald-700',
-  REJECTED: 'bg-red-100 text-red-600',
+  PENDING: 'bg-slate-50 text-slate-500 border border-slate-100',
+  IN_PROGRESS: 'bg-slate-50 text-slate-700 border border-slate-200 font-bold',
+  COMPLETED: 'bg-slate-900 text-white border-slate-900 shadow-none',
+  REJECTED: 'bg-red-50 text-red-600 border border-red-100',
 }
 
 function getInitials(name?: string) {
@@ -170,9 +170,9 @@ function RouteComponent() {
 
   const getAvailabilityColor = (availability: string) => {
     switch (availability) {
-      case 'available': return 'bg-green-100 text-green-700 border-green-200'
-      case 'busy': return 'bg-amber-100 text-amber-700 border-amber-200'
-      case 'unavailable': return 'bg-red-100 text-red-700 border-red-200'
+      case 'available': return 'bg-slate-50 text-slate-700 border-slate-200'
+      case 'busy': return 'bg-slate-50 text-slate-500 border-slate-100 italic'
+      case 'unavailable': return 'bg-red-50 text-red-700 border-red-100'
       default: return 'bg-slate-100 text-slate-700 border-slate-200'
     }
   }
@@ -370,7 +370,7 @@ function RouteComponent() {
                 <select
                   value={selectedProject ?? ''}
                   onChange={e => setSelectedProject(Number(e.target.value))}
-                  className="h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none w-56"
+                  className="h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm focus:ring-0 focus:border-slate-900 outline-none w-56 transition-all"
                 >
                   {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
                 </select>
@@ -383,10 +383,10 @@ function RouteComponent() {
                 </div>
               ) : (
                 <>
-                  <Button onClick={() => setShowDirectUpload(true)} size="sm" variant="outline" className="h-9 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                  <Button onClick={() => setShowDirectUpload(true)} size="sm" variant="outline" className="h-9 text-[10px] font-bold uppercase tracking-wider border-slate-200 text-slate-900 hover:bg-slate-50">
                     <Icon name="cloud_upload" size={16} className="mr-1.5" />Upload
                   </Button>
-                  <Button onClick={() => setShowRequestForm(true)} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-9 text-xs">
+                  <Button onClick={() => setShowRequestForm(true)} size="sm" className="bg-slate-900 hover:bg-slate-800 h-9 text-[10px] font-bold uppercase tracking-wider text-white shadow-none">
                     <Icon name="add" size={16} className="mr-1.5" />Request Drawing
                   </Button>
                 </>
@@ -397,10 +397,10 @@ function RouteComponent() {
           {/* ── Stats ── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {([
-              { icon: 'description', label: 'Total', value: requests.length, bg: 'bg-indigo-50', text: 'text-indigo-600' },
-              { icon: 'schedule', label: 'Pending', value: requests.filter(r => r.status === 'PENDING').length, bg: 'bg-amber-50', text: 'text-amber-600' },
-              { icon: 'sync', label: 'In Progress', value: requests.filter(r => r.status === 'IN_PROGRESS').length, bg: 'bg-blue-50', text: 'text-blue-600' },
-              { icon: 'check_circle', label: 'Completed', value: requests.filter(r => r.status === 'COMPLETED').length, bg: 'bg-emerald-50', text: 'text-emerald-600' },
+              { icon: 'description', label: 'Total', value: requests.length, bg: 'bg-slate-50', text: 'text-slate-600' },
+              { icon: 'schedule', label: 'Pending', value: requests.filter(r => r.status === 'PENDING').length, bg: 'bg-slate-50', text: 'text-slate-500' },
+              { icon: 'sync', label: 'In Progress', value: requests.filter(r => r.status === 'IN_PROGRESS').length, bg: 'bg-slate-50', text: 'text-slate-700' },
+              { icon: 'check_circle', label: 'Completed', value: requests.filter(r => r.status === 'COMPLETED').length, bg: 'bg-slate-900', text: 'text-white' },
             ] as const).map(s => (
               <div key={s.label} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
                 <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${s.bg}`}>
@@ -418,18 +418,18 @@ function RouteComponent() {
           <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
             {archDetails ? (
               <>
-                <div className="h-9 w-9 rounded-full overflow-hidden shrink-0 ring-2 ring-white shadow-sm bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center">
+                <div className="h-9 w-9 rounded-full overflow-hidden shrink-0 ring-2 ring-white shadow-sm bg-slate-100 flex items-center justify-center">
                   {archDetails.avatar ? (
                     <img src={archDetails.avatar} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <span className="text-sm font-bold text-white">{getInitials(archDetails.full_name)}</span>
+                    <Icon name="architecture" size={18} className="text-slate-400" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-900 truncate">{archDetails.full_name}</p>
                   <p className="text-[10px] text-slate-400 truncate">Architect · {archDetails.email}</p>
                 </div>
-                <Badge className="bg-emerald-100 text-emerald-700 text-[9px] border-none">Assigned</Badge>
+                <Badge className="bg-slate-900 text-white text-[9px] border-none shadow-none font-bold uppercase tracking-wider">Assigned</Badge>
               </>
             ) : (
               <>
@@ -446,32 +446,32 @@ function RouteComponent() {
 
           {/* ── Request Form ── */}
           {showRequestForm && (
-            <div className="rounded-xl border border-indigo-200 bg-white overflow-hidden">
-              <div className="px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Icon name="request_page" size={18} className="text-indigo-500" />Request New Drawing
+            <div className="rounded-xl border-2 border-slate-900 bg-white overflow-hidden shadow-xl animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                  <Icon name="request_page" size={18} className="text-slate-600" />Request New Drawing
                 </h3>
                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setShowRequestForm(false)}><Icon name="close" size={16} /></Button>
               </div>
-              <div className="p-4 space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
+              <div className="p-5 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="text-xs font-medium text-slate-600 mb-1 block">Drawing Type</label>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">Drawing Type</label>
                     <Select value={form.drawingType} onValueChange={v => setForm(prev => ({ ...prev, drawingType: v as DrawingRequest['drawing_type'] }))}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {DRAWING_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-600 mb-1 block">Title</label>
-                    <Input value={form.title} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} placeholder="e.g., Ground Floor Plan" className="h-9" />
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">Title</label>
+                    <Input value={form.title} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} placeholder="e.g. Ground Floor Plan" className="h-10 rounded-lg" />
                   </div>
                 </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowRequestForm(false)}>Cancel</Button>
-                  <Button onClick={handleSubmitRequest} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs" disabled={saving}>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" size="sm" className="h-9 px-4 text-[10px] font-bold uppercase tracking-wider rounded-lg" onClick={() => setShowRequestForm(false)}>Cancel</Button>
+                  <Button onClick={handleSubmitRequest} size="sm" className="bg-slate-900 hover:bg-slate-800 h-9 px-6 text-[10px] font-bold uppercase tracking-wider text-white shadow-none rounded-lg" disabled={saving}>
                     {saving ? <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" /> : <Icon name="send" size={14} className="mr-1.5" />}
                     {saving ? 'Submitting…' : 'Submit'}
                   </Button>
@@ -482,59 +482,60 @@ function RouteComponent() {
 
           {/* ── Direct Upload ── */}
           {showDirectUpload && (
-            <div className="rounded-xl border border-emerald-200 bg-white overflow-hidden">
-              <div className="px-4 py-3 border-b border-emerald-100 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Icon name="cloud_upload" size={18} className="text-emerald-500" />Upload Your Drawings
+            <div className="rounded-xl border-2 border-slate-900 bg-white overflow-hidden shadow-xl animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                  <Icon name="cloud_upload" size={18} className="text-slate-600" />Upload Your Drawings
                 </h3>
                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setShowDirectUpload(false); setDirectFiles([]) }}><Icon name="close" size={16} /></Button>
               </div>
-              <div className="p-4 space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
+              <div className="p-5 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="text-xs font-medium text-slate-600 mb-1 block">Drawing Type</label>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">Drawing Type</label>
                     <Select value={directUploadForm.drawingType} onValueChange={v => setDirectUploadForm(prev => ({ ...prev, drawingType: v as DrawingRequest['drawing_type'] }))}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {DRAWING_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-600 mb-1 block">Title (optional)</label>
-                    <Input value={directUploadForm.title} onChange={e => setDirectUploadForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Auto-generated if blank" className="h-9" />
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">Title (optional)</label>
+                    <Input value={directUploadForm.title} onChange={e => setDirectUploadForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Auto-generated if blank" className="h-10 rounded-lg" />
                   </div>
                 </div>
                 <div
                   className={cn(
-                    "border-2 border-dashed rounded-lg p-5 text-center transition-colors cursor-pointer",
-                    directFiles.length > 0 ? "border-emerald-300 bg-emerald-50/50" : "border-slate-300 hover:border-indigo-300 hover:bg-indigo-50/30"
+                    "border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer",
+                    directFiles.length > 0 ? "border-slate-400 bg-slate-50" : "border-slate-200 hover:border-slate-400 hover:bg-slate-50"
                   )}
                   onClick={() => directUploadRef.current?.click()}
                   onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
                   onDrop={e => { e.preventDefault(); e.stopPropagation(); setDirectFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]) }}
                 >
-                  <Icon name="cloud_upload" size={28} className="text-slate-400 mx-auto mb-1" />
-                  <p className="text-xs text-slate-500">Click or drag files · PDF, PNG, JPG, DWG (max 50MB)</p>
+                  <Icon name="cloud_upload" size={32} className="text-slate-300 mx-auto mb-2" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Click or drag files to upload</p>
+                  <p className="text-[9px] text-slate-400 mt-1">PDF, PNG, JPG, DWG (max 50MB)</p>
                 </div>
                 <input type="file" ref={directUploadRef} className="hidden" multiple onChange={e => { if (e.target.files) { setDirectFiles(prev => [...prev, ...Array.from(e.target.files!)]); e.target.value = '' } }} />
                 {directFiles.length > 0 && (
-                  <div className="space-y-1">
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                     {directFiles.map((file, i) => (
-                      <div key={i} className="flex items-center justify-between px-3 py-1.5 bg-slate-50 rounded-lg text-sm">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Icon name={getFileIcon(file.name.split('.').pop() || '')} size={14} className="text-slate-500 shrink-0" />
-                          <span className="truncate text-slate-700">{file.name}</span>
-                          <span className="text-[10px] text-slate-400 shrink-0">{(file.size / (1024 * 1024)).toFixed(1)} MB</span>
+                      <div key={i} className="flex items-center justify-between px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg text-[11px]">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon name={getFileIcon(file.name.split('.').pop() || '')} size={14} className="text-slate-400 shrink-0" />
+                          <span className="truncate text-slate-700 font-medium">{file.name}</span>
+                          <span className="text-[9px] text-slate-400 shrink-0">{(file.size / (1024 * 1024)).toFixed(1)} MB</span>
                         </div>
-                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400 hover:text-red-600" onClick={() => setDirectFiles(prev => prev.filter((_, idx) => idx !== i))}><Icon name="close" size={12} /></Button>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-red-600" onClick={() => setDirectFiles(prev => prev.filter((_, idx) => idx !== i))}><Icon name="close" size={14} /></Button>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => { setShowDirectUpload(false); setDirectFiles([]) }}>Cancel</Button>
-                  <Button onClick={handleDirectUpload} size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs" disabled={uploadingDirect || !selectedProject || directFiles.length === 0}>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" size="sm" className="h-9 px-4 text-[10px] font-bold uppercase tracking-wider rounded-lg" onClick={() => { setShowDirectUpload(false); setDirectFiles([]) }}>Cancel</Button>
+                  <Button onClick={handleDirectUpload} size="sm" className="bg-slate-900 hover:bg-slate-800 h-9 px-6 text-[10px] font-bold uppercase tracking-wider text-white shadow-none rounded-lg" disabled={uploadingDirect || !selectedProject || directFiles.length === 0}>
                     {uploadingDirect ? <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" /> : <Icon name="cloud_upload" size={14} className="mr-1.5" />}
                     {uploadingDirect ? 'Uploading…' : `Upload ${directFiles.length} File(s)`}
                   </Button>
@@ -596,22 +597,22 @@ function RouteComponent() {
                           return (
                             <div key={request.id}>
                               <div className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50/50">
-                                <div className="h-9 w-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
-                                  <Icon name={dtCfg?.icon || 'description'} size={18} className="text-indigo-600" />
+                                <div className="h-9 w-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100 shadow-sm">
+                                  <Icon name={dtCfg?.icon || 'description'} size={18} className="text-slate-600" />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
                                     <p className="text-sm font-semibold text-slate-900 truncate">{request.title}</p>
-                                    <Badge className={`${STATUS_CLS[request.status] || 'bg-slate-100 text-slate-600'} text-[9px] px-1.5 py-0 border-none`}>
+                                    <Badge className={`${STATUS_CLS[request.status] || 'bg-slate-100 text-slate-600'} text-[9px] px-2 py-0.5 border-none shadow-none font-bold uppercase tracking-wider`}>
                                       {request.status.replace('_', ' ')}
                                     </Badge>
                                   </div>
                                   <p className="text-[11px] text-slate-400">{dtCfg?.label || request.drawing_type} · {new Date(request.created_at).toLocaleDateString()}{request.files.length > 0 && ` · ${request.files.length} file${request.files.length > 1 ? 's' : ''}`}</p>
                                 </div>
-                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-indigo-600 hover:bg-indigo-50 shrink-0" onClick={() => { setUploadingForRequest(request.id); fileInputRef.current?.click() }}>
-                                  <Icon name="cloud_upload" size={14} className="mr-1" />Upload
+                                <Button variant="ghost" size="sm" className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-100 shrink-0 rounded-lg" onClick={() => { setUploadingForRequest(request.id); fileInputRef.current?.click() }}>
+                                  <Icon name="cloud_upload" size={14} className="mr-1.5" />Upload
                                 </Button>
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50 shrink-0" onClick={() => handleDeleteRequest(request.id)}>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-300 hover:text-red-500 hover:bg-red-50 shrink-0 rounded-lg" onClick={() => handleDeleteRequest(request.id)}>
                                   <Icon name="delete" size={14} />
                                 </Button>
                               </div>
@@ -694,33 +695,31 @@ function RouteComponent() {
                   ))
                 ) : professionals.length === 0 ? (
                   <div className="text-center py-8 text-slate-400 text-sm">No professionals found</div>
-                ) : (
-                  professionals.map((pro: any) => (
-                    <div key={pro.id} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
-                      <div className="h-10 w-10 rounded-full overflow-hidden shrink-0 bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center ring-2 ring-white shadow-sm">
-                        {pro.user_details?.avatar ? (
-                          <img src={pro.user_details.avatar} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <span className="text-sm font-bold text-white">{getInitials(pro.user_details?.full_name)}</span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-slate-900 truncate">{pro.user_details?.full_name}</p>
-                          {pro.is_verified && <Icon name="verified" size={14} className="text-emerald-500 shrink-0" />}
-                          <Badge className={`${getAvailabilityColor(pro.availability)} text-[9px] px-1.5 py-0`}>{pro.availability}</Badge>
-                        </div>
-                        <p className="text-xs text-slate-500 truncate">{getRoleLabel(pro.role)} · {pro.company_name} · {pro.experience_years}yr · ★{pro.average_rating}</p>
-                      </div>
-                      <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-7 px-3 text-xs shrink-0" onClick={() => handleAddToTeam(pro)}>
-                        <Icon name="person_add" size={14} className="mr-1" />Add
-                      </Button>
-                      <Button size="sm" variant="outline" className="h-7 px-3 text-xs shrink-0" onClick={() => { handleContact(pro); setShowExploreModal(false) }}>
-                        <Icon name="call" size={14} />
-                      </Button>
+                ) : professionals.map((pro: any) => (
+                  <div key={pro.id} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:border-slate-900 transition-all group">
+                    <div className="h-10 w-10 rounded-full overflow-hidden shrink-0 bg-slate-100 flex items-center justify-center ring-2 ring-white shadow-sm">
+                      {pro.user_details?.avatar ? (
+                        <img src={pro.user_details.avatar} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <Icon name="person" size={20} className="text-slate-400" />
+                      )}
                     </div>
-                  ))
-                )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{pro.user_details?.full_name}</p>
+                        {pro.is_verified && <Icon name="verified" size={14} className="text-slate-400 shrink-0" />}
+                        <Badge className={`${getAvailabilityColor(pro.availability)} text-[9px] px-2 py-0 border-none`}>{pro.availability}</Badge>
+                      </div>
+                      <p className="text-xs text-slate-500 truncate">{getRoleLabel(pro.role)} · {pro.company_name} · {pro.experience_years}yr · ★{pro.average_rating}</p>
+                    </div>
+                    <Button size="sm" className="bg-slate-900 hover:bg-slate-800 h-8 px-4 text-[10px] font-bold uppercase tracking-wider text-white shrink-0 rounded-lg shadow-none" onClick={() => handleAddToTeam(pro)}>
+                      <Icon name="person_add" size={14} className="mr-1.5" />Add
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 w-8 p-0 shrink-0 rounded-lg border-slate-200 text-slate-400 group-hover:text-slate-900 transition-colors" onClick={() => { handleContact(pro); setShowExploreModal(false) }}>
+                      <Icon name="call" size={14} />
+                    </Button>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -732,39 +731,39 @@ function RouteComponent() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowContactModal(false)}>
           <Card className="w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <CardContent className="pt-6 pb-5 px-6 flex flex-col items-center text-center">
-              <div className="h-16 w-16 rounded-full overflow-hidden bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center ring-2 ring-white shadow-md">
+              <div className="h-16 w-16 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center ring-2 ring-white shadow-md">
                 {selectedProfessional.user_details?.avatar ? (
                   <img src={selectedProfessional.user_details.avatar} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <span className="text-xl font-bold text-white">{getInitials(selectedProfessional.user_details?.full_name)}</span>
+                  <Icon name="person" size={32} className="text-slate-400" />
                 )}
               </div>
               <h3 className="text-lg font-bold text-slate-900 mt-3">{selectedProfessional.user_details?.full_name}</h3>
               <p className="text-sm text-slate-500">{getRoleLabel(selectedProfessional.role)} · {selectedProfessional.company_name}</p>
               <div className="w-full mt-5 space-y-2.5 text-left">
                 <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-                  <Icon name="phone" size={18} className="text-indigo-600 shrink-0" />
+                  <Icon name="phone" size={18} className="text-slate-600 shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-[10px] text-slate-400 uppercase font-semibold">Phone</p>
-                    <p className="text-sm font-medium text-slate-800 truncate">{selectedProfessional.user_details?.phone_number || 'N/A'}</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Phone</p>
+                    <p className="text-sm font-semibold text-slate-800 truncate">{selectedProfessional.user_details?.phone_number || 'N/A'}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-                  <Icon name="email" size={18} className="text-indigo-600 shrink-0" />
+                  <Icon name="email" size={18} className="text-slate-600 shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-[10px] text-slate-400 uppercase font-semibold">Email</p>
-                    <p className="text-sm font-medium text-slate-800 truncate">{selectedProfessional.user_details?.email}</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Email</p>
+                    <p className="text-sm font-semibold text-slate-800 truncate">{selectedProfessional.user_details?.email}</p>
                   </div>
                 </div>
               </div>
-              <div className="flex gap-2 w-full mt-5">
-                <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => setShowContactModal(false)}>Close</Button>
-                <Button size="sm" className="flex-1 h-9 bg-indigo-600 hover:bg-indigo-700" onClick={() => {
+              <div className="flex gap-2 w-full mt-6">
+                <Button variant="outline" size="sm" className="flex-1 h-9 rounded-lg text-[10px] font-bold uppercase tracking-wider" onClick={() => setShowContactModal(false)}>Close</Button>
+                <Button size="sm" className="flex-1 h-9 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-none" onClick={() => {
                   if (selectedProfessional.user_details?.phone_number) {
                     navigator.clipboard.writeText(selectedProfessional.user_details.phone_number)
                     toast.success('Phone number copied')
                   } else { toast.error('No phone number') }
-                }}><Icon name="content_copy" size={14} className="mr-1" />Copy Phone</Button>
+                }}><Icon name="content_copy" size={14} className="mr-1.5" />Copy</Button>
               </div>
             </CardContent>
           </Card>

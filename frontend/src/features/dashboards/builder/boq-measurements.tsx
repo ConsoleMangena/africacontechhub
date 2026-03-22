@@ -99,7 +99,7 @@ export default function BOQMeasurements() {
             if (res.data.results?.length > 0) {
                 setSelectedProject(res.data.results[0].id);
             }
-        }).catch(err => toast.error("Failed to load projects"))
+        }).catch(() => toast.error("Failed to load projects"))
         .finally(() => setLoadingProjects(false));
     }, []);
 
@@ -108,7 +108,7 @@ export default function BOQMeasurements() {
         setLoading(true);
         builderApi.getProjectBudgetSheets(selectedProject, budgetView)
             .then(res => setBudgetSheets(res.data))
-            .catch(err => toast.error("Failed to load budget sheets"))
+            .catch(() => toast.error("Failed to load budget sheets"))
             .finally(() => setLoading(false));
     }, [selectedProject, budgetView]);
 
@@ -166,7 +166,7 @@ export default function BOQMeasurements() {
                 if (!prev) return prev;
                 return { ...prev, [type]: (prev[type] as any[]).filter(i => i.id !== id) };
             });
-        } catch (err) {
+        } catch {
             toast.error('Failed to delete item');
         }
     };
@@ -209,7 +209,7 @@ export default function BOQMeasurements() {
             const res = await builderApi.getProjectBudgetSheets(selectedProject!, budgetView);
             setBudgetSheets(res.data);
             setLoading(false);
-        } catch (err) {
+        } catch {
             toast.error('Failed to update item');
         } finally {
             setIsSavingEdit(false);
@@ -250,18 +250,18 @@ export default function BOQMeasurements() {
                             </select>
                             {currentProject && <ProjectModeBadge engagementTier={currentProject.engagement_tier} size="sm" />}
                         </div>
-                        <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                        <div className="flex rounded-lg border border-slate-200 overflow-hidden shadow-sm">
                             <button
                                 type="button"
                                 onClick={() => setBudgetView('preliminary')}
-                                className={`px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium ${budgetView === 'preliminary' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                className={`px-4 sm:px-6 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all ${budgetView === 'preliminary' ? 'bg-slate-900 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                             >
                                 Preliminary
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setBudgetView('final')}
-                                className={`px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium border-l border-slate-200 ${budgetView === 'final' ? 'bg-amber-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                className={`px-4 sm:px-6 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider border-l border-slate-200 transition-all ${budgetView === 'final' ? 'bg-slate-900 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                             >
                                 Final
                             </button>
@@ -288,7 +288,8 @@ export default function BOQMeasurements() {
                 <Button
                     type="button"
                     size="sm"
-                    className={isFinalLocked ? 'bg-slate-200 text-slate-500' : 'bg-amber-600 hover:bg-amber-700'}
+                    variant="outline"
+                    className={isFinalLocked ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-white border-slate-200 text-slate-900 hover:bg-slate-50 font-bold uppercase tracking-wider text-[10px]'}
                     disabled={budgetView !== 'final' || isFinalLocked || !hasProfileSignature}
                     title={!hasProfileSignature ? 'Add signature in Settings → Profile' : undefined}
                     onClick={() => {
@@ -299,8 +300,8 @@ export default function BOQMeasurements() {
                         setSignOpen(true);
                     }}
                 >
-                    <Icon name={isFinalLocked ? 'lock' : 'draw'} className="mr-1 text-base" />
-                    {isFinalLocked ? 'Signed' : 'Sign'}
+                    <Icon name={isFinalLocked ? 'lock' : 'draw'} className="mr-1.5 text-base" />
+                    {isFinalLocked ? 'Signed' : 'Sign Budget'}
                 </Button>
 
                 <span className="hidden md:block h-5 w-px bg-slate-200" />
@@ -311,9 +312,9 @@ export default function BOQMeasurements() {
                         All items procured
                     </span>
                 ) : canOpenProcurement && selectedProject && !isDIFY ? (
-                    <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                    <Button asChild size="sm" className="bg-slate-900 hover:bg-slate-800 text-white shadow-none font-bold uppercase tracking-wider text-[10px]">
                         <Link to="/builder/procurement" search={{ projectId: selectedProject, category: TAB_TO_PROCUREMENT[activeTab], bulkPrefill: true, prefill: undefined, boqId: undefined }}>
-                            <Icon name="library_add" className="mr-1 text-base" />
+                            <Icon name="library_add" className="mr-1.5 text-base" />
                             Bulk Procure
                         </Link>
                     </Button>
@@ -332,10 +333,10 @@ export default function BOQMeasurements() {
                     <button
                         key={tab.key}
                         onClick={() => setActiveTab(tab.key)}
-                        className={`px-2 sm:px-2.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                        className={`px-3 sm:px-4 py-2 sm:py-2.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest border-b-2 transition-all whitespace-nowrap shrink-0 ${
                             activeTab === tab.key 
-                                ? 'border-emerald-500 text-emerald-600' 
-                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                                ? 'border-slate-900 text-slate-900 bg-slate-50/50' 
+                                : 'border-transparent text-slate-400 hover:text-slate-600 hover:border-slate-300'
                         }`}
                     >
                         {tab.label}
@@ -473,15 +474,15 @@ function BuildingItemsTable({ items, onDelete, onEdit, readOnly }: { items: BOQB
         <div className="space-y-3 p-3 sm:p-4">
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
                 {items.map((i, idx) => (
-                    <div key={i.id} className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:shadow-lg hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-200" style={{ animation: `tileIn 0.35s ease-out ${idx * 40}ms both` }}>
+                    <div key={i.id} className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:shadow-md hover:border-slate-900 hover:-translate-y-0.5 transition-all duration-300" style={{ animation: `tileIn 0.35s ease-out ${idx * 40}ms both` }}>
                         <div className="flex items-start justify-between gap-2 mb-1">
                             <p className="text-xs sm:text-sm font-semibold text-slate-900 line-clamp-2 flex-1">{i.description}</p>
                             <div className="flex items-center gap-1 shrink-0">
                                 {i.is_ai_generated && <span className="text-base" title="AI generated">✨</span>}
                                 {!readOnly && (
                                     <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                        <button type="button" onClick={() => onEdit(i)} className="p-1.5 sm:p-1 rounded hover:bg-emerald-50 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
-                                        <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 sm:p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
+                                        <button type="button" onClick={() => onEdit(i)} className="p-1.5 sm:p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-900"><Icon name="edit" size={16} /></button>
+                                        <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 sm:p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500"><Icon name="delete" size={16} /></button>
                                     </div>
                                 )}
                             </div>
@@ -499,9 +500,9 @@ function BuildingItemsTable({ items, onDelete, onEdit, readOnly }: { items: BOQB
                     </div>
                 ))}
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 sm:px-4 py-2.5 sm:py-3">
-                <span className="text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider">Total Building Cost</span>
-                <span className="text-sm sm:text-base font-bold text-emerald-700">${items.reduce((sum, i) => sum + Number(i.amount), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
+                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Building Cost</span>
+                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.amount), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
             </div>
         </div>
     );
@@ -534,9 +535,9 @@ function ProfessionalFeesTable({ items, onDelete, onEdit, readOnly }: { items: B
                     </div>
                 ))}
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 sm:px-4 py-2.5 sm:py-3">
-                <span className="text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider">Total Professional Fees</span>
-                <span className="text-sm sm:text-base font-bold text-emerald-700">${items.reduce((sum, i) => sum + Number(i.estimated_fee), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
+                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Professional Fees</span>
+                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.estimated_fee), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
             </div>
         </div>
     );
@@ -570,9 +571,9 @@ function AdminExpensesTable({ items, onDelete, onEdit, readOnly }: { items: BOQA
                     </div>
                 ))}
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 sm:px-4 py-2.5 sm:py-3">
-                <span className="text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider">Total Admin Costs</span>
-                <span className="text-sm sm:text-base font-bold text-emerald-700">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
+                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Admin Costs</span>
+                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
             </div>
         </div>
     );
@@ -595,8 +596,8 @@ function LabourCostsTable({ items, onDelete, onEdit, readOnly }: { items: BOQLab
                             )}
                         </div>
                         <div className="flex items-center gap-2 mb-2">
-                            {i.phase && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">{i.phase}</span>}
-                            {i.skill_level && <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{i.skill_level}</span>}
+                            {i.phase && <span className="text-[9px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-slate-200">{i.phase}</span>}
+                            {i.skill_level && <span className="text-[9px] bg-white text-slate-500 px-2 py-0.5 rounded border border-slate-100 italic">{i.skill_level}</span>}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-[11px] text-slate-500">
                             <span>Gang: {i.gang_size || '—'}</span>
@@ -610,9 +611,9 @@ function LabourCostsTable({ items, onDelete, onEdit, readOnly }: { items: BOQLab
                     </div>
                 ))}
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 sm:px-4 py-2.5 sm:py-3">
-                <span className="text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider">Total Labour Cost</span>
-                <span className="text-sm sm:text-base font-bold text-emerald-700">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
+                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Labour Cost</span>
+                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
             </div>
         </div>
     );
@@ -646,9 +647,9 @@ function MachinePlantsTable({ items, onDelete, onEdit, readOnly }: { items: BOQM
                     </div>
                 ))}
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 sm:px-4 py-2.5 sm:py-3">
-                <span className="text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider">Total Machine/Plant Cost</span>
-                <span className="text-sm sm:text-base font-bold text-emerald-700">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
+                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Machine/Plant Cost</span>
+                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
             </div>
         </div>
     );
@@ -681,9 +682,9 @@ function LabourBreakdownsTable({ items, onDelete, onEdit, readOnly }: { items: B
                     </div>
                 ))}
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 sm:px-4 py-2.5 sm:py-3">
-                <span className="text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider">Total Labour Breakdown</span>
-                <span className="text-sm sm:text-base font-bold text-emerald-700">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
+                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Labour Breakdown</span>
+                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
             </div>
         </div>
     );
@@ -719,9 +720,9 @@ function ScheduleTasksTable({ items, onDelete, onEdit, readOnly }: { items: BOQS
                     </div>
                 ))}
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 sm:px-4 py-2.5 sm:py-3">
-                <span className="text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider">Total Schedule Cost</span>
-                <span className="text-sm sm:text-base font-bold text-emerald-700">${items.reduce((sum, i) => sum + Number(i.est_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
+                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Schedule Cost</span>
+                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.est_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
             </div>
         </div>
     );

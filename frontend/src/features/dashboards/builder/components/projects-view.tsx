@@ -11,15 +11,15 @@ import { Badge } from '@/components/ui/badge'
 import { Project } from '@/types/api'
 
 const statusConfig: Record<Project['status'], { label: string; className: string }> = {
-    PLANNING: { label: 'Planning', className: 'bg-blue-100 text-blue-800' },
-    IN_PROGRESS: { label: 'In Progress', className: 'bg-amber-100 text-amber-800' },
-    ON_HOLD: { label: 'On Hold', className: 'bg-gray-100 text-gray-800' },
-    COMPLETED: { label: 'Completed', className: 'bg-green-100 text-green-800' },
+    PLANNING: { label: 'Planning', className: 'bg-slate-100 text-slate-700' },
+    IN_PROGRESS: { label: 'In Progress', className: 'bg-slate-900 text-white' },
+    ON_HOLD: { label: 'On Hold', className: 'bg-slate-50 text-slate-400' },
+    COMPLETED: { label: 'Completed', className: 'bg-slate-200 text-slate-800' },
 }
 
 const tierConfig: Record<Project['engagement_tier'], { label: string; icon: string; className: string }> = {
-    DIT: { label: 'DIT', icon: 'group', className: 'text-indigo-600 bg-indigo-100' },
-    DIFY: { label: 'DIFY', icon: 'gpp_good', className: 'text-teal-600 bg-teal-100' },
+    DIT: { label: 'DIT', icon: 'group', className: 'text-slate-900 bg-slate-50' },
+    DIFY: { label: 'DIFY', icon: 'gpp_good', className: 'text-slate-900 bg-slate-100' },
 }
 
 interface ProjectsViewProps {
@@ -47,9 +47,9 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
     return (
         <Card className="border-border/60 bg-card">
             <CardHeader>
-                <CardTitle className="text-base font-semibold font-display flex items-center gap-2">
-                    <Icon name="folder_open" size={16} className="text-primary" />
-                    All Projects
+                <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                    <Icon name="folder_open" size={16} className="text-slate-400" />
+                    Project Portfolio
                 </CardTitle>
                 <CardDescription>
                     Manage and track all your construction projects.
@@ -65,8 +65,9 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
                         return (
                             <div
                                 key={project.id}
-                                className="group relative rounded-lg border border-border/60 bg-card p-4 hover:shadow-md transition-all duration-200"
+                                className="group relative rounded-xl border border-slate-200 bg-white p-5 hover:border-slate-900 transition-all duration-300 shadow-none overflow-hidden"
                             >
+                                <div className="absolute top-0 left-0 w-1 h-full bg-slate-900 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 <div className="flex items-start justify-between mb-3">
                                     <div className="flex-1 min-w-0">
                                         <h3 className="text-sm font-semibold text-foreground truncate">
@@ -77,7 +78,7 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
                                             <span className="truncate">{project.location}</span>
                                         </div>
                                     </div>
-                                    <Badge className={`shrink-0 ml-2 text-xs ${statusBadge?.className || ''}`}>
+                                    <Badge className={`shrink-0 ml-2 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 border-none shadow-none ${statusBadge?.className || ''}`}>
                                         {statusBadge?.label || project.status}
                                     </Badge>
                                 </div>
@@ -92,12 +93,12 @@ export function ProjectsView({ projects, onView, onEdit, onDelete }: ProjectsVie
                                         {tier?.label || project.engagement_tier}
                                     </Badge>
                                     {project.si56_verified && (
-                                        <Badge variant="outline" className="text-[10px] sm:text-xs text-green-600 bg-green-50 whitespace-nowrap">
+                                        <Badge variant="outline" className="text-[10px] text-slate-900 bg-slate-50 border-slate-200 whitespace-nowrap font-bold uppercase tracking-tighter">
                                             <Icon name="gpp_good" size={12} className="mr-1" />
-                                            SI 56
+                                            SI 56 Verified
                                         </Badge>
                                     )}
-                                    <Badge variant="outline" className="text-[10px] sm:text-xs text-blue-600 bg-blue-50 whitespace-nowrap">
+                                    <Badge variant="outline" className="text-[10px] text-slate-900 bg-slate-50 border-slate-200 whitespace-nowrap font-bold uppercase tracking-tighter">
                                         <Icon name="groups" size={12} className="mr-1" />
                                         {project.total_team_count} Artisans
                                     </Badge>

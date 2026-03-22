@@ -45,25 +45,25 @@ export const Route = createFileRoute(
 })
 
 const CATEGORIES: { key: ProcurementCategory; label: string; icon: string; activeCls: string }[] = [
-  { key: 'MATERIAL', label: 'Building Materials', icon: 'construction', activeCls: 'bg-emerald-600 text-white border-emerald-600 shadow-sm' },
-  { key: 'LABOUR', label: 'Labour', icon: 'engineering', activeCls: 'bg-blue-600 text-white border-blue-600 shadow-sm' },
-  { key: 'PLANT', label: 'Plant & Equipment', icon: 'precision_manufacturing', activeCls: 'bg-amber-600 text-white border-amber-600 shadow-sm' },
-  { key: 'PROFESSIONAL', label: 'Professional Fees', icon: 'badge', activeCls: 'bg-purple-600 text-white border-purple-600 shadow-sm' },
-  { key: 'ADMIN', label: 'Admin & Expenses', icon: 'receipt_long', activeCls: 'bg-slate-600 text-white border-slate-600 shadow-sm' },
+  { key: 'MATERIAL', label: 'Building Materials', icon: 'construction', activeCls: 'bg-slate-900 text-white border-slate-900 shadow-none' },
+  { key: 'LABOUR', label: 'Labour', icon: 'engineering', activeCls: 'bg-slate-900 text-white border-slate-900 shadow-none' },
+  { key: 'PLANT', label: 'Plant & Equipment', icon: 'precision_manufacturing', activeCls: 'bg-slate-900 text-white border-slate-900 shadow-none' },
+  { key: 'PROFESSIONAL', label: 'Professional Fees', icon: 'badge', activeCls: 'bg-slate-900 text-white border-slate-900 shadow-none' },
+  { key: 'ADMIN', label: 'Admin & Expenses', icon: 'receipt_long', activeCls: 'bg-slate-900 text-white border-slate-900 shadow-none' },
 ]
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING:   'bg-amber-50 text-amber-700 border border-amber-200',
-  APPROVED:  'bg-blue-50 text-blue-700 border border-blue-200',
-  ORDERED:   'bg-violet-50 text-violet-700 border border-violet-200',
-  DELIVERED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  CANCELLED: 'bg-slate-100 text-slate-500 border border-slate-200',
+  PENDING:   'bg-slate-50 text-slate-700 border border-slate-200',
+  APPROVED:  'bg-slate-50 text-slate-700 border border-slate-200',
+  ORDERED:   'bg-slate-50 text-slate-700 border border-slate-200',
+  DELIVERED: 'bg-slate-50 text-slate-700 border border-slate-200',
+  CANCELLED: 'bg-red-50 text-red-700 border border-red-100',
 }
 
 function LoadingBar() {
   return (
     <div className="h-0.5 w-full bg-slate-100 overflow-hidden">
-      <div className="h-full w-1/3 bg-blue-500 rounded-full" style={{ animation: 'procShimmer 1.2s ease-in-out infinite' }} />
+      <div className="h-full w-1/3 bg-slate-400 rounded-full" style={{ animation: 'procShimmer 1.2s ease-in-out infinite' }} />
       <style>{`@keyframes procShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }`}</style>
     </div>
   )
@@ -492,6 +492,9 @@ function ProcurementPage() {
       search: {
         projectId: selectedProject ?? undefined,
         category: activeCategory,
+        prefill: undefined,
+        bulkPrefill: undefined,
+        boqId: undefined,
       },
       replace: true,
     })
@@ -514,7 +517,13 @@ function ProcurementPage() {
     setBulkCreating(true)
     navigateRef.current({
       to: '/builder/procurement',
-      search: { projectId: selectedProject ?? undefined, category: activeCategory },
+      search: { 
+        projectId: selectedProject ?? undefined, 
+        category: activeCategory,
+        prefill: undefined,
+        bulkPrefill: undefined,
+        boqId: undefined,
+      },
       replace: true,
     })
 
@@ -673,9 +682,9 @@ function ProcurementPage() {
                       ? 'Sign the final budget under Construction Budget first'
                       : undefined
                   }
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 sm:h-10 text-xs sm:text-sm"
+                  className="bg-slate-900 border-slate-900 hover:bg-slate-800 text-white h-9 sm:h-10 text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-none"
                 >
-                  <Icon name="add" size={16} className="mr-1" />
+                  <Icon name="add" size={14} className="mr-1.5" />
                   <span className="hidden xs:inline">New </span>Request
                 </Button>
               </div>
@@ -701,22 +710,22 @@ function ProcurementPage() {
           )}
 
           {bulkCreating && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 space-y-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
-                  <Icon name="progress_activity" size={18} className="animate-spin text-emerald-600" />
-                  <strong className="font-semibold">Creating procurement requests</strong>
+                  <Icon name="progress_activity" size={18} className="animate-spin text-slate-600" />
+                  <strong className="font-bold">Creating procurement requests</strong>
                 </span>
                 {bulkProgress.total > 0 && (
-                  <span className="text-xs font-mono text-emerald-700">
+                  <span className="text-[10px] font-bold text-slate-500 font-mono">
                     {bulkProgress.done} / {bulkProgress.total}
                   </span>
                 )}
               </div>
               {bulkProgress.total > 0 && (
-                <div className="h-1.5 w-full bg-emerald-200 rounded-full overflow-hidden">
+                <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-emerald-600 rounded-full transition-all duration-300"
+                    className="h-full bg-slate-900 rounded-full transition-all duration-300"
                     style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }}
                   />
                 </div>
@@ -757,22 +766,22 @@ function ProcurementPage() {
             <div className="lg:col-span-2 space-y-4">
 
               <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Icon name={cat.icon} size={18} className="text-emerald-600 sm:hidden" />
-                  <Icon name={cat.icon} size={20} className="text-emerald-600 hidden sm:block" />
-                  <span className="hidden sm:inline">{cat.label}</span>
-                  <span className="sm:hidden">{cat.label.split(' ')[0]}</span>
-                </h2>
-                {isDIFY ? (
-                  <div className="text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center gap-1.5">
-                    <Icon name="info" size={14} className="text-slate-400" />
-                    <span>SQB manages procurement for DIFY projects</span>
-                  </div>
-                ) : (
-                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowForm(true)}>
-                    <Icon name="add" size={14} className="mr-1" /> New Request
-                  </Button>
-                )}
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Icon name={cat.icon} size={18} className="text-slate-400 sm:hidden" />
+                    <Icon name={cat.icon} size={20} className="text-slate-400 hidden sm:block" />
+                    <span className="hidden sm:inline">{cat.label}</span>
+                    <span className="sm:hidden">{cat.label.split(' ')[0]}</span>
+                  </h2>
+                  {isDIFY ? (
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center gap-1.5">
+                      <Icon name="info" size={14} className="text-slate-400" />
+                      <span>SQB manages procurement for DIFY projects</span>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="outline" className="border-slate-200 text-[10px] font-bold uppercase tracking-wider h-8" onClick={() => setShowForm(true)}>
+                      <Icon name="add" size={14} className="mr-1" /> New Request
+                    </Button>
+                  )}
               </div>
 
               {/* New Request Form */}

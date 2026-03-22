@@ -21,46 +21,38 @@ function StatCard({
     value,
     sub,
     icon,
-    accentFrom,
-    accentTo,
-    iconBg,
-    iconColor,
 }: {
     title: string
     value: string | number
     sub: string
     icon: string
-    accentFrom: string
-    accentTo: string
-    iconBg: string
-    iconColor: string
 }) {
     return (
-        <Card className="relative overflow-hidden group hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 border-border/60 bg-card">
-            <div className={`absolute top-0 left-0 w-1 h-full bg-gradient-to-b ${accentFrom} ${accentTo}`} />
+        <Card className="relative overflow-hidden group hover:border-slate-900 transition-all duration-300 border-slate-200 bg-white shadow-none">
+            <div className={`absolute top-0 left-0 w-1 h-full bg-slate-900`} />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
                     {title}
                 </CardTitle>
-                <div className={`h-9 w-9 rounded-lg ${iconBg} flex items-center justify-center`}>
-                    <Icon name={icon} className={`h-4 w-4 ${iconColor}`} />
+                <div className={`h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100`}>
+                    <Icon name={icon} className={`h-4 w-4 text-slate-400`} />
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold font-display tracking-tight text-foreground">
+                <div className="text-2xl font-bold tracking-tight text-slate-900">
                     {value}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{sub}</p>
+                <p className="text-[10px] text-slate-400 mt-1 font-medium">{sub}</p>
             </CardContent>
         </Card>
     )
 }
 
 const STATUS_COLORS: Record<string, string> = {
-    SUBMITTED: 'bg-blue-100 text-blue-700',
-    ACCEPTED: 'bg-green-100 text-green-700',
-    REJECTED: 'bg-red-100 text-red-700',
-    PENDING: 'bg-amber-100 text-amber-700',
+    SUBMITTED: 'bg-slate-100 text-slate-900',
+    ACCEPTED: 'bg-slate-900 text-white',
+    REJECTED: 'bg-slate-50 text-slate-400',
+    PENDING: 'bg-slate-100 text-slate-700',
 }
 
 export default function ContractorDashboard() {
@@ -108,27 +100,27 @@ export default function ContractorDashboard() {
             <Main>
                 {loading ? (
                     <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                        <Icon name="progress_activity" size={40} className="animate-spin text-primary mb-3" />
+                        <Icon name="progress_activity" size={40} className="animate-spin text-slate-900 mb-3" />
                         <p className="mt-3 text-sm text-muted-foreground font-medium">Loading your dashboard...</p>
                     </div>
                 ) : (
                     <div className="w-full max-w-7xl mx-auto space-y-6">
-                        {/* Hero Banner */}
-                        <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-50 via-indigo-50/80 to-sky-50/50 px-5 py-3.5 border border-blue-200/50 flex items-center justify-between gap-4">
+                        {/* Hero Section */}
+                        <div className="relative overflow-hidden rounded-xl bg-white px-6 py-5 border border-slate-200 flex items-center justify-between gap-4 shadow-sm">
                             <div className="relative z-10">
-                                <h2 className="text-lg font-bold font-display tracking-tight text-foreground">
-                                    Contractor Dashboard
+                                <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                                    Contractor Portal
                                 </h2>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Track your bids, revenue & WIPAA performance
+                                <p className="text-xs text-slate-500 mt-1 font-medium">
+                                    Track bidding activity, project revenue & portfolio performance
                                 </p>
                             </div>
                             <div className="relative z-10">
                                 <Button
                                     size="sm"
-                                    className="rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                                    className="bg-slate-900 hover:bg-slate-800 text-white rounded-lg px-4 h-9 font-bold uppercase tracking-wider text-[10px] transition-all shadow-none"
                                 >
-                                    <Icon name="add" className="h-3.5 w-3.5 mr-1.5" />
+                                    <Icon name="add_circle" className="h-4 w-4 mr-1.5" />
                                     New Bid
                                 </Button>
                             </div>
@@ -141,68 +133,52 @@ export default function ContractorDashboard() {
                                 value={activeBids}
                                 sub="Pending response"
                                 icon="work"
-                                accentFrom="from-blue-400"
-                                accentTo="to-blue-600"
-                                iconBg="bg-blue-100"
-                                iconColor="text-blue-600"
                             />
                             <StatCard
                                 title="Win Rate"
                                 value={`${winRate}%`}
                                 sub={`${acceptedBids} of ${bids.length} accepted`}
                                 icon="trending_up"
-                                accentFrom="from-green-400"
-                                accentTo="to-green-600"
-                                iconBg="bg-green-100"
-                                iconColor="text-green-600"
                             />
                             <StatCard
                                 title="Total Revenue"
                                 value={`$${totalRevenue.toLocaleString()}`}
                                 sub="Earned via WIPAA"
                                 icon="monetization_on"
-                                accentFrom="from-amber-400"
-                                accentTo="to-amber-600"
-                                iconBg="bg-amber-100"
-                                iconColor="text-amber-600"
                             />
                             <StatCard
-                                title="Solvency Risk"
-                                value="Low"
+                                title="Risk Status"
+                                value="Nominal"
                                 sub="WIPAA analysis"
-                                icon="error_outline"
-                                accentFrom="from-purple-400"
-                                accentTo="to-purple-600"
-                                iconBg="bg-purple-100"
-                                iconColor="text-purple-600"
+                                icon="verified"
                             />
                         </div>
 
                         {/* Recent Bids & WIPAA */}
                         <div className="grid gap-6 lg:grid-cols-7">
-                            <Card className="lg:col-span-4 border-border/60 bg-card">
-                                <CardHeader>
-                                    <CardTitle className="text-base font-semibold font-display flex items-center gap-2">
-                                        <Icon name="description" className="h-4 w-4 text-blue-600" />
+                            <Card className="lg:col-span-4 border-slate-200 bg-white shadow-none">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                                        <Icon name="description" className="h-4 w-4 text-slate-400" />
                                         Recent Bids
                                     </CardTitle>
-                                    <CardDescription>Latest proposals submitted to builders.</CardDescription>
+                                    <CardDescription className="text-[11px] text-slate-400 uppercase font-medium">Latest proposals submitted to builders.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="space-y-3">
+                                    <div className="space-y-2">
                                         {safeBids.length === 0 ? (
-                                            <div className="text-center py-10 text-muted-foreground">
-                                                <Icon name="work" className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                                                <p className="text-sm">No bids submitted yet.</p>
+                                            <div className="text-center py-10 text-slate-400">
+                                                <Icon name="work" className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                                                <p className="text-xs font-medium">No bids submitted yet.</p>
                                             </div>
                                         ) : (
                                             safeBids.slice(0, 5).map((bid) => (
-                                                <div key={bid.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                                                <div key={bid.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-slate-300 transition-all group">
                                                     <div className="space-y-0.5 min-w-0">
-                                                        <p className="text-sm font-medium text-foreground">Project #{bid.project}</p>
-                                                        <p className="text-xs text-muted-foreground">${parseFloat(bid.total_amount).toLocaleString()}</p>
+                                                        <p className="text-sm font-bold text-slate-900">Project #{bid.project}</p>
+                                                        <p className="text-xs text-slate-500 font-medium">${parseFloat(bid.total_amount).toLocaleString()}</p>
                                                     </div>
-                                                    <Badge className={`text-xs shrink-0 ${STATUS_COLORS[bid.status] || 'bg-muted text-muted-foreground'}`}>
+                                                    <Badge className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border-none shadow-none ${STATUS_COLORS[bid.status] || 'bg-slate-100 text-slate-600'}`}>
                                                         {bid.status}
                                                     </Badge>
                                                 </div>
@@ -212,13 +188,13 @@ export default function ContractorDashboard() {
                                 </CardContent>
                             </Card>
 
-                            <Card className="lg:col-span-3 border-border/60 bg-card">
-                                <CardHeader>
-                                    <CardTitle className="text-base font-semibold font-display flex items-center gap-2">
-                                        <Icon name="monitoring" className="h-4 w-4 text-purple-600" />
-                                        WIPAA Overview
+                            <Card className="lg:col-span-3 border-slate-200 bg-white shadow-none">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-bold uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                                        <Icon name="monitoring" className="h-4 w-4 text-slate-400" />
+                                        Performance Map
                                     </CardTitle>
-                                    <CardDescription>Solvency and billing status.</CardDescription>
+                                    <CardDescription className="text-[11px] text-slate-400 uppercase font-medium">Solvency & variance audit.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="space-y-3">
@@ -231,16 +207,16 @@ export default function ContractorDashboard() {
                                             safeWipaa.slice(0, 5).map((record) => {
                                                 const isOver = parseFloat(record.over_under_billing || '0') >= 0
                                                 return (
-                                                    <div key={record.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                                                    <div key={record.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-slate-300 transition-all group">
                                                         <div className="min-w-0">
-                                                            <p className="text-sm font-medium text-foreground">Project #{record.project}</p>
-                                                            <p className="text-xs text-muted-foreground">{record.period}</p>
+                                                            <p className="text-sm font-bold text-slate-900">Project #{record.project}</p>
+                                                            <p className="text-xs text-slate-500 font-medium">{record.period}</p>
                                                         </div>
-                                                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${isOver
-                                                            ? 'bg-amber-100 text-amber-700'
-                                                            : 'bg-blue-100 text-blue-700'
+                                                        <span className={`text-[9px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider shrink-0 border border-slate-200 ${isOver
+                                                            ? 'bg-slate-50 text-slate-900 font-bold'
+                                                            : 'bg-slate-900 text-white'
                                                             }`}>
-                                                            {isOver ? 'Overbilled' : 'Underbilled'}
+                                                            {isOver ? 'Over-Billed' : 'Under-Billed'}
                                                         </span>
                                                     </div>
                                                 )
@@ -251,20 +227,19 @@ export default function ContractorDashboard() {
                             </Card>
                         </div>
 
-                        {/* Status Summary */}
                         <div className="grid gap-4 sm:grid-cols-3">
                             {[
-                                { label: 'Submitted', count: safeBids.filter(b => b.status === 'SUBMITTED').length, icon: 'schedule', iconColor: 'text-blue-600', bg: 'bg-blue-50' },
-                                { label: 'Accepted', count: safeBids.filter(b => b.status === 'ACCEPTED').length, icon: 'check_circle', iconColor: 'text-green-600', bg: 'bg-green-50' },
-                                { label: 'Rejected', count: safeBids.filter(b => b.status === 'REJECTED').length, icon: 'error_outline', iconColor: 'text-red-600', bg: 'bg-red-50' },
-                            ].map(({ label, count, icon: iconName, iconColor, bg }) => (
-                                <div key={label} className={`flex items-center gap-4 p-4 rounded-xl border border-border/60 ${bg}`}>
-                                    <div className="h-9 w-9 rounded-lg bg-card flex items-center justify-center shadow-sm">
-                                        <Icon name={iconName} className={`h-4 w-4 ${iconColor}`} />
+                                { label: 'Submitted', count: safeBids.filter(b => b.status === 'SUBMITTED').length, icon: 'schedule' },
+                                { label: 'Accepted', count: safeBids.filter(b => b.status === 'ACCEPTED').length, icon: 'check_circle' },
+                                { label: 'Rejected', count: safeBids.filter(b => b.status === 'REJECTED').length, icon: 'block' },
+                            ].map(({ label, count, icon: iconName }) => (
+                                <div key={label} className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+                                    <div className="h-10 w-10 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100">
+                                        <Icon name={iconName} className="h-5 w-5 text-slate-500" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold font-display tracking-tight text-foreground">{count}</p>
-                                        <p className="text-xs text-muted-foreground">{label} bids</p>
+                                        <p className="text-2xl font-bold font-display tracking-tight text-slate-900">{count}</p>
+                                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{label} Bids</p>
                                     </div>
                                 </div>
                             ))}
