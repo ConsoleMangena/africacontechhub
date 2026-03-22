@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, Navigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { useAuthStore } from '@/stores/auth-store'
+import { GuidedTour } from '@/components/guided-tour'
 
 const searchSchema = z.object({
   tab: z.string().optional(),
@@ -19,5 +20,10 @@ function BuilderRoute() {
     return <Navigate to="/" />
   }
 
-  return <Outlet />
+  return (
+    <>
+      <GuidedTour />
+      <Outlet />
+    </>
+  )
 }

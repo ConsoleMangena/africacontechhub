@@ -1,44 +1,68 @@
 import Joyride, { CallBackProps, STATUS, Step } from 'react-joyride'
 import { useTourStore } from '@/stores/tour-store'
 import { useEffect, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 
-const steps: Step[] = [
+interface TourStep extends Step {
+  route?: string;
+}
+
+const steps: TourStep[] = [
   {
     target: 'body',
-    content: 'Welcome to the Aspirational Builder Dashboard! Let me give you a quick tour to help you get started building your dream.',
+    route: '/builder',
+    content: 'Welcome to the Aspirational Builder Dashboard! Let me take you on a guided tour across the entire platform, showing you what comes first and goes last.',
     placement: 'center',
     disableBeacon: true,
   },
   {
     target: '#tour-portfolio',
-    content: 'Here is your Portfolio. You can view all your active, planning, and completed construction projects here. Click "Create Project" to start a new one!',
-    placement: 'top',
-  },
-  {
-    target: '#tour-ai-chat',
-    content: 'Meet your Dzenhare Budget Engineer. Read plans, automatically extract Building Quantities, or chat to generate architectural drawings.',
-    placement: 'left',
-  },
-  {
-    target: 'a[href="/builder/design-drafting"]',
-    content: 'The Design Drafting hub is where you can upload sketches, request plan redraws, and track your building plan approvals securely.',
-    placement: 'right',
-  },
-  {
-    target: '#tour-metrics',
-    content: 'Track your overall budget and multi-currency rates here. Stay on top of your financials in real time.',
+    route: '/builder',
+    content: 'First is the Overview page. Create a new Active Project and start your journey here.',
     placement: 'bottom',
   },
   {
-    target: 'a[href="/settings"]',
-    content: 'You can always turn this tour on or off or customize your platform here in Settings. Happy building!',
-    placement: 'right',
+    target: 'body',
+    route: '/builder/design-drafting',
+    content: 'Step 1: Design Drafting. Once you have a project, request architectural drawings from professionals or generate them using our AI.',
+    placement: 'center',
+  },
+  {
+    target: 'body',
+    route: '/builder/measurements',
+    content: 'Step 2: Measurements & BOQs. Upload your approved plans here to automatically extract the precise building quantities.',
+    placement: 'center',
+  },
+  {
+    target: 'body',
+    route: '/builder/procurement',
+    content: 'Step 3: Procurement. Use your extracted BOQ to request materials and services from verified suppliers.',
+    placement: 'center',
+  },
+  {
+    target: 'body',
+    route: '/builder/building-phase',
+    content: 'Step 4: Building Phase. As construction begins, track your progress, tasks, and daily logs here.',
+    placement: 'center',
+  },
+  {
+    target: 'body',
+    route: '/builder/payments',
+    content: 'Step 5: Payments. Finally, safely release milestone payments via the Escrow Vault as your project completes.',
+    placement: 'center',
+  },
+  {
+    target: 'body',
+    route: '/builder',
+    content: 'That concludes the tour! You can always restart it from the Settings. Happy Building!',
+    placement: 'center',
   }
 ]
 
 export function GuidedTour() {
-  const { isTourActive, hasSeenTour, tourEnabledInSettings, finishTour, startTour } = useTourStore()
+  const { isTourActive, hasSeenTour, tourEnabledInSettings, stepIndex, setStepIndex, finishTour, startTour } = useTourStore()
   const [isMounted, setIsMounted] = useState(false)
+  const navigate = useNavigate()
 
   // Ensure hydration matches and check auto-start logic
   useEffect(() => {
@@ -55,16 +79,26 @@ export function GuidedTour() {
   if (!isMounted) return null
 
   const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status } = data
+    const { action, index, status, type } = data
     const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED]
 
     if (finishedStatuses.includes(status)) {
       finishTour()
+    } else if (type === 'step:after' || type === 'error') {
+      const nextIndex = index + (action === 'prev' ? -1 : 1)
+      
+      const nextStep = steps[nextIndex]
+      if (nextStep && nextStep.route && nextStep.route !== window.location.pathname) {
+          navigate({ to: nextStep.route as any })
+      }
+
+      setStepIndex(nextIndex)
     }
   }
 
   return (
     <Joyride
+      stepIndex={stepIndex}
       callback={handleJoyrideCallback}
       continuous
       hideCloseButton
