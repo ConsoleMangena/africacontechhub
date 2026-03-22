@@ -499,7 +499,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
             { step: 'reading',     msg: 'Reading project specifications & form data...', delay: 800 },
             { step: 'formulating', msg: 'Formulating architectural constraints & room dimensions...', delay: 3500 },
             { step: 'rendering',   msg: 'Building 2D floor plan rendering parameters...', delay: 7000 },
-            { step: 'refining',    msg: 'Sending generation request to nanobanana model...', delay: 11000 },
+            { step: 'refining',    msg: 'Sending generation request to Gemini 3 model...', delay: 11000 },
           ] : [
             { step: 'reading',     msg: 'Analyzing uploaded sketch or plan...', delay: 800 },
             { step: 'formulating', msg: 'Extracting walls, doors, and room layouts...', delay: 3500 },
