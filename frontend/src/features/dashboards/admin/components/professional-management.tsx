@@ -59,8 +59,12 @@ export function ProfessionalManagement() {
     
     // Create Mode
     const [isCreateOpen, setIsCreateOpen] = useState(false)
+    const [createMode, setCreateMode] = useState<'link' | 'new'>('link')
     const [newProf, setNewProf] = useState({
         user_id: '',
+        email: '',
+        first_name: '',
+        last_name: '',
         role: 'architect',
         company_name: '',
         location: '',
@@ -109,20 +113,34 @@ export function ProfessionalManagement() {
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!newProf.user_id) {
+        if (createMode === 'link' && !newProf.user_id) {
             toast.error('Select a user to link')
+            return
+        }
+        if (createMode === 'new' && !newProf.email) {
+            toast.error('Email is required')
             return
         }
         setActionLoading('create')
         try {
-            await adminApi.createAdminProfessional({
-                ...newProf,
-                user_id: parseInt(newProf.user_id)
-            })
+            const payload: any = { ...newProf }
+            if (createMode === 'link') {
+                payload.user_id = parseInt(newProf.user_id)
+                delete payload.email
+                delete payload.first_name
+                delete payload.last_name
+            } else {
+                delete payload.user_id
+            }
+
+            await adminApi.createAdminProfessional(payload)
             toast.success('Professional profile created')
             setIsCreateOpen(false)
             setNewProf({
                 user_id: '',
+                email: '',
+                first_name: '',
+                last_name: '',
                 role: 'architect',
                 company_name: '',
                 location: '',
@@ -211,35 +229,90 @@ export function ProfessionalManagement() {
                                 <DialogHeader>
                                     <DialogTitle>Add Professional to Team</DialogTitle>
                                     <DialogDescription>
-                                        Link an existing user to the SQB Building Team portal.
+                                        Create or link a professional profile for the building team.
                                     </DialogDescription>
                                 </DialogHeader>
+
+                                {/* Mode Toggle */}
+                                <div className="flex p-1 bg-muted rounded-lg mt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCreateMode('link')}
+                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${createMode === 'link' ? 'bg-white shadow-sm text-indigo-600' : 'text-muted-foreground'}`}
+                                    >
+                                        Link Existing User
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCreateMode('new')}
+                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${createMode === 'new' ? 'bg-white shadow-sm text-indigo-600' : 'text-muted-foreground'}`}
+                                    >
+                                        Create New Professional
+                                    </button>
+                                </div>
+
                                 <div className="grid gap-4 py-6">
+                                    {createMode === 'link' ? (
+                                        <div className="grid gap-2">
+                                            <Label className="text-xs font-bold">Select User</Label>
+                                            <Select
+                                                value={newProf.user_id}
+                                                onValueChange={val => setNewProf({ ...newProf, user_id: val })}
+                                            >
+                                                <SelectTrigger className="h-10 text-sm border-border/50">
+                                                    <SelectValue placeholder="Select user..." />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-[250px]">
+                                                    {users.map(u => (
+                                                        <SelectItem key={u.id} value={u.id.toString()}>
+                                                            {u.email} ({u.role})
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="grid gap-2">
+                                                <Label className="text-xs font-bold">Email Address</Label>
+                                                <Input
+                                                    type="email"
+                                                    placeholder="email@example.com"
+                                                    value={newProf.email}
+                                                    onChange={e => setNewProf({ ...newProf, email: e.target.value })}
+                                                    className="h-10 text-sm border-border/50"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="grid gap-2">
+                                                    <Label className="text-xs font-bold">First Name</Label>
+                                                    <Input
+                                                        placeholder="John"
+                                                        value={newProf.first_name}
+                                                        onChange={e => setNewProf({ ...newProf, first_name: e.target.value })}
+                                                        className="h-10 text-sm border-border/50"
+                                                    />
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label className="text-xs font-bold">Last Name</Label>
+                                                    <Input
+                                                        placeholder="Doe"
+                                                        value={newProf.last_name}
+                                                        onChange={e => setNewProf({ ...newProf, last_name: e.target.value })}
+                                                        className="h-10 text-sm border-border/50"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+
                                     <div className="grid gap-2">
-                                        <Label className="text-xs">Linked User</Label>
-                                        <Select
-                                            value={newProf.user_id}
-                                            onValueChange={val => setNewProf({ ...newProf, user_id: val })}
-                                        >
-                                            <SelectTrigger className="h-10 text-sm">
-                                                <SelectValue placeholder="Select user..." />
-                                            </SelectTrigger>
-                                            <SelectContent className="max-h-[250px]">
-                                                {users.map(u => (
-                                                    <SelectItem key={u.id} value={u.id.toString()}>
-                                                        {u.email} ({u.role})
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label className="text-xs">Professional Role</Label>
+                                        <Label className="text-xs font-bold">Professional Role</Label>
                                         <Select
                                             value={newProf.role}
                                             onValueChange={val => setNewProf({ ...newProf, role: val })}
                                         >
-                                            <SelectTrigger className="h-10 text-sm">
+                                            <SelectTrigger className="h-10 text-sm border-border/50">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent className="max-h-[200px]">
@@ -251,21 +324,21 @@ export function ProfessionalManagement() {
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="grid gap-2">
-                                            <Label className="text-xs">Company Name</Label>
+                                            <Label className="text-xs font-bold">Company Name</Label>
                                             <Input
                                                 placeholder="e.g. Acme Arch"
                                                 value={newProf.company_name}
                                                 onChange={e => setNewProf({ ...newProf, company_name: e.target.value })}
-                                                className="h-10 text-sm"
+                                                className="h-10 text-sm border-border/50"
                                             />
                                         </div>
                                         <div className="grid gap-2">
-                                            <Label className="text-xs">Location</Label>
+                                            <Label className="text-xs font-bold">Location</Label>
                                             <Input
                                                 placeholder="e.g. Harare, ZW"
                                                 value={newProf.location}
                                                 onChange={e => setNewProf({ ...newProf, location: e.target.value })}
-                                                className="h-10 text-sm"
+                                                className="h-10 text-sm border-border/50"
                                             />
                                         </div>
                                     </div>
