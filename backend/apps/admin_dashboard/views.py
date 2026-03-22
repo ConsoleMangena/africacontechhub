@@ -836,3 +836,101 @@ class AdminProcurementView(APIView):
             'requests': data,
             'summary': summary
         })
+
+
+class AdminProfessionalManagementView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        profs = ProfessionalProfile.objects.select_related('user').all()
+        data = []
+        for p in profs:
+            data.append({
+                'id': p.id,
+                'user_id': p.user.id,
+                'email': p.user.email,
+                'full_name': f"{p.user.first_name} {p.user.last_name}".strip() or p.user.username,
+                'role': p.role,
+                'company_name': p.company_name,
+                'location': p.location,
+                'is_verified': p.is_verified,
+                'availability': p.availability,
+                'average_rating': float(p.average_rating),
+                'created_at': p.created_at,
+            })
+        return Response(data)
+
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        email = request.data.get('email')
+        role = request.data.get('role', 'architect')
+        company_name = request.data.get('company_name', '')
+        location = request.data.get('location', '')
+        is_verified = request.data.get('is_verified', False)
+
+        if user_id:
+            try:
+                user = User.objects.get(pk=user_id)
+            except User.DoesNotExist:
+                return Response({'error': 'User not found'}, status=404)
+        elif email:
+            # Create a new user if not exists
+            user = User.objects.filter(email=email).first()
+            if not user:
+                import uuid
+                username = str(uuid.uuid4())
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    first_name=request.data.get('first_name', ''),
+                    last_name=request.data.get('last_name', '')
+                )
+                Profile.objects.create(
+                    user=user,
+                    role='CONTRACTOR', # Default role for staff
+                    is_approved=True
+                )
+        else:
+            return Response({'error': 'user_id or email required'}, status=400)
+
+        # Check if profile already exists
+        if ProfessionalProfile.objects.filter(user=user).exists():
+            return Response({'error': 'Professional profile already exists for this user'}, status=400)
+
+        prof = ProfessionalProfile.objects.create(
+            user=user,
+            role=role,
+            company_name=company_name,
+            location=location,
+            is_verified=is_verified
+        )
+
+        log_admin_action(request, 'PROFESSIONAL_CREATED', 'ProfessionalProfile', prof.id, user.email, f'Role: {role}')
+
+        return Response({'id': prof.id, 'success': True}, status=201)
+
+    def patch(self, request, pk=None):
+        if not pk:
+            return Response({'error': 'ID required'}, status=400)
+        try:
+            prof = ProfessionalProfile.objects.get(pk=pk)
+            for field in ['role', 'company_name', 'location', 'is_verified', 'availability']:
+                if field in request.data:
+                    setattr(prof, field, request.data[field])
+            prof.save()
+            log_admin_action(request, 'PROFESSIONAL_UPDATED', 'ProfessionalProfile', pk, prof.user.email)
+            return Response({'success': True})
+        except ProfessionalProfile.DoesNotExist:
+            return Response({'error': 'Not found'}, status=404)
+
+    def delete(self, request, pk=None):
+        if not pk:
+            return Response({'error': 'ID required'}, status=400)
+        try:
+            prof = ProfessionalProfile.objects.get(pk=pk)
+            email = prof.user.email
+            prof.delete()
+            log_admin_action(request, 'PROFESSIONAL_DELETED', 'ProfessionalProfile', pk, email)
+            return Response({'success': True})
+        except ProfessionalProfile.DoesNotExist:
+            return Response({'error': 'Not found'}, status=404)
