@@ -4,7 +4,7 @@ from .views import (
     FloorPlanCategoryView, FloorPlanDatasetView,
     AdminProjectsView, AdminBillingView,
     PlatformSettingsView, AdminActivityLogView,
-    AdminProcurementView,
+    AdminProcurementView, AdminProfessionalManagementView,
 )
 
 urlpatterns = [
@@ -29,4 +29,7 @@ urlpatterns = [
     path('activity-log/', AdminActivityLogView.as_view(), name='admin-activity-log'),
     # Procurement Oversight
     path('procurement/', AdminProcurementView.as_view(), name='admin-procurement'),
+    # Building Team (Professionals)
+    path('professional-profiles/', AdminProfessionalManagementView.as_view(), name='admin-professionals'),
+    path('professional-profiles/<int:pk>/', AdminProfessionalManagementView.as_view(), name='admin-professionals-detail'),
 ]

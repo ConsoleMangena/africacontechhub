@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.db.models import Sum, Count, Q, Avg
 from django.db.models.functions import TruncDate
 from apps.builder_dashboard.models import Project, MaterialRequest
-from apps.contractor_dashboard.models import Bid
+from apps.contractor_dashboard.models import Bid, ProfessionalProfile
 from apps.supplier_dashboard.models import MaterialOrder
 from .models import (
     FloorPlanCategory, FloorPlanDataset, PlatformSettings,

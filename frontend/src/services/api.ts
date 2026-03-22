@@ -579,6 +579,13 @@ export const adminApi = {
     // Procurement Oversight
     getProcurementRequests: (params?: { status?: string; category?: string; project?: number }) => 
         api.get<any>('/admin/procurement/', { params }),
+    // Building Team (Professionals)
+    getAdminProfessionals: (params?: { search?: string; role?: string }) => 
+        api.get<any[]>('/admin/professional-profiles/', { params }),
+    getAdminProfessional: (id: number) => api.get<any>(`/admin/professional-profiles/${id}/`),
+    createAdminProfessional: (data: any) => api.post('/admin/professional-profiles/', data),
+    updateAdminProfessional: (id: number, data: any) => api.patch(`/admin/professional-profiles/${id}/`, data),
+    deleteAdminProfessional: (id: number) => api.delete(`/admin/professional-profiles/${id}/`),
 };
 
 export const contractorApi = {

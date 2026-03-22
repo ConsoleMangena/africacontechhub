@@ -43,6 +43,11 @@ export const sidebarData: SidebarData = {
           icon: 'menu_book',
         },
         {
+          title: 'Team Management',
+          url: '/admin/team',
+          icon: 'engineering',
+        },
+        {
           title: 'Procurement',
           url: '/admin/procurement',
           icon: 'inventory_2',
