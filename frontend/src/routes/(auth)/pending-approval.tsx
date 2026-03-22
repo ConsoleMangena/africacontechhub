@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { Logo } from '@/assets/logo'
 
 export const Route = createFileRoute('/(auth)/pending-approval')({
   component: PendingApproval,
@@ -49,10 +50,10 @@ function PendingApproval() {
     <div className='flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-muted p-4'>
       <Card className='w-full max-w-md text-center'>
         <CardHeader className='pb-4'>
-          <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30'>
-            <Icon name="schedule" className='h-8 w-8 text-amber-600 dark:text-amber-400' />
+          <div className='mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-slate-50 border border-slate-100 shadow-sm'>
+            <Logo className='h-12 w-12' />
           </div>
-          <CardTitle className='text-2xl'>Account Pending Approval</CardTitle>
+          <CardTitle className='text-2xl font-bold tracking-tight'>Account Pending Approval</CardTitle>
         </CardHeader>
         <CardContent className='space-y-4'>
           <p className='text-muted-foreground'>
