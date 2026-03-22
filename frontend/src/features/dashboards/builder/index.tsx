@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { WalletStats, WalletRates } from './components/wallet-stats'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { GuidedTour } from '@/components/guided-tour'
 
 export default function BuilderDashboard() {
     const navigate = Route.useNavigate()
@@ -62,6 +63,7 @@ export default function BuilderDashboard() {
 
     return (
         <>
+            <GuidedTour />
             <Header>
                 <div className='ms-auto flex items-center space-x-4'>
                     <Search />
@@ -104,11 +106,13 @@ export default function BuilderDashboard() {
                         </div>
 
                         {/* Dashboard Stats - Compact */}
-                        <WalletStats totalBudget={totalBudget} />
+                        <div id="tour-metrics">
+                            <WalletStats totalBudget={totalBudget} />
+                        </div>
 
 
                         {/* Active Sites (Tabs) */}
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                        <div id="tour-portfolio" className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                             <Tabs defaultValue="in-progress" className="w-full">
                                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
                                      <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-900 flex items-center gap-2">
