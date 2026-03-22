@@ -24,7 +24,7 @@ export function AppTitle() {
             <img
               src='/images/logo.png'
               alt='Dzenhare SQB Logo'
-              className='h-8 w-8 object-contain shrink-0'
+              className='h-12 w-12 object-contain shrink-0'
             />
             <div className='grid flex-1 text-start text-sm leading-tight'>
               <span className='truncate font-bold text-gray-900'>Dzenhare SQB</span>

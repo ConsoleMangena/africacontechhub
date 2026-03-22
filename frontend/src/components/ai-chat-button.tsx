@@ -82,6 +82,8 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
 
   const [analyseStep, setAnalyseStep] = useState<'idle' | 'uploading' | 'reading' | 'measuring' | 'costing' | 'labour' | 'schedule' | 'materials' | 'compliance' | 'finalising' | 'done'>('idle')
   const [analyseReasoningLog, setAnalyseReasoningLog] = useState<string[]>([])
+  const [drawStep, setDrawStep] = useState<'idle' | 'reading' | 'formulating' | 'rendering' | 'refining' | 'done'>('idle')
+  const [drawReasoningLog, setDrawReasoningLog] = useState<string[]>([])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const siteIntelRef = useRef<() => void>(() => {})
@@ -351,6 +353,10 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
     if (isDrawing) setIsGeneratingImage(true)
     if (isPlansSearch) setIsSearchingPlans(true)
     if (isScan) setIsScanningPlan(true)
+    if (isDrawing || isScan) {
+      setDrawReasoningLog([])
+      setDrawStep('idle')
+    }
     if (isAnalyse) {
       setIsAnalysing(true)
       setAnalyseReasoningLog([])
@@ -487,6 +493,28 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
           }
           ;(window as any).__analyseTimers = timers
         }
+        if (isDrawing || isScan) {
+          const isDraw = isDrawing
+          const steps: { step: typeof drawStep; msg: string; delay: number }[] = isDraw ? [
+            { step: 'reading',     msg: 'Reading project specifications & form data...', delay: 800 },
+            { step: 'formulating', msg: 'Formulating architectural constraints & room dimensions...', delay: 3500 },
+            { step: 'rendering',   msg: 'Building 2D floor plan rendering parameters...', delay: 7000 },
+            { step: 'refining',    msg: 'Sending generation request to nanobanana model...', delay: 11000 },
+          ] : [
+            { step: 'reading',     msg: 'Analyzing uploaded sketch or plan...', delay: 800 },
+            { step: 'formulating', msg: 'Extracting walls, doors, and room layouts...', delay: 3500 },
+            { step: 'rendering',   msg: 'Converting to professional CAD-style rendering...', delay: 7000 },
+            { step: 'refining',    msg: 'Finalizing high-resolution output...', delay: 11000 },
+          ]
+          const timers: ReturnType<typeof setTimeout>[] = []
+          for (const { step, msg, delay } of steps) {
+            timers.push(setTimeout(() => {
+              setDrawStep(step)
+              setDrawReasoningLog(prev => [...prev, msg])
+            }, delay))
+          }
+          ;(window as any).__drawTimers = timers
+        }
         const response = await aiApi.sendMessage(
           chatHistory,
           sessionId,
@@ -499,6 +527,12 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
           if (timers) timers.forEach(clearTimeout)
           setAnalyseStep('done')
           setAnalyseReasoningLog(prev => [...prev, 'Budget generation complete — 8 sheets ready!'])
+        }
+        if (isDrawing || isScan) {
+          const timers = (window as any).__drawTimers as ReturnType<typeof setTimeout>[] | undefined
+          if (timers) timers.forEach(clearTimeout)
+          setDrawStep('done')
+          setDrawReasoningLog(prev => [...prev, 'Architectural drawing complete!'])
         }
 
         if (response.data.session_id && !sessionIdRef.current) {
@@ -543,6 +577,8 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
       setIsScanningPlan(false)
       setAnalyseStep('idle')
       setAnalyseReasoningLog([])
+      setDrawStep('idle')
+      setDrawReasoningLog([])
       setToolStatus(null)
     }
   }
@@ -1142,19 +1178,61 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
                   <img src="/images/logo.png" alt="Logo" className="h-5 w-5 object-contain" />
                 </div>
                 <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
-                  {isGeneratingImage ? (
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <Icon name="architecture" className="h-3.5 w-3.5 animate-pulse text-indigo-500" />
-                      <span>Generating architectural drawing...</span>
-                    </div>
-                  ) : isScanningPlan ? (
-                    <div className="flex flex-col gap-1.5 text-xs text-gray-500">
+                  {isGeneratingImage || isScanningPlan ? (
+                    <div className="flex flex-col gap-2 text-xs text-gray-600 min-w-[260px] max-w-[340px]">
                       <div className="flex items-center gap-2">
-                        <Icon name="document_scanner" className="h-3.5 w-3.5 animate-pulse text-cyan-500" />
-                        <span>Scanning hand-drawn plan...</span>
+                        <Icon name={isScanningPlan ? "document_scanner" : "architecture"} className={`h-4 w-4 animate-pulse ${isScanningPlan ? 'text-cyan-500' : 'text-indigo-500'}`} />
+                        <span className={`font-semibold ${isScanningPlan ? 'text-cyan-700' : 'text-indigo-700'}`}>
+                          {isScanningPlan ? 'Budget Engineer — Redrawing Plan' : 'Budget Engineer — Designing Floor Plan'}
+                        </span>
                       </div>
-                      <div className="flex gap-1 items-center ml-5">
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-100 text-cyan-700 font-semibold animate-pulse">Analysing sketch ... Crafting prompt ... Generating drawing</span>
+
+                      {/* Reasoning log */}
+                      <div className={`ml-6 border-l-2 ${isScanningPlan ? 'border-cyan-200' : 'border-indigo-200'} pl-3 space-y-1 max-h-[180px] overflow-y-auto`}>
+                        {drawReasoningLog.length === 0 && (
+                          <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
+                            <span className={`w-1.5 h-1.5 ${isScanningPlan ? 'bg-cyan-400' : 'bg-indigo-400'} rounded-full animate-ping`} />
+                            Initializing drawing engine...
+                          </div>
+                        )}
+                        {drawReasoningLog.map((msg, i) => {
+                          const isLatest = i === drawReasoningLog.length - 1
+                          return (
+                            <div key={i} className={`flex items-start gap-1.5 text-[10px] transition-all ${isLatest ? (isScanningPlan ? 'text-cyan-700 font-medium' : 'text-indigo-700 font-medium') : 'text-gray-400'}`}>
+                              {isLatest ? (
+                                <span className={`w-1.5 h-1.5 mt-1 ${isScanningPlan ? 'bg-cyan-500' : 'bg-indigo-500'} rounded-full animate-pulse shrink-0`} />
+                              ) : (
+                                <Icon name="check_circle" className={`h-3 w-3 ${isScanningPlan ? 'text-cyan-400' : 'text-indigo-400'} shrink-0 mt-0.5`} />
+                              )}
+                              <span>{msg}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* Step pills */}
+                      <div className="flex flex-wrap gap-1 ml-6 mt-1">
+                        {([
+                          { key: 'reading', label: 'Read' },
+                          { key: 'formulating', label: 'Formulate' },
+                          { key: 'rendering', label: 'Render' },
+                          { key: 'refining', label: 'Refine' },
+                        ] as const).map((s) => {
+                          const allSteps = ['idle','reading','formulating','rendering','refining','done']
+                          const currentIdx = allSteps.indexOf(drawStep)
+                          const stepIdx = allSteps.indexOf(s.key)
+                          const isActive = drawStep === s.key
+                          const isComplete = currentIdx > stepIdx
+                          return (
+                            <span key={s.key} className={`text-[8px] px-1.5 py-0.5 rounded-full transition-all ${
+                              isActive ? (isScanningPlan ? 'bg-cyan-100 text-cyan-700 font-bold ring-1 ring-cyan-300' : 'bg-indigo-100 text-indigo-700 font-bold ring-1 ring-indigo-300') :
+                              isComplete ? (isScanningPlan ? 'bg-cyan-50 text-cyan-500' : 'bg-indigo-50 text-indigo-500') :
+                              'bg-gray-100 text-gray-300'
+                            }`}>
+                              {isComplete ? '\u2713 ' : ''}{s.label}
+                            </span>
+                          )
+                        })}
                       </div>
                     </div>
                   ) : isSearchingPlans ? (

@@ -1670,6 +1670,46 @@ class ChatCompletionView(APIView):
             "forbidden": forbidden
         }
 
+        # ── Optional: Modify JSON based on specific user edit requests ──
+        # Extract everything after "/draw"
+        query_text = ""
+        user_query_lower = user_query.lower()
+        if user_query_lower.startswith("/draw"):
+            query_text = user_query[5:].strip()
+            
+        if query_text:
+            try:
+                edit_system_prompt = (
+                    "You are an expert AI architect. You receive a JSON specification "
+                    "for a 2D floor plan generation and a user's instruction to modify it. "
+                    "Modify the JSON specification according to the user's instruction and "
+                    "return ONLY the valid updated JSON object. Do NOT wrap it in markdown block quotes. "
+                    "Preserve the overall structure and format. Ensure it remains a valid 2D top-down floor plan."
+                )
+                original_json_str = _json.dumps(json_prompt, indent=2)
+                edit_user_prompt = f"User Instruction: {query_text}\n\nOriginal JSON:\n{original_json_str}"
+                
+                edited_json_str = _call_gemini(
+                    messages=[{"role": "user", "content": edit_user_prompt}],
+                    system=edit_system_prompt,
+                    max_tokens=2048
+                )
+                
+                # Clean up potential markdown formatting
+                clean_json = edited_json_str.strip()
+                if clean_json.startswith("```json"):
+                    clean_json = clean_json[7:]
+                if clean_json.startswith("```"):
+                    clean_json = clean_json[3:]
+                if clean_json.endswith("```"):
+                    clean_json = clean_json[:-3]
+                    
+                edited_json = _json.loads(clean_json.strip())
+                json_prompt = edited_json
+                logger.info("[AI Image] Successfully modified floor plan JSON based on user text.")
+            except Exception as e:
+                logger.error("[AI Image] Failed to modify JSON with user text: %s. Falling back to base JSON.", e)
+
         # Serialize the JSON prompt as the text content for the image model
         image_prompt = _json.dumps(json_prompt, indent=2)
 

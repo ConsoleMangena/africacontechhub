@@ -5,7 +5,7 @@ export function Logo({ className, ...props }: React.ImgHTMLAttributes<HTMLImageE
     <img
       src='/images/logo.png'
       alt='Dzenhare SQB Logo'
-      className={cn('size-6 object-contain', className)}
+      className={cn('size-12 object-contain', className)}
       {...props}
     />
   )
