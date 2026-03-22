@@ -72,12 +72,12 @@ export function AdminDashboard() {
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                        <Icon name="space_dashboard" className="h-5 w-5 text-white" />
+                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
+                        <Icon name="space_dashboard" className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold font-display tracking-tight">Platform Overview</h1>
-                        <p className="text-sm text-muted-foreground">
+                        <h1 className="text-xl sm:text-2xl font-bold font-display tracking-tight">Platform Overview</h1>
+                        <p className="text-[11px] sm:text-sm text-muted-foreground line-clamp-1">
                             Real-time metrics, activity trends, and system health.
                         </p>
                     </div>
@@ -86,7 +86,7 @@ export function AdminDashboard() {
                 {(overview.pending_requests ?? 0) > 0 && (
                     <Link
                         to="/admin/users"
-                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium hover:bg-amber-100 transition-colors"
+                        className="inline-flex items-center justify-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[11px] sm:text-xs font-medium hover:bg-amber-100 transition-colors w-full sm:w-auto"
                     >
                         <Icon name="pending_actions" className="h-3.5 w-3.5" />
                         {overview.pending_requests} pending request{overview.pending_requests !== 1 ? 's' : ''}

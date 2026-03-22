@@ -196,17 +196,16 @@ function RouteComponent() {
                       <p className="text-xs text-slate-500 mt-0.5">{getRoleLabel(pro.role)}</p>
                       <p className="text-[11px] text-slate-400 mt-0.5 truncate">{pro.company_name} · {pro.location}</p>
 
-                      {/* Stats row */}
-                      <div className="flex items-center justify-center gap-4 mt-3 text-xs text-slate-500">
+                      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-3 text-[11px] sm:text-xs text-slate-500 line-clamp-2">
                         <span className="flex items-center gap-1">
                           <Icon name="star" size={14} className="text-amber-400" />
                           <span className="font-bold text-slate-700">{pro.average_rating}</span>
                         </span>
-                        <span className="h-3 w-px bg-slate-200" />
+                        <span className="hidden sm:inline h-3 w-px bg-slate-200" />
                         <span>
                           <span className="font-bold text-slate-700">{pro.completed_projects_count}</span> projects
                         </span>
-                        <span className="h-3 w-px bg-slate-200" />
+                        <span className="hidden sm:inline h-3 w-px bg-slate-200" />
                         <span>
                           <span className="font-bold text-slate-700">{pro.experience_years}</span>yr
                         </span>

@@ -84,7 +84,7 @@ function ProjectMap({ lat, lng }: { lat: number; lng: number }) {
         }
     }, [lat, lng])
 
-    return <div ref={containerRef} className="h-full min-h-[250px] w-full rounded-lg" />
+    return <div ref={containerRef} className="h-[250px] sm:h-[350px] w-full rounded-lg" />
 }
 
 type SiteIntelRow = {
@@ -155,26 +155,26 @@ export function DitDashboard({ project }: DitDashboardProps) {
     return (
         <div className="w-full max-w-7xl mx-auto space-y-5">
             {/* Hero Banner */}
-            <div className="relative overflow-hidden rounded-xl bg-muted/40 px-5 py-3 border border-border flex items-center justify-between gap-4">
+            <div className="relative overflow-hidden rounded-xl bg-muted/40 px-5 py-3 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3 relative z-10">
-                    <Button variant="outline" size="icon" onClick={() => navigate({ to: '/builder' })} className="h-8 w-8 rounded-lg hover:bg-white border-indigo-200/60 text-indigo-700">
+                    <Button variant="outline" size="icon" onClick={() => navigate({ to: '/builder' })} className="h-8 w-8 rounded-lg hover:bg-white border-indigo-200/60 text-indigo-700 shrink-0">
                         <Icon name="arrow_back" size={14} />
                     </Button>
                     <div>
-                        <h2 className="text-lg font-bold font-display tracking-tight text-foreground">
+                        <h2 className="text-base sm:text-lg font-bold font-display tracking-tight text-foreground line-clamp-1">
                             {project.title}
                         </h2>
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
                             DIT Dashboard · The Guided Co-Pilot
                         </p>
                     </div>
                 </div>
-                <div className="flex gap-2 relative z-10">
-                    <Badge variant="outline" className="bg-white/70 text-foreground border-border px-2.5 py-0.5 text-xs rounded-md">
+                <div className="flex gap-2 relative z-10 w-full sm:w-auto">
+                    <Badge variant="outline" className="flex-1 sm:flex-none justify-center bg-white/70 text-foreground border-border px-2.5 py-0.5 text-[10px] sm:text-xs rounded-md">
                         <Icon name="group" size={12} className="mr-1.5" />
                         DIT
                     </Badge>
-                    <Badge className={`${statusConfig[project.status].className} px-2.5 py-0.5 text-xs rounded-md border`}>
+                    <Badge className={`flex-1 sm:flex-none justify-center ${statusConfig[project.status].className} px-2.5 py-0.5 text-[10px] sm:text-xs rounded-md border`}>
                         <Icon name={StatusIconName} size={12} className="mr-1.5" />
                         {statusConfig[project.status].label}
                     </Badge>
@@ -408,23 +408,23 @@ export function DitDashboard({ project }: DitDashboardProps) {
                     </div>
 
                     {siteIntel?.rows?.length ? (
-                        <div className="overflow-hidden border border-border/60 rounded-lg">
+                        <div className="overflow-x-auto border border-border/60 rounded-lg">
                             <table className="min-w-full text-sm">
                                 <thead className="bg-muted/80 text-xs uppercase text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 text-left font-semibold">Aspect</th>
-                                        <th className="px-4 py-3 text-left font-semibold">Finding</th>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Aspect</th>
+                                        <th className="px-4 py-3 text-left font-semibold min-w-[150px]">Finding</th>
                                         <th className="px-4 py-3 text-left font-semibold">Risk</th>
-                                        <th className="px-4 py-3 text-left font-semibold">Recommendation</th>
+                                        <th className="px-4 py-3 text-left font-semibold min-w-[200px]">Recommendation</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border/40">
                                     {siteIntel.rows.map((row, idx) => (
                                         <tr key={idx} className="hover:bg-muted/30 transition-colors">
-                                            <td className="px-4 py-3 align-top font-semibold text-foreground">{row.aspect || '-'}</td>
+                                            <td className="px-4 py-3 align-top font-semibold text-foreground whitespace-nowrap">{row.aspect || '-'}</td>
                                             <td className="px-4 py-3 align-top text-muted-foreground">{row.finding || '-'}</td>
                                             <td className="px-4 py-3 align-top">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] sm:text-xs font-medium whitespace-nowrap ${
                                                   row.risk?.toLowerCase().includes('high') ? 'bg-red-100 text-red-700' :
                                                   row.risk?.toLowerCase().includes('medium') ? 'bg-amber-100 text-amber-700' :
                                                   row.risk?.toLowerCase().includes('low') ? 'bg-green-100 text-green-700' :
@@ -461,7 +461,7 @@ export function DitDashboard({ project }: DitDashboardProps) {
                 </CardHeader>
                 <CardContent className="pb-4">
                     {project.latitude && project.longitude ? (
-                        <div className="rounded-lg overflow-hidden border border-border/60 h-[350px] isolate">
+                        <div className="rounded-lg overflow-hidden border border-border/60 h-[250px] sm:h-[350px] isolate">
                             <ProjectMap lat={Number(project.latitude)} lng={Number(project.longitude)} />
                         </div>
                     ) : (

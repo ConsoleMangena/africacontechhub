@@ -133,42 +133,41 @@ function ProjectRouteComponent() {
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate({ to: '/builder' })}>
             <Icon name="arrow_back" className="h-4 w-4" />
           </Button>
-          <div className="flex flex-col gap-1">
-            <p className="text-[11px] text-muted-foreground font-semibold uppercase">Project</p>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold leading-none text-foreground">{project.title}</h1>
-              <Badge variant="outline" className="text-xs capitalize">{project.status.replace('_', ' ').toLowerCase()}</Badge>
-              <Badge className="text-[11px] px-2 py-0.5" variant="secondary">{project.engagement_tier}</Badge>
+          <div className="flex flex-col gap-0.5 overflow-hidden">
+            <p className="text-[10px] text-muted-foreground font-semibold uppercase">Project</p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h1 className="text-sm sm:text-base font-bold leading-none text-foreground truncate max-w-[150px] sm:max-w-none">{project.title}</h1>
+              <div className="flex items-center gap-1">
+                <Badge variant="outline" className="text-[10px] sm:text-xs capitalize px-1.5 py-0">{project.status.replace('_', ' ').toLowerCase()}</Badge>
+                <Badge className="text-[10px] px-1.5 py-0" variant="secondary">{project.engagement_tier}</Badge>
+              </div>
             </div>
             {project.location && (
-              <p className="text-xs text-muted-foreground line-clamp-1">{project.location}</p>
+              <p className="text-[11px] text-muted-foreground line-clamp-1">{project.location}</p>
             )}
           </div>
-          <div className='ms-auto flex items-center justify-end gap-4 min-w-[300px]'>
+          <div className='ms-auto flex items-center justify-end gap-2 sm:gap-4'>
             {project.status === 'PLANNING' && (
               <Button
                 size="sm"
-                className="mr-4 bg-primary hover:bg-primary/90 text-primary-foreground min-w-[120px]"
+                className="h-8 sm:h-9 bg-primary hover:bg-primary/90 text-primary-foreground px-2 sm:px-4"
                 onClick={handleInitiateProject}
                 disabled={initiating}
               >
                 {initiating ? (
-                  <>
-                    <Icon name="progress_activity" className="mr-2 h-4 w-4 animate-spin" />
-                    Initiating...
-                  </>
+                  <Icon name="progress_activity" className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Icon name="play_arrow" className="mr-2 h-4 w-4" />
-                    Initiate Project
+                    <Icon name="play_arrow" className="sm:mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">Initiate Project</span>
                   </>
                 )}
               </Button>
             )}
-            <Search />
-            <div className="ml-4">
-              <ProfileDropdown />
+            <div className="hidden sm:block">
+              <Search />
             </div>
+            <ProfileDropdown />
           </div>
         </div>
       </Header>
