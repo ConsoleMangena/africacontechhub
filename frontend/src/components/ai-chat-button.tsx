@@ -686,8 +686,8 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
         
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-4 shrink-0 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 backdrop-blur-sm">
-            <Icon name="smart_toy" className="h-5 w-5 text-indigo-300" />
+          <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur-sm overflow-hidden">
+            <img src="/images/logo.png" alt="Logo" className="h-7 w-7 object-contain" />
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-white tracking-tight text-sm">Budget Engineer</h3>
@@ -794,8 +794,8 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
               >
                 {/* Avatar */}
                 {message.role === 'assistant' && (
-                  <div className="h-8 w-8 rounded-lg bg-white border border-gray-200 shadow-sm flex items-center justify-center shrink-0 mt-0.5">
-                    <Icon name="smart_toy" className="h-4 w-4 text-slate-700" />
+                  <div className="h-8 w-8 rounded-lg bg-white border border-gray-200 shadow-sm flex items-center justify-center shrink-0 mt-0.5 overflow-hidden">
+                    <img src="/images/logo.png" alt="Logo" className="h-5 w-5 object-contain" />
                   </div>
                 )}
                 
@@ -863,9 +863,9 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
                           </div>
                         </div>
                         <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t border-gray-100">
-                          <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                            <Icon name="draw" className="h-3 w-3" />
-                            {message.presetName ? message.presetName : 'AI Generated'}
+                          <span className="text-[10px] text-gray-500 flex items-center gap-1.5 font-medium">
+                            <img src="/images/logo.png" alt="Logo" className="h-3.5 w-3.5 object-contain" />
+                            {message.presetName ? message.presetName : 'Africa Contech Hub'}
                           </span>
                           <a
                             href={resolveImageUrl(message.imageUrl)}
@@ -1144,8 +1144,8 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
             {/* Typing indicator */}
             {(isTyping || toolStatus) && (
               <div className="flex gap-3 justify-start">
-                <div className="h-8 w-8 rounded-lg bg-white border border-gray-200 shadow-sm flex items-center justify-center shrink-0">
-                  <Icon name="smart_toy" className="h-4 w-4 text-slate-700" />
+                <div className="h-8 w-8 rounded-lg bg-white border border-gray-200 shadow-sm flex items-center justify-center shrink-0 overflow-hidden">
+                  <img src="/images/logo.png" alt="Logo" className="h-5 w-5 object-contain" />
                 </div>
                 <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
                   {isGeneratingImage ? (
