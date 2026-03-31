@@ -477,7 +477,7 @@ export const aiApi = {
 
     /**
      * Stream chat via SSE — returns a ReadableStream.
-     * For /draw, /plans, /analyse the backend falls back to a JSON response
+     * For /plans, /analyse the backend falls back to a JSON response
      * (non-streaming), so the caller should check content-type.
      */
     sendMessageStream: async (
@@ -508,6 +508,8 @@ export const aiApi = {
         ),
     generateImage: (prompt: string) =>
         api.post<{ image_url: string; prompt: string }>('/ai/generate-image/', { prompt }),
+    drawAgent: (prompt: string, currentElements?: object[]) =>
+        api.post<{ commands: { type: string; params: Record<string, any> }[]; summary: string }>('/ai/draw-agent/', { prompt, current_elements: currentElements ?? [] }),
     getSessions: () => api.get<{id: number, title: string, updated_at: string}[]>('/ai/chat/sessions/'),
     getSessionDetails: (id: number) => api.get<{id: number, title: string, messages: {id: number, role: string, content: string, image_url: string | null, created_at: string}[] }>(`/ai/chat/sessions/${id}/`),
     deleteSession: (id: number) => api.delete(`/ai/chat/sessions/${id}/`),
@@ -586,6 +588,19 @@ export const adminApi = {
     createAdminProfessional: (data: any) => api.post('/admin/professional-profiles/', data),
     updateAdminProfessional: (id: number, data: any) => api.patch(`/admin/professional-profiles/${id}/`, data),
     deleteAdminProfessional: (id: number) => api.delete(`/admin/professional-profiles/${id}/`),
+};
+
+export const architecturalStudioApi = {
+    getItems: (params?: { project?: number; category?: string }) => 
+        api.get<PaginatedResponse<any>>('/architectural-studio/items/', { params }),
+    getItem: (id: number) => api.get<any>(`/architectural-studio/items/${id}/`),
+    createItem: (data: FormData) => api.post<any>('/architectural-studio/items/', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+    updateItem: (id: number, data: FormData) => api.patch<any>(`/architectural-studio/items/${id}/`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+    deleteItem: (id: number) => api.delete(`/architectural-studio/items/${id}/`),
 };
 
 export const contractorApi = {

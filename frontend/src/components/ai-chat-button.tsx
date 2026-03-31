@@ -316,7 +316,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
       setMessages([{
         id: 'welcome',
         role: 'assistant',
-        content: 'Chat cleared! How can I help you today?\n\n**Commands:** `/draw` generate • `/scan` redraw • `/plans` search • `/analyse` BOQ • `/clear` reset',
+        content: 'Chat cleared! How can I help you today?\n\n**Commands:** `/scan` redraw • `/plans` search • `/analyse` BOQ • `/clear` reset',
         timestamp: new Date()
       }])
       setSessionId(undefined)
@@ -345,15 +345,13 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
     setToolStatus(null)
 
     const lowerContent = content.toLowerCase()
-    const isDrawing = lowerContent.startsWith('/draw')
     const isPlansSearch = lowerContent.startsWith('/plans')
     const isAnalyse = lowerContent.startsWith('/analyse') || lowerContent.startsWith('/analyze')
     const isScan = lowerContent.startsWith('/scan')
-    const isCommand = isDrawing || isPlansSearch || isAnalyse || isScan
-    if (isDrawing) setIsGeneratingImage(true)
+    const isCommand = isPlansSearch || isAnalyse || isScan
     if (isPlansSearch) setIsSearchingPlans(true)
     if (isScan) setIsScanningPlan(true)
-    if (isDrawing || isScan) {
+    if (isScan) {
       setDrawReasoningLog([])
       setDrawStep('idle')
     }
@@ -493,14 +491,8 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
           }
           ;(window as any).__analyseTimers = timers
         }
-        if (isDrawing || isScan) {
-          const isDraw = isDrawing
-          const steps: { step: typeof drawStep; msg: string; delay: number }[] = isDraw ? [
-            { step: 'reading',     msg: 'Reading project specifications & form data...', delay: 800 },
-            { step: 'formulating', msg: 'Formulating architectural constraints & room dimensions...', delay: 3500 },
-            { step: 'rendering',   msg: 'Building 2D floor plan rendering parameters...', delay: 7000 },
-            { step: 'refining',    msg: 'Sending generation request to Gemini 3 model...', delay: 11000 },
-          ] : [
+        if (isScan) {
+          const steps: { step: typeof drawStep; msg: string; delay: number }[] = [
             { step: 'reading',     msg: 'Analyzing uploaded sketch or plan...', delay: 800 },
             { step: 'formulating', msg: 'Extracting walls, doors, and room layouts...', delay: 3500 },
             { step: 'rendering',   msg: 'Converting to professional CAD-style rendering...', delay: 7000 },
@@ -528,7 +520,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
           setAnalyseStep('done')
           setAnalyseReasoningLog(prev => [...prev, 'Budget generation complete — 8 sheets ready!'])
         }
-        if (isDrawing || isScan) {
+        if (isScan) {
           const timers = (window as any).__drawTimers as ReturnType<typeof setTimeout>[] | undefined
           if (timers) timers.forEach(clearTimeout)
           setDrawStep('done')
@@ -556,7 +548,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: '**Notice:** I am strictly configured for specific project capabilities. Please use one of the available commands:\n\n* **`/draw`** - Generate architectural images\n* **`/scan`** - Redraw floor plans\n* **`/plans`** - Search floor plans\n* **`/analyse`** - Extract Bill of Quantities',
+          content: '**Notice:** I am strictly configured for specific project capabilities. Please use one of the available commands:\n\n* **`/scan`** - Redraw floor plans\n* **`/plans`** - Search floor plans\n* **`/analyse`** - Extract Bill of Quantities',
           timestamp: new Date()
         }])
       }
@@ -684,10 +676,19 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
     }
   }, [handleSiteIntel])
 
+  const sideEffectsRef = useRef({
+    site_intel: () => {
+      setIsOpen(true)
+      setTimeout(() => handleSiteIntel(), 120)
+    },
+  }).current
+
   useEffect(() => {
-    const listener = () => siteIntelRef.current()
-    window.addEventListener('ai:site-intel', listener)
-    return () => window.removeEventListener('ai:site-intel', listener)
+    const siListener = () => sideEffectsRef.current.site_intel()
+    window.addEventListener('ai:site-intel', siListener)
+    return () => {
+      window.removeEventListener('ai:site-intel', siListener)
+    }
   }, [])
 
   const resolveImageUrl = (url: string) => {
@@ -756,7 +757,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
               <div className="flex items-center justify-between mb-1.5 px-1">
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Recent Sessions</span>
                 <button
-                  onClick={() => { setSessionId(undefined); sessionIdRef.current = undefined; setMessages([{ id: 'welcome', role: 'assistant', content: 'New chat started! How can I help?\n\n**Commands:** `/draw` generate • `/scan` redraw • `/plans` search • `/analyse` BOQ • `/clear` reset', timestamp: new Date() }]); setShowSessions(false) }}
+                  onClick={() => { setSessionId(undefined); sessionIdRef.current = undefined; setMessages([{ id: 'welcome', role: 'assistant', content: 'New chat started! How can I help?\n\n**Commands:** `/scan` redraw • `/plans` search • `/analyse` BOQ • `/clear` reset', timestamp: new Date() }]); setShowSessions(false) }}
                   className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium"
                 >
                   + New Chat
@@ -789,7 +790,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
                           if (s.id === sessionId) {
                             setSessionId(undefined)
                             sessionIdRef.current = undefined
-                            setMessages([{ id: 'welcome', role: 'assistant', content: 'New chat started! How can I help?\n\n**Commands:** `/draw` generate • `/scan` redraw • `/plans` search • `/analyse` BOQ • `/clear` reset', timestamp: new Date() }])
+                            setMessages([{ id: 'welcome', role: 'assistant', content: 'New chat started! How can I help?\n\n**Commands:** `/scan` redraw • `/plans` search • `/analyse` BOQ • `/clear` reset', timestamp: new Date() }])
                           }
                           toast.success('Session deleted')
                         } catch { toast.error('Failed to delete session') }
@@ -863,7 +864,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
                                 const cmd = lastUserMsg.content.split(' ')[0]
                                 handleSendMessage(null, `${cmd} ${p.title}`)
                               } else {
-                                handleSendMessage(null, `/draw ${p.title}`)
+                                handleSendMessage(null, `/scan ${p.title}`)
                               }
                             }}
                             className="px-3 py-1.5 rounded-lg border border-indigo-100 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 hover:border-indigo-200 transition-all flex items-center gap-1.5"

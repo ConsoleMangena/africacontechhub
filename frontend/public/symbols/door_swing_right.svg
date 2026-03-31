@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Door panel (OPEN position, swinging upward/inward at 90 degrees) -->
+  <line x1="95" y1="95" x2="95" y2="0" stroke-width="4"/>
+  <!-- Swing arc from open edge down to the wall frame -->
+  <path d="M 95,0 A 95,95 0 0,0 0,95" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <!-- Hinge point -->
+  <circle cx="95" cy="95" r="4" fill="currentColor"/>
+</svg>

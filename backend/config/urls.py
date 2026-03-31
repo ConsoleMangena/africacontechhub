@@ -12,6 +12,7 @@ urlpatterns = [
     path('api/v1/auth/', include('apps.authentication.urls')),
     path('api/v1/billing/', include('apps.billing.urls')),
     path('api/v1/admin/', include('apps.admin_dashboard.urls')),
+    path('api/v1/architectural-studio/', include('apps.architectural_studio.urls')),
 ]
 
 # AI routes are optional in local/dev if optional deps (e.g. mcp, py>=3.10) are missing.

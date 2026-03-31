@@ -304,19 +304,21 @@ function RouteComponent() {
         <div className="max-w-7xl mx-auto px-3 py-4 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6">
 
           {/* ── Hero Header ── */}
-          <div className="rounded-xl sm:rounded-2xl bg-slate-900 p-4 sm:p-5 md:p-6 text-white relative overflow-hidden border border-slate-800 shadow-none">
-            {/* Decorative background elements (subtle) */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/[0.02] rounded-full -translate-y-1/2 translate-x-1/4" />
-            
+          <div className="rounded-xl sm:rounded-2xl bg-white p-4 sm:p-5 md:p-6 text-slate-900 relative border border-slate-200 shadow-sm">
             <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <Icon name="construction" size={24} className="text-slate-400 group-hover:text-slate-200 transition-colors" />
-                  <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight">Project Management</h1>
+                  <div className="h-8 w-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                    <Icon name="construction" size={20} className="text-indigo-600" />
+                  </div>
+                  <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-slate-900">Project Management</h1>
                 </div>
                 {currentProject && (
-                  <p className="text-sm text-slate-300">
-                    {currentProject.location} · Created {new Date(currentProject.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                  <p className="text-sm font-medium text-slate-500 flex items-center gap-1.5 ml-10">
+                    <Icon name="location_on" size={14} className="text-slate-400" />
+                    {currentProject.location}
+                    <span className="text-slate-300 mx-1">•</span>
+                    Created {new Date(currentProject.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                   </p>
                 )}
               </div>
@@ -325,7 +327,7 @@ function RouteComponent() {
                   <select
                     value={selectedProject ?? ''}
                     onChange={e => setSelectedProject(Number(e.target.value))}
-                    className="h-9 sm:h-10 px-4 bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest text-white focus:ring-0 outline-none flex-1 sm:flex-none sm:w-60 [&>option]:text-slate-900 transition-all cursor-pointer"
+                    className="h-9 sm:h-10 px-4 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-700 focus:ring-0 outline-none flex-1 sm:flex-none sm:w-60 transition-all cursor-pointer"
                   >
                     {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
                   </select>
@@ -353,14 +355,14 @@ function RouteComponent() {
 
             {/* Overall Progress Bar */}
             {currentProject && (
-              <div className="relative mt-4 sm:mt-5 pt-3 sm:pt-4 border-t border-white/10">
-                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+              <div className="relative mt-4 sm:mt-5 pt-3 sm:pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
                   <span>Overall Progress</span>
-                  <span className="text-white font-semibold">{scheduleTasks.length > 0 ? Math.round((scheduleTasks.filter(t => t.est_cost).length / scheduleTasks.length) * 100) : 0}%</span>
+                  <span className="text-slate-900">{scheduleTasks.length > 0 ? Math.round((scheduleTasks.filter(t => t.est_cost).length / scheduleTasks.length) * 100) : 0}%</span>
                 </div>
-                <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-slate-400 rounded-full transition-all duration-1000 ease-out"
+                    className="h-full bg-slate-900 rounded-full transition-all duration-1000 ease-out"
                     style={{ width: `${scheduleTasks.length > 0 ? Math.round((scheduleTasks.filter(t => t.est_cost).length / scheduleTasks.length) * 100) : 0}%` }}
                   />
                 </div>

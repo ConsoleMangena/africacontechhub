@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'apps.billing',
     'apps.admin_dashboard',
     'apps.ai_architecture',
+    'apps.architectural_studio',
     'corsheaders',
     'django_filters',
 ]
@@ -105,6 +106,7 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', os.getenv('QWEN_API_KEY', ''))
 GEMINI_CHAT_MODEL = os.getenv('GEMINI_CHAT_MODEL', 'gemini-3.1-pro-preview')
 GEMINI_ANALYSE_MODEL = os.getenv('GEMINI_ANALYSE_MODEL', 'gemini-3.1-pro-preview')
 GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image-preview')
+APIFY_API_TOKEN = os.getenv('APIFY_API_TOKEN', '')
 
 # ── Model Context Protocol (MCP) Configuration ───────────────────────
 # List of URLs for remote MCP servers (SSE transport)

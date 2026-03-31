@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 180" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Outer tub -->
+  <rect x="2" y="2" width="76" height="176" rx="20"/>
+  <!-- Inner tub -->
+  <rect x="8" y="8" width="64" height="164" rx="16" stroke-dasharray="3,2"/>
+  <!-- Drain -->
+  <circle cx="40" cy="150" r="6"/>
+  <!-- Tap -->
+  <circle cx="40" cy="20" r="5" fill="currentColor"/>
+</svg>

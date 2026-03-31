@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Shower tray -->
+  <rect x="2" y="2" width="96" height="96" rx="6"/>
+  <!-- Shower head pattern -->
+  <circle cx="50" cy="50" r="20" stroke-dasharray="4,3"/>
+  <!-- Drain -->
+  <circle cx="50" cy="50" r="5" fill="currentColor"/>
+  <!-- Corner marks -->
+  <line x1="2" y1="20" x2="20" y2="2" stroke-width="1"/>
+</svg>

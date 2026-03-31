@@ -379,7 +379,7 @@ class AIAnalyticsView(APIView):
         from datetime import timedelta
         from apps.ai_architecture.models import (
             ChatMessage, ChatSession, TokenUsage, ImageFeedback,
-            BOQTemplate, MaterialPrice, KnowledgeDocument, DrawingStylePreset,
+            BOQTemplate, MaterialPrice, KnowledgeDocument,
         )
 
         now = timezone.now()
@@ -471,8 +471,6 @@ class AIAnalyticsView(APIView):
             'material_regions': list(
                 MaterialPrice.objects.values_list('region', flat=True).distinct()[:10]
             ),
-            'style_presets': DrawingStylePreset.objects.count(),
-            'active_presets': DrawingStylePreset.objects.filter(is_active=True).count(),
         }
 
         # ── Analyse command usage (last 30 days) ──

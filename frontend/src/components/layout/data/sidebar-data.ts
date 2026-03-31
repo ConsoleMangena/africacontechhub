@@ -30,57 +30,57 @@ export const sidebarData: SidebarData = {
         {
           title: 'Overview',
           url: '/admin',
-          icon: 'security',
+          icon: 'admin_panel_settings',
         },
         {
           title: 'Projects',
           url: '/admin/projects',
-          icon: 'business_center',
+          icon: 'folder',
         },
         {
           title: 'AI Command Center',
           url: '/admin/ai-command-center',
-          icon: 'smart_toy',
+          icon: 'auto_awesome',
         },
         {
           title: 'User Management',
           url: '/admin/users',
-          icon: 'group',
+          icon: 'people',
         },
         {
           title: 'Team Management',
           url: '/admin/team',
-          icon: 'engineering',
+          icon: 'groups',
         },
         {
           title: 'Procurement',
           url: '/admin/procurement',
-          icon: 'inventory_2',
+          icon: 'shopping_cart',
         },
         {
           title: 'Knowledge Base',
           url: '/admin/knowledge-base',
-          icon: 'menu_book',
+          icon: 'library_books',
         },
         {
           title: 'Floor Plans',
           url: '/admin/floor-plans',
-          icon: 'image',
+          icon: 'architecture',
         },
         {
           title: 'Activity Log',
           url: '/admin/activity-log',
-          icon: 'history',
+          icon: 'manage_history',
         },
         {
           title: 'Platform Billing',
           url: '/admin/billing',
-          icon: 'payments',
+          icon: 'credit_card',
         },
         {
           title: 'System Settings',
           url: '/admin/settings',
-          icon: 'settings_suggest',
+          icon: 'settings',
         },
       ],
     },
@@ -95,17 +95,17 @@ export const sidebarData: SidebarData = {
         {
           title: 'Design Drafting',
           url: '/builder/design-drafting',
-          icon: 'architecture',
+          icon: 'draw',
         },
         {
           title: 'Construction Budget',
           url: '/builder/measurements',
-          icon: 'receipt_long',
+          icon: 'request_quote',
         },
         {
           title: 'Procurement',
           url: '/builder/procurement',
-          icon: 'inventory_2',
+          icon: 'shopping_cart',
         },
         {
           title: 'Building the Project',
@@ -125,12 +125,12 @@ export const sidebarData: SidebarData = {
         {
           title: 'Bids',
           url: '/contractor',
-          icon: 'description',
+          icon: 'gavel',
         },
         {
           title: 'WIPAA',
           url: '/contractor',
-          icon: 'audio_waveform',
+          icon: 'analytics',
         },
         {
           title: 'Projects',
@@ -150,12 +150,12 @@ export const sidebarData: SidebarData = {
         {
           title: 'Orders',
           url: '/supplier',
-          icon: 'shopping_cart',
+          icon: 'receipt',
         },
         {
           title: 'Products',
           url: '/supplier',
-          icon: 'inventory_2',
+          icon: 'category',
         },
         {
           title: 'Deliveries',
@@ -170,7 +170,7 @@ export const sidebarData: SidebarData = {
         {
           title: 'SQB Building Team',
           url: '/sqb-team',
-          icon: 'verified_user',
+          icon: 'engineering',
         },
         {
           title: 'Settings',

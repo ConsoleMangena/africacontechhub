@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { WalletStats, WalletRates } from './components/wallet-stats'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { GuidedTour } from '@/components/guided-tour'
 
 export default function BuilderDashboard() {
     const navigate = Route.useNavigate()
@@ -63,7 +62,6 @@ export default function BuilderDashboard() {
 
     return (
         <>
-            <GuidedTour />
             <Header>
                 <div className='ms-auto flex items-center space-x-4'>
                     <Search />

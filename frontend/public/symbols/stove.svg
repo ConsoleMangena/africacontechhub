@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Stove body -->
+  <rect x="2" y="2" width="96" height="96" rx="3"/>
+  <!-- 4 burners -->
+  <circle cx="30" cy="30" r="14"/>
+  <circle cx="70" cy="30" r="14"/>
+  <circle cx="30" cy="70" r="14"/>
+  <circle cx="70" cy="70" r="14"/>
+  <!-- Burner inner rings -->
+  <circle cx="30" cy="30" r="7" stroke-dasharray="2,2"/>
+  <circle cx="70" cy="30" r="7" stroke-dasharray="2,2"/>
+  <circle cx="30" cy="70" r="7" stroke-dasharray="2,2"/>
+  <circle cx="70" cy="70" r="7" stroke-dasharray="2,2"/>
+</svg>

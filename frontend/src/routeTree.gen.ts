@@ -42,9 +42,12 @@ import { Route as AuthenticatedBuilderMeasurementsRouteImport } from './routes/_
 import { Route as AuthenticatedBuilderFloorPlansRouteImport } from './routes/_authenticated/builder/floor-plans'
 import { Route as AuthenticatedBuilderDesignDraftingRouteImport } from './routes/_authenticated/builder/design-drafting'
 import { Route as AuthenticatedBuilderBuildingRouteImport } from './routes/_authenticated/builder/building'
+import { Route as AuthenticatedBuilderArchitecturalStudioRouteImport } from './routes/_authenticated/builder/architectural-studio'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
+import { Route as AuthenticatedAdminTeamRouteImport } from './routes/_authenticated/admin/team'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin/projects'
+import { Route as AuthenticatedAdminProcurementRouteImport } from './routes/_authenticated/admin/procurement'
 import { Route as AuthenticatedAdminKnowledgeBaseRouteImport } from './routes/_authenticated/admin/knowledge-base'
 import { Route as AuthenticatedAdminFloorPlansRouteImport } from './routes/_authenticated/admin/floor-plans'
 import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin/billing'
@@ -232,9 +235,20 @@ const AuthenticatedBuilderBuildingRoute =
     path: '/building',
     getParentRoute: () => AuthenticatedBuilderRoute,
   } as any)
+const AuthenticatedBuilderArchitecturalStudioRoute =
+  AuthenticatedBuilderArchitecturalStudioRouteImport.update({
+    id: '/architectural-studio',
+    path: '/architectural-studio',
+    getParentRoute: () => AuthenticatedBuilderRoute,
+  } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminTeamRoute = AuthenticatedAdminTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
 const AuthenticatedAdminSettingsRoute =
@@ -247,6 +261,12 @@ const AuthenticatedAdminProjectsRoute =
   AuthenticatedAdminProjectsRouteImport.update({
     id: '/projects',
     path: '/projects',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminProcurementRoute =
+  AuthenticatedAdminProcurementRouteImport.update({
+    id: '/procurement',
+    path: '/procurement',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminKnowledgeBaseRoute =
@@ -329,9 +349,12 @@ export interface FileRoutesByFullPath {
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/floor-plans': typeof AuthenticatedAdminFloorPlansRoute
   '/admin/knowledge-base': typeof AuthenticatedAdminKnowledgeBaseRoute
+  '/admin/procurement': typeof AuthenticatedAdminProcurementRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/builder/architectural-studio': typeof AuthenticatedBuilderArchitecturalStudioRoute
   '/builder/building': typeof AuthenticatedBuilderBuildingRoute
   '/builder/design-drafting': typeof AuthenticatedBuilderDesignDraftingRoute
   '/builder/floor-plans': typeof AuthenticatedBuilderFloorPlansRoute
@@ -372,9 +395,12 @@ export interface FileRoutesByTo {
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/floor-plans': typeof AuthenticatedAdminFloorPlansRoute
   '/admin/knowledge-base': typeof AuthenticatedAdminKnowledgeBaseRoute
+  '/admin/procurement': typeof AuthenticatedAdminProcurementRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/builder/architectural-studio': typeof AuthenticatedBuilderArchitecturalStudioRoute
   '/builder/building': typeof AuthenticatedBuilderBuildingRoute
   '/builder/design-drafting': typeof AuthenticatedBuilderDesignDraftingRoute
   '/builder/floor-plans': typeof AuthenticatedBuilderFloorPlansRoute
@@ -420,9 +446,12 @@ export interface FileRoutesById {
   '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/_authenticated/admin/floor-plans': typeof AuthenticatedAdminFloorPlansRoute
   '/_authenticated/admin/knowledge-base': typeof AuthenticatedAdminKnowledgeBaseRoute
+  '/_authenticated/admin/procurement': typeof AuthenticatedAdminProcurementRoute
   '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/_authenticated/admin/team': typeof AuthenticatedAdminTeamRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/builder/architectural-studio': typeof AuthenticatedBuilderArchitecturalStudioRoute
   '/_authenticated/builder/building': typeof AuthenticatedBuilderBuildingRoute
   '/_authenticated/builder/design-drafting': typeof AuthenticatedBuilderDesignDraftingRoute
   '/_authenticated/builder/floor-plans': typeof AuthenticatedBuilderFloorPlansRoute
@@ -468,9 +497,12 @@ export interface FileRouteTypes {
     | '/admin/billing'
     | '/admin/floor-plans'
     | '/admin/knowledge-base'
+    | '/admin/procurement'
     | '/admin/projects'
     | '/admin/settings'
+    | '/admin/team'
     | '/admin/users'
+    | '/builder/architectural-studio'
     | '/builder/building'
     | '/builder/design-drafting'
     | '/builder/floor-plans'
@@ -511,9 +543,12 @@ export interface FileRouteTypes {
     | '/admin/billing'
     | '/admin/floor-plans'
     | '/admin/knowledge-base'
+    | '/admin/procurement'
     | '/admin/projects'
     | '/admin/settings'
+    | '/admin/team'
     | '/admin/users'
+    | '/builder/architectural-studio'
     | '/builder/building'
     | '/builder/design-drafting'
     | '/builder/floor-plans'
@@ -558,9 +593,12 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/billing'
     | '/_authenticated/admin/floor-plans'
     | '/_authenticated/admin/knowledge-base'
+    | '/_authenticated/admin/procurement'
     | '/_authenticated/admin/projects'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/admin/team'
     | '/_authenticated/admin/users'
+    | '/_authenticated/builder/architectural-studio'
     | '/_authenticated/builder/building'
     | '/_authenticated/builder/design-drafting'
     | '/_authenticated/builder/floor-plans'
@@ -828,11 +866,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBuilderBuildingRouteImport
       parentRoute: typeof AuthenticatedBuilderRoute
     }
+    '/_authenticated/builder/architectural-studio': {
+      id: '/_authenticated/builder/architectural-studio'
+      path: '/architectural-studio'
+      fullPath: '/builder/architectural-studio'
+      preLoaderRoute: typeof AuthenticatedBuilderArchitecturalStudioRouteImport
+      parentRoute: typeof AuthenticatedBuilderRoute
+    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/team': {
+      id: '/_authenticated/admin/team'
+      path: '/team'
+      fullPath: '/admin/team'
+      preLoaderRoute: typeof AuthenticatedAdminTeamRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/settings': {
@@ -847,6 +899,13 @@ declare module '@tanstack/react-router' {
       path: '/projects'
       fullPath: '/admin/projects'
       preLoaderRoute: typeof AuthenticatedAdminProjectsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/procurement': {
+      id: '/_authenticated/admin/procurement'
+      path: '/procurement'
+      fullPath: '/admin/procurement'
+      preLoaderRoute: typeof AuthenticatedAdminProcurementRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/knowledge-base': {
@@ -942,8 +1001,10 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
   AuthenticatedAdminFloorPlansRoute: typeof AuthenticatedAdminFloorPlansRoute
   AuthenticatedAdminKnowledgeBaseRoute: typeof AuthenticatedAdminKnowledgeBaseRoute
+  AuthenticatedAdminProcurementRoute: typeof AuthenticatedAdminProcurementRoute
   AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
+  AuthenticatedAdminTeamRoute: typeof AuthenticatedAdminTeamRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
@@ -955,8 +1016,10 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
   AuthenticatedAdminFloorPlansRoute: AuthenticatedAdminFloorPlansRoute,
   AuthenticatedAdminKnowledgeBaseRoute: AuthenticatedAdminKnowledgeBaseRoute,
+  AuthenticatedAdminProcurementRoute: AuthenticatedAdminProcurementRoute,
   AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
+  AuthenticatedAdminTeamRoute: AuthenticatedAdminTeamRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
@@ -986,6 +1049,7 @@ const AuthenticatedBuilderProjectProjectIdRouteWithChildren =
   )
 
 interface AuthenticatedBuilderRouteChildren {
+  AuthenticatedBuilderArchitecturalStudioRoute: typeof AuthenticatedBuilderArchitecturalStudioRoute
   AuthenticatedBuilderBuildingRoute: typeof AuthenticatedBuilderBuildingRoute
   AuthenticatedBuilderDesignDraftingRoute: typeof AuthenticatedBuilderDesignDraftingRoute
   AuthenticatedBuilderFloorPlansRoute: typeof AuthenticatedBuilderFloorPlansRoute
@@ -996,6 +1060,8 @@ interface AuthenticatedBuilderRouteChildren {
 }
 
 const AuthenticatedBuilderRouteChildren: AuthenticatedBuilderRouteChildren = {
+  AuthenticatedBuilderArchitecturalStudioRoute:
+    AuthenticatedBuilderArchitecturalStudioRoute,
   AuthenticatedBuilderBuildingRoute: AuthenticatedBuilderBuildingRoute,
   AuthenticatedBuilderDesignDraftingRoute:
     AuthenticatedBuilderDesignDraftingRoute,

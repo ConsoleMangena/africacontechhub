@@ -60,7 +60,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
             window.location.href = '/pending-approval';
           }
         }
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.name === 'AbortError' || error?.message?.includes('AbortError')) {
+          return;
+        }
         console.error('Login failed:', error);
         set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }));
       }
@@ -160,7 +163,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
         supabase.auth.onAuthStateChange(async (_event, newSession) => {
           await syncUserFromBackend(newSession)
         })
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.name === 'AbortError' || error?.message?.includes('AbortError')) {
+          // Ignore fetch aborts caused by React Strict Mode double-invocations
+          return
+        }
         // Supabase or network unreachable (e.g. not configured, backend down)
         console.warn('Auth init failed (Supabase/network):', error)
         set((state) => ({

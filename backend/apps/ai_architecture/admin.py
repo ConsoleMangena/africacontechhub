@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     KnowledgeDocument, AIInstruction, ChatSession, ChatMessage,
-    DrawingStylePreset, ImageFeedback, MaterialPrice, TokenUsage,
+    MaterialPrice, TokenUsage,
     BOQTemplate,
 )
 
@@ -28,18 +28,6 @@ class ChatSessionAdmin(admin.ModelAdmin):
     search_fields = ('title', 'user__email', 'user__username')
     inlines = [ChatMessageInline]
 
-@admin.register(DrawingStylePreset)
-class DrawingStylePresetAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'is_active', 'priority', 'guidance_scale', 'updated_at')
-    list_filter = ('category', 'is_active')
-    search_fields = ('name', 'keywords')
-    list_editable = ('is_active', 'priority', 'guidance_scale')
-
-@admin.register(ImageFeedback)
-class ImageFeedbackAdmin(admin.ModelAdmin):
-    list_display = ('user', 'rating', 'preset_used', 'created_at')
-    list_filter = ('rating', 'preset_used')
-    readonly_fields = ('message', 'user', 'rating', 'original_prompt', 'preset_used', 'feedback_text')
 
 
 @admin.register(MaterialPrice)
