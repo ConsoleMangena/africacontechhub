@@ -10,12 +10,12 @@ import {
     DrawingRequest, DrawingFile, MaterialRequest, ProjectTeam, ProfessionalProfile,
     ProjectMilestone, ProjectActivity, UserNotification, ProjectDocument,
 } from '../types/api';
-const isDev = import.meta.env.DEV;
-const baseUrlString = import.meta.env.VITE_API_URL
-    ? `${import.meta.env.VITE_API_URL}/api/v1`
-    : isDev
-        ? 'http://localhost:8000/api/v1'
-        : '/api/v1';
+// Automatically enforce relative proxying if loaded from a real domain, 
+// bypassing any accidentally burned-in localhost .env variables from the Docker compiler.
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const baseUrlString = isLocalhost
+    ? (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/v1` : 'http://localhost:8000/api/v1')
+    : '/api/v1';
 
 const api = axios.create({
     baseURL: baseUrlString,
