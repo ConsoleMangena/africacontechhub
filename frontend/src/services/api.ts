@@ -10,8 +10,15 @@ import {
     DrawingRequest, DrawingFile, MaterialRequest, ProjectTeam, ProfessionalProfile,
     ProjectMilestone, ProjectActivity, UserNotification, ProjectDocument,
 } from '../types/api';
+const isDev = import.meta.env.DEV;
+const baseUrlString = import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api/v1`
+    : isDev
+        ? 'http://localhost:8000/api/v1'
+        : '/api/v1';
+
 const api = axios.create({
-    baseURL: `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1`,
+    baseURL: baseUrlString,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -182,7 +189,7 @@ export const helpCenterApi = {
             updated_at: string;
         }>;
     }>('/help-center/categories/'),
-    
+
     getArticles: (params?: { category?: string; featured?: boolean }) => {
         const queryParams = new URLSearchParams();
         if (params?.category) queryParams.append('category', params.category);
@@ -206,7 +213,7 @@ export const helpCenterApi = {
             }>;
         }>(`/help-center/articles/${queryString}`);
     },
-    
+
     getArticle: (slug: string) => api.get<{
         id: number;
         category: number;
@@ -222,7 +229,7 @@ export const helpCenterApi = {
         created_at: string;
         updated_at: string;
     }>(`/help-center/articles/${slug}/`),
-    
+
     getFAQs: (params?: { category?: string }) => {
         const queryParams = new URLSearchParams();
         if (params?.category) queryParams.append('category', params.category);
@@ -243,7 +250,7 @@ export const helpCenterApi = {
             }>;
         }>(`/help-center/faqs/${queryString}`);
     },
-    
+
     getFAQ: (faqId: number) => api.get<{
         id: number;
         question: string;
@@ -316,19 +323,19 @@ export const builderApi = {
         api.post<BudgetSheets>(`/projects/${projectId}/budget/sign-final/`, {}),
 
     /** Use `final` for procurement (signed budget lines). Default `preliminary` for editing working budget. */
-    getProjectBOQBuildingItems:  (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+    getProjectBOQBuildingItems: (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
         api.get<BOQBuildingItem[]>(`/boq-building-items/`, { params: { project: projectId, budget_kind: budgetKind } }),
     getProjectBOQProfessionalFees: (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
         api.get<BOQProfessionalFee[]>(`/boq-professional-fees/`, { params: { project: projectId, budget_kind: budgetKind } }),
-    getProjectBOQAdminExpenses:  (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+    getProjectBOQAdminExpenses: (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
         api.get<BOQAdminExpense[]>(`/boq-admin-expenses/`, { params: { project: projectId, budget_kind: budgetKind } }),
-    getProjectBOQLabourCosts:    (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+    getProjectBOQLabourCosts: (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
         api.get<BOQLabourCost[]>(`/boq-labour-costs/`, { params: { project: projectId, budget_kind: budgetKind } }),
-    getProjectBOQMachinePlants:  (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+    getProjectBOQMachinePlants: (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
         api.get<BOQMachinePlant[]>(`/boq-machine-plants/`, { params: { project: projectId, budget_kind: budgetKind } }),
     getProjectBOQLabourBreakdowns: (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
         api.get<BOQLabourBreakdown[]>(`/boq-labour-breakdowns/`, { params: { project: projectId, budget_kind: budgetKind } }),
-    getProjectBOQScheduleTasks:  (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
+    getProjectBOQScheduleTasks: (projectId: number, budgetKind: 'preliminary' | 'final' = 'preliminary') =>
         api.get<BOQScheduleTask[]>(`/boq-schedule-tasks/`, { params: { project: projectId, budget_kind: budgetKind } }),
 
     createBOQBuildingItem: (data: Partial<BOQBuildingItem>) => api.post<BOQBuildingItem>('/boq-building-items/', data),
@@ -401,9 +408,9 @@ export const builderApi = {
     addToTeam: (data: Partial<ProjectTeam>) => api.post<ProjectTeam>('/project-team/', data),
     updateTeamMember: (id: number, data: Partial<ProjectTeam>) => api.patch<ProjectTeam>(`/project-team/${id}/`, data),
     removeFromTeam: (id: number) => api.delete(`/project-team/${id}/`),
-    
+
     // Professional Profiles
-    getProfessionals: (params?: { page?: number; search?: string; role?: string }) => 
+    getProfessionals: (params?: { page?: number; search?: string; role?: string }) =>
         api.get<PaginatedResponse<ProfessionalProfile>>('/professionals/', { params }),
 
     // Milestones
@@ -438,12 +445,12 @@ export const builderApi = {
 
 export const aiApi = {
     sendMessage: (
-        messages: {role: string, content: string}[],
+        messages: { role: string, content: string }[],
         sessionId?: number,
         image?: string,
         pdf?: string,
         projectId?: number,
-    ) => 
+    ) =>
         api.post<{
             message: string;
             session_id: number;
@@ -481,7 +488,7 @@ export const aiApi = {
      * (non-streaming), so the caller should check content-type.
      */
     sendMessageStream: async (
-        messages: {role: string; content: string}[],
+        messages: { role: string; content: string }[],
         sessionId?: number,
         image?: string,
         pdf?: string,
@@ -510,8 +517,8 @@ export const aiApi = {
         api.post<{ image_url: string; prompt: string }>('/ai/generate-image/', { prompt }),
     drawAgent: (prompt: string, currentElements?: object[]) =>
         api.post<{ commands: { type: string; params: Record<string, any> }[]; summary: string }>('/ai/draw-agent/', { prompt, current_elements: currentElements ?? [] }),
-    getSessions: () => api.get<{id: number, title: string, updated_at: string}[]>('/ai/chat/sessions/'),
-    getSessionDetails: (id: number) => api.get<{id: number, title: string, messages: {id: number, role: string, content: string, image_url: string | null, created_at: string}[] }>(`/ai/chat/sessions/${id}/`),
+    getSessions: () => api.get<{ id: number, title: string, updated_at: string }[]>('/ai/chat/sessions/'),
+    getSessionDetails: (id: number) => api.get<{ id: number, title: string, messages: { id: number, role: string, content: string, image_url: string | null, created_at: string }[] }>(`/ai/chat/sessions/${id}/`),
     deleteSession: (id: number) => api.delete(`/ai/chat/sessions/${id}/`),
     submitFeedback: (messageId: number, rating: number, originalPrompt: string, presetId?: number, feedbackText?: string) =>
         api.post<{ success: boolean; created: boolean; rating: number }>('/ai/feedback/', {
@@ -530,21 +537,21 @@ export const adminApi = {
     updateUser: (id: number, data: any) => api.patch(`/admin/users/${id}/`, data),
     deleteUser: (id: number) => api.delete(`/admin/users/${id}/`),
     getDocuments: () => api.get<any[]>('/ai/knowledge/'),
-    getDocumentDetail: (id: number) => api.get<{id: number, content: string, title: string}>(`/ai/knowledge/${id}/`),
-    uploadDocument: (data: FormData) => api.post<{success: boolean, id: number}>('/ai/knowledge/', data, {
+    getDocumentDetail: (id: number) => api.get<{ id: number, content: string, title: string }>(`/ai/knowledge/${id}/`),
+    uploadDocument: (data: FormData) => api.post<{ success: boolean, id: number }>('/ai/knowledge/', data, {
         headers: {
             'Content-Type': 'multipart/form-data',
         },
     }),
     deleteDocument: (id: number) => api.delete(`/ai/knowledge/${id}/`),
-    getInstructions: () => api.get<{instruction_text: string}>('/ai/instructions/'),
-    updateInstructions: (instruction_text: string) => api.post<{success: boolean, instruction_text: string}>('/ai/instructions/', { instruction_text }),
+    getInstructions: () => api.get<{ instruction_text: string }>('/ai/instructions/'),
+    updateInstructions: (instruction_text: string) => api.post<{ success: boolean, instruction_text: string }>('/ai/instructions/', { instruction_text }),
     getRequests: () => api.get<any[]>('/admin/requests/'),
     reviewRequest: (id: number, action: 'approve' | 'reject', notes?: string) =>
         api.patch(`/admin/requests/${id}/`, { action, notes }),
     // Style presets
     getStylePresets: () => api.get<any[]>('/ai/style-presets/'),
-    createStylePreset: (data: any) => api.post<{success: boolean, id: number}>('/ai/style-presets/', data),
+    createStylePreset: (data: any) => api.post<{ success: boolean, id: number }>('/ai/style-presets/', data),
     updateStylePreset: (id: number, data: any) => api.patch(`/ai/style-presets/${id}/`, data),
     deleteStylePreset: (id: number) => api.delete(`/ai/style-presets/${id}/`),
     // AI Analytics
@@ -552,12 +559,12 @@ export const adminApi = {
     // BOQ Templates CRUD
     getBOQTemplates: () => api.get<any[]>('/ai/boq-templates/'),
     getBOQTemplate: (id: number) => api.get<any>(`/ai/boq-templates/${id}/`),
-    createBOQTemplate: (data: any) => api.post<{success: boolean, id: number}>('/ai/boq-templates/', data),
+    createBOQTemplate: (data: any) => api.post<{ success: boolean, id: number }>('/ai/boq-templates/', data),
     updateBOQTemplate: (id: number, data: any) => api.patch(`/ai/boq-templates/${id}/`, data),
     deleteBOQTemplate: (id: number) => api.delete(`/ai/boq-templates/${id}/`),
     // Material Prices CRUD
-    getMaterialPrices: (params?: {material?: string, region?: string}) => api.get<any[]>('/ai/material-prices/', { params }),
-    createMaterialPrice: (data: any) => api.post<{success: boolean, id: number}>('/ai/material-prices/', data),
+    getMaterialPrices: (params?: { material?: string, region?: string }) => api.get<any[]>('/ai/material-prices/', { params }),
+    createMaterialPrice: (data: any) => api.post<{ success: boolean, id: number }>('/ai/material-prices/', data),
     updateMaterialPrice: (id: number, data: any) => api.patch(`/ai/material-prices/${id}/`, data),
     deleteMaterialPrice: (id: number) => api.delete(`/ai/material-prices/${id}/`),
     // Floor Plan CRUD
@@ -579,10 +586,10 @@ export const adminApi = {
     // Activity Log
     getActivityLog: (params?: { limit?: number; action?: string }) => api.get<any[]>('/admin/activity-log/', { params }),
     // Procurement Oversight
-    getProcurementRequests: (params?: { status?: string; category?: string; project?: number }) => 
+    getProcurementRequests: (params?: { status?: string; category?: string; project?: number }) =>
         api.get<any>('/admin/procurement/', { params }),
     // Building Team (Professionals)
-    getAdminProfessionals: (params?: { search?: string; role?: string }) => 
+    getAdminProfessionals: (params?: { search?: string; role?: string }) =>
         api.get<any[]>('/admin/professional-profiles/', { params }),
     getAdminProfessional: (id: number) => api.get<any>(`/admin/professional-profiles/${id}/`),
     createAdminProfessional: (data: any) => api.post('/admin/professional-profiles/', data),
@@ -591,7 +598,7 @@ export const adminApi = {
 };
 
 export const architecturalStudioApi = {
-    getItems: (params?: { project?: number; category?: string }) => 
+    getItems: (params?: { project?: number; category?: string }) =>
         api.get<PaginatedResponse<any>>('/architectural-studio/items/', { params }),
     getItem: (id: number) => api.get<any>(`/architectural-studio/items/${id}/`),
     createItem: (data: FormData) => api.post<any>('/architectural-studio/items/', data, {
