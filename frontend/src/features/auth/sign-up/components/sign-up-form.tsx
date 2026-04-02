@@ -127,7 +127,8 @@ export function SignUpForm({
       // 1. The endpoint is AllowAny (no auth needed)
       // 2. Sending an unverified token causes Django's SupabaseAuthentication to reject the request
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const apiUrl = isLocalhost ? (import.meta.env.VITE_API_URL || 'http://localhost:8000') : '';
         await fetch(`${apiUrl}/api/v1/auth/register-request/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -1,4 +1,5 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const BASE_URL = isLocalhost ? (import.meta.env.VITE_API_URL || 'http://localhost:8000') : '';
 
 interface ApiResponse<T> {
     success: boolean;
@@ -18,7 +19,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
             console.warn('API getSession error:', e);
         }
     }
-    
+
     // Check if headers is an instance of Headers or a plain object
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -47,20 +48,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     try {
         const response = await fetch(`${BASE_URL}${endpoint}`, config);
-        
+
         let data;
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.indexOf("application/json") !== -1) {
             data = await response.json();
         } else {
-             const text = await response.text();
+            const text = await response.text();
             if (!response.ok) {
                 return { success: false, message: response.statusText || 'An error occurred' };
             }
-             try {
-                 data = JSON.parse(text);
+            try {
+                data = JSON.parse(text);
             } catch {
-                 // ignore
+                // ignore
             }
         }
 
