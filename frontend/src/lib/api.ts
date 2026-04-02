@@ -9,8 +9,15 @@ interface ApiResponse<T> {
 import { supabase } from './supabase';
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
+    let token: string | undefined;
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token;
+    } catch (e: any) {
+        if (e?.name !== 'AbortError' && !e?.message?.includes('AbortError')) {
+            console.warn('API getSession error:', e);
+        }
+    }
     
     // Check if headers is an instance of Headers or a plain object
     const headers: Record<string, string> = {

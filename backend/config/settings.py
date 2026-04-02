@@ -101,11 +101,14 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
 # ── AI Provider Configuration ────────────────────────────────────────
-# Gemini — All AI: chat, reasoning, vision, image generation, /analyse
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', os.getenv('QWEN_API_KEY', ''))
-GEMINI_CHAT_MODEL = os.getenv('GEMINI_CHAT_MODEL', 'gemini-3.1-pro-preview')
-GEMINI_ANALYSE_MODEL = os.getenv('GEMINI_ANALYSE_MODEL', 'gemini-3.1-pro-preview')
-GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image-preview')
+# Provider-agnostic primary config (Google Gemini default)
+AI_API_PROVIDER = os.getenv('AI_API_PROVIDER', 'google')
+AI_API_KEY = os.getenv('GEMINI_API_KEY', os.getenv('AI_API_KEY', ''))
+AI_BASE_URL = os.getenv('AI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai')
+AI_API_VERSION = os.getenv('AI_API_VERSION', 'v1beta')
+AI_CHAT_MODEL = os.getenv('AI_CHAT_MODEL', 'gemini-3.1-pro-preview')
+AI_DRAW_MODEL = os.getenv('AI_DRAW_MODEL', 'gemini-3.1-pro-preview')
+AI_ANALYSE_MODEL = os.getenv('AI_ANALYSE_MODEL', os.getenv('AI_CHAT_MODEL', 'gemini-3.1-pro-preview'))
 APIFY_API_TOKEN = os.getenv('APIFY_API_TOKEN', '')
 
 # ── Model Context Protocol (MCP) Configuration ───────────────────────

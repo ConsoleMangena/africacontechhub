@@ -8,8 +8,6 @@ import { cn } from '@/lib/utils'
 import { useFont } from '@/context/font-provider'
 import { useTheme } from '@/context/theme-provider'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { useTourStore } from '@/stores/tour-store'
 import {
   Form,
   FormControl,
@@ -31,7 +29,6 @@ type AppearanceFormValues = z.infer<typeof appearanceFormSchema>
 export function AppearanceForm() {
   const { font, setFont } = useFont()
   const { theme, setTheme } = useTheme()
-  const { tourEnabledInSettings, toggleTourSetting, resetTour } = useTourStore()
 
   const form = useForm<AppearanceFormValues>({
     resolver: zodResolver(appearanceFormSchema),
@@ -45,7 +42,6 @@ export function AppearanceForm() {
   }
 
   return (
-    <>
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
         <FormField
@@ -125,45 +121,5 @@ export function AppearanceForm() {
         </Button>
       </form>
     </Form>
-    
-    <div className='mt-10 space-y-6'>
-      <div>
-        <h3 className='text-lg font-medium text-slate-900'>Interactive Features</h3>
-        <p className='text-sm text-slate-500'>Manage product tours and automated guidance.</p>
-      </div>
-      
-      <Card className='border-slate-200'>
-        <CardContent className='p-6 space-y-4'>
-          <div className='flex items-center justify-between'>
-            <div className='space-y-0.5'>
-              <h4 className='text-sm font-medium'>Show Dashboard Guided Tour</h4>
-              <p className='text-xs text-slate-500'>
-                Automatically show the interactive walkthrough for new users and layout changes.
-              </p>
-            </div>
-            <Switch 
-              checked={tourEnabledInSettings} 
-              onCheckedChange={toggleTourSetting} 
-            />
-          </div>
-          
-          <div className='pt-4 border-t border-slate-100 flex items-center justify-between'>
-             <div className='space-y-0.5'>
-              <h4 className='text-sm font-medium'>Restart Tour</h4>
-              <p className='text-xs text-slate-500'>
-                Launch the dashboard walkthrough manually right now.
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => {
-              resetTour()
-              window.location.href = '/builder' // Redirect to dashboard to see the tour
-            }}>
-              Restart Tour
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  </>
   )
 }

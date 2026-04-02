@@ -6,21 +6,13 @@ import {
   useCallback,
   useReducer,
   useMemo,
+  lazy,
+  Suspense,
 } from "react";
 import {
-  DragOutlined,
-  ArrowsAltOutlined,
-  LineOutlined,
-  DeploymentUnitOutlined,
-  BorderOutlined,
-  RadiusSettingOutlined,
-  FontSizeOutlined,
-  ColumnWidthOutlined,
-  FormatPainterOutlined,
   RobotOutlined,
   UndoOutlined,
   RedoOutlined,
-  BlockOutlined,
   ArrowLeftOutlined,
   EyeOutlined,
   EyeInvisibleOutlined,
@@ -46,104 +38,184 @@ import {
 import { ProfileDropdown } from "@/components/profile-dropdown";
 import { aiApi } from "@/services/api";
 
+const ThreeCADViewport = lazy(() =>
+  import("@/components/three-cad-viewport").then((m) => ({ default: m.ThreeCADViewport }))
+);
+
 // ─── Types ─────────────────────────────────────────────────
 type Tool =
   | "select"
+  | "pan"
+  | "eraser"
+  | "agent"
+  | "wall"
+  | "door"
+  | "window"
+  | "stairs"
+  | "furniture"
+  | "column"
+  | "sliding_door"
+  // Internal-only (used by AI agent / existing elements, not shown in toolbar)
   | "line"
   | "polyline"
-  | "wall"
   | "rect"
   | "circle"
   | "text"
   | "dimension"
-  | "eraser"
-  | "pan"
-  | "agent"
-  | "offset";
+  | "offset"
+  | "move"
+  | "copy"
+  | "rotate"
+  | "trim"
+  | "extend"
+  | "mirror"
+  | "fillet";
 type LayerData = {
   name: string;
   visible: boolean;
   locked: boolean;
   color: string;
+  lineType?: "solid" | "dashed" | "center" | "hidden";
+};
+
+type StudioPage = {
+  id: string;
+  name: string;
+  elements: DrawingElement[];
+};
+
+type SavedStudioState = {
+  pages?: StudioPage[];
+  activePageId?: string;
+  // Backward compatibility for older single-page saves
+  elements?: DrawingElement[];
+  layers: LayerData[];
+  activeLayer: string;
 };
 
 type DrawingElement =
   | {
-      id: string;
-      type: "line";
-      x: number;
-      y: number;
-      x2: number;
-      y2: number;
-      color: string;
-      lineWidth: number;
-      layer: string;
-    }
+    id: string;
+    type: "line";
+    x: number;
+    y: number;
+    x2: number;
+    y2: number;
+    color: string;
+    lineWidth: number;
+    layer: string;
+  }
   | {
-      id: string;
-      type: "rect";
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      color: string;
-      lineWidth: number;
-      layer: string;
-    }
+    id: string;
+    type: "rect";
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    color: string;
+    lineWidth: number;
+    layer: string;
+  }
   | {
-      id: string;
-      type: "circle";
-      x: number;
-      y: number;
-      radius: number;
-      color: string;
-      lineWidth: number;
-      layer: string;
-    }
+    id: string;
+    type: "circle";
+    x: number;
+    y: number;
+    radius: number;
+    color: string;
+    lineWidth: number;
+    layer: string;
+  }
   | {
-      id: string;
-      type: "text";
-      x: number;
-      y: number;
-      text: string;
-      color: string;
-      lineWidth: number;
-      layer: string;
-    }
+    id: string;
+    type: "text";
+    x: number;
+    y: number;
+    text: string;
+    color: string;
+    lineWidth: number;
+    layer: string;
+  }
   | {
-      id: string;
-      type: "dimension";
-      x: number;
-      y: number;
-      x2: number;
-      y2: number;
-      color: string;
-      lineWidth: number;
-      layer: string;
-    }
+    id: string;
+    type: "dimension";
+    x: number;
+    y: number;
+    x2: number;
+    y2: number;
+    color: string;
+    lineWidth: number;
+    layer: string;
+  }
   | {
-      id: string;
-      type: "polyline";
-      points: { x: number; y: number }[];
-      color: string;
-      lineWidth: number;
-      layer: string;
-    }
+    id: string;
+    type: "polyline";
+    points: { x: number; y: number }[];
+    color: string;
+    lineWidth: number;
+    layer: string;
+  }
   | {
-      id: string;
-      type: "block";
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      symbolName: string;
-      rotation: number;
-      color: string;
-      lineWidth: number;
-      layer: string;
-      flipX?: boolean;
-      flipY?: boolean;
-    };
+    id: string;
+    type: "block";
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    symbolName: string;
+    rotation: number;
+    color: string;
+    lineWidth: number;
+    layer: string;
+    flipX?: boolean;
+    flipY?: boolean;
+  };
+
+// ─── Parametric Plan Types (OO model — walls never split) ─────────────────
+/** A wall is always a continuous unbroken centerline. */
+type ParametricWall = {
+  id: string;
+  x1: number; y1: number;
+  x2: number; y2: number;
+  thickness: "exterior" | "interior";
+};
+
+/** A door attaches to a wall by wallId. position 0.0=start‑end, 1.0=end‑end. */
+type ParametricDoor = {
+  id: string;
+  wallId: string;
+  position: number;           // 0..1 — center of door along wall
+  width: number;
+  swing: "left" | "right";
+  direction: "up" | "down" | "left" | "right";
+  type?: "garage" | "sliding";
+};
+
+/** A window attaches to a wall by wallId at centerPosition 0..1. */
+type ParametricWindow = {
+  id: string;
+  wallId: string;
+  centerPosition: number;     // 0..1 — center of window along wall
+  width: number;
+};
+
+/** Site element (veranda, pool, driveway, etc.) */
+type SiteElement = {
+  type: string;
+  [key: string]: unknown;
+};
+
+/** Top-level parametric floor plan returned by the new AI prompt. */
+type ParametricPlan = {
+  walls: ParametricWall[];
+  doors: ParametricDoor[];
+  windows: ParametricWindow[];
+  labels?: { x: number; y: number; text: string }[];
+  furniture?: { name: string; x: number; y: number; width?: number; height?: number; rotation?: number }[];
+  dimensions?: { x: number; y: number; x2: number; y2: number }[];
+  site?: SiteElement[];
+  summary?: string;
+};
 
 // ─── Symbol Library ────────────────────────────────────────
 const SYMBOL_LIBRARY: Record<
@@ -293,6 +365,81 @@ const SYMBOL_LIBRARY: Record<
     anchorX: 0,
     anchorY: 0,
   },
+  // ── New door/opening variants ──
+  sliding_door: {
+    src: "/symbols/sliding_door.svg",
+    label: "Sliding Door",
+    defaultWidth: 1800,
+    defaultHeight: 200,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  garage_door: {
+    src: "/symbols/garage_door.svg",
+    label: "Garage Door",
+    defaultWidth: 2400,
+    defaultHeight: 200,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  // ── Structural ──
+  stairs: {
+    src: "/symbols/stairs.svg",
+    label: "Stairs",
+    defaultWidth: 1000,
+    defaultHeight: 2400,
+    anchorX: 0,
+    anchorY: 0,
+  },
+  column: {
+    src: "/symbols/column.svg",
+    label: "Column",
+    defaultWidth: 300,
+    defaultHeight: 300,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  elevator: {
+    src: "/symbols/elevator.svg",
+    label: "Elevator",
+    defaultWidth: 1500,
+    defaultHeight: 1500,
+    anchorX: 0,
+    anchorY: 0,
+  },
+  escalator: {
+    src: "/symbols/escalator.svg",
+    label: "Escalator",
+    defaultWidth: 1000,
+    defaultHeight: 3000,
+    anchorX: 0,
+    anchorY: 0,
+  },
+  // ── Site plan ──
+  pool: {
+    src: "/symbols/pool.svg",
+    label: "Swimming Pool",
+    defaultWidth: 4000,
+    defaultHeight: 8000,
+    anchorX: 0,
+    anchorY: 0,
+  },
+  septic_tank: {
+    src: "/symbols/septic_tank.svg",
+    label: "Septic Tank",
+    defaultWidth: 2000,
+    defaultHeight: 1200,
+    anchorX: 0,
+    anchorY: 0,
+  },
+  parking: {
+    src: "/symbols/parking.svg",
+    label: "Parking Bay",
+    defaultWidth: 2500,
+    defaultHeight: 5000,
+    anchorX: 0,
+    anchorY: 0,
+  },
 };
 
 // Image cache for symbols
@@ -310,12 +457,40 @@ function getSymbolImage(name: string): HTMLImageElement | null {
 Object.keys(SYMBOL_LIBRARY).forEach((k) => getSymbolImage(k));
 
 const DEFAULT_LAYERS: LayerData[] = [
-  { name: "Layer 0", visible: true, locked: false, color: "#e8eaf0" },
-  { name: "Walls", visible: true, locked: false, color: "#00bcd4" },
-  { name: "Doors", visible: true, locked: false, color: "#4caf50" },
-  { name: "Windows", visible: true, locked: false, color: "#ffeb3b" },
-  { name: "Annotations", visible: true, locked: false, color: "#e91e63" },
+  { name: "Layer 0", visible: true, locked: false, color: "#e8eaf0", lineType: "solid" },
+  { name: "Walls", visible: true, locked: false, color: "#00bcd4", lineType: "solid" },
+  { name: "Rooms", visible: true, locked: false, color: "#26a69a", lineType: "solid" },
+  { name: "Doors", visible: true, locked: false, color: "#4caf50", lineType: "solid" },
+  { name: "Windows", visible: true, locked: false, color: "#ffeb3b", lineType: "solid" },
+  { name: "Furniture", visible: true, locked: false, color: "#ab47bc", lineType: "solid" },
+  { name: "Structure", visible: true, locked: false, color: "#ff7043", lineType: "solid" },
+  { name: "Site", visible: true, locked: false, color: "#8d6e63", lineType: "dashed" },
+  { name: "Annotations", visible: true, locked: false, color: "#e91e63", lineType: "solid" },
 ];
+
+const LAYER_LINE_TYPES: Array<"solid" | "dashed" | "center" | "hidden"> = [
+  "solid",
+  "dashed",
+  "center",
+  "hidden",
+];
+
+function getLineDashForLayerLineType(
+  lineType: "solid" | "dashed" | "center" | "hidden" | undefined,
+  lineWidth: number,
+): number[] {
+  switch (lineType ?? "solid") {
+    case "dashed":
+      return [12 + lineWidth * 0.4, 6 + lineWidth * 0.2];
+    case "center":
+      return [18 + lineWidth * 0.5, 6 + lineWidth * 0.2, 4 + lineWidth * 0.15, 6 + lineWidth * 0.2];
+    case "hidden":
+      return [6 + lineWidth * 0.25, 6 + lineWidth * 0.25];
+    case "solid":
+    default:
+      return [];
+  }
+}
 
 export const Route = createFileRoute(
   "/_authenticated/builder/architectural-studio",
@@ -348,6 +523,14 @@ export interface DrawingSettings {
   majorGrid: number;
   annoScale: number;
   mergeWalls: boolean;
+  hatchRooms: boolean;
+  roomLabels: boolean;
+  wallThickness: number;
+  doorWidth: number;
+  windowWidth: number;
+  windowHeight: number;
+  stairWidth: number;
+  stairDepth: number;
 }
 
 export const DEFAULT_SETTINGS: DrawingSettings = {
@@ -357,6 +540,14 @@ export const DEFAULT_SETTINGS: DrawingSettings = {
   majorGrid: 5,
   annoScale: 100,
   mergeWalls: true,
+  hatchRooms: true,
+  roomLabels: true,
+  wallThickness: 200,
+  doorWidth: 900,
+  windowWidth: 1200,
+  windowHeight: 200,
+  stairWidth: 900,
+  stairDepth: 1800,
 };
 
 function formatDMS(decimalDeg: number): string {
@@ -404,19 +595,22 @@ function drawGrid(
     ctx.moveTo(0, y);
     ctx.lineTo(w, y);
     ctx.stroke();
+    // Origin crosshair
+    ctx.strokeStyle = COLORS.cyan + "44";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pan.x, 0);
+    ctx.lineTo(pan.x, h);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, pan.y);
+    ctx.lineTo(w, pan.y);
+    ctx.stroke();
   }
-  // Origin crosshair
-  ctx.strokeStyle = COLORS.cyan + "44";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(pan.x, 0);
-  ctx.lineTo(pan.x, h);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(0, pan.y);
-  ctx.lineTo(w, pan.y);
-  ctx.stroke();
+
 }
+
+type BlockInfo = { x: number; y: number; width: number; height: number; rot: number; sym: string };
 
 function drawElement(
   ctx: CanvasRenderingContext2D,
@@ -425,21 +619,123 @@ function drawElement(
   zoom: number,
   selected: boolean,
   s: DrawingSettings,
+  layerLineType?: "solid" | "dashed" | "center" | "hidden",
+  allBlocks?: BlockInfo[]
 ) {
   ctx.save();
   ctx.strokeStyle = selected ? COLORS.yellow : el.color;
   ctx.fillStyle = selected ? COLORS.yellow + "22" : "transparent";
-  ctx.lineWidth = el.lineWidth;
+  ctx.lineWidth = Math.max(1, el.lineWidth * zoom);
+  ctx.setLineDash(getLineDashForLayerLineType(layerLineType, el.lineWidth));
+
+
+  const drawRoomHatch = (x: number, y: number, w: number, h: number) => {
+    if (!s.hatchRooms) return;
+    const rx = x * zoom + pan.x;
+    const ry = y * zoom + pan.y;
+    const rw = w * zoom;
+    const rh = h * zoom;
+    if (Math.abs(rw) < 6 || Math.abs(rh) < 6) return;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rx, ry, rw, rh);
+    ctx.clip();
+    const spacing = Math.max(10, Math.min(26, Math.abs((el.lineWidth || 1) * 3 + 12)));
+    ctx.strokeStyle = `${el.color}44`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
+
+    const left = Math.min(rx, rx + rw);
+    const right = Math.max(rx, rx + rw);
+    const top = Math.min(ry, ry + rh);
+    const bottom = Math.max(ry, ry + rh);
+    for (let x0 = left - (bottom - top); x0 < right + (bottom - top); x0 += spacing) {
+      ctx.beginPath();
+      ctx.moveTo(x0, bottom);
+      ctx.lineTo(x0 + (bottom - top), top);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
 
   if (el.type === "line") {
+    // ── Check if we need to split line for walls overlapping doors/windows
+    let splitSpans: [number, number][] = [];
+    if (allBlocks && (/wall|Layer 0|0/.test(el.layer))) {
+      const len = Math.hypot(el.x2 - el.x, el.y2 - el.y);
+      const lx = el.x, ly = el.y;
+
+      for (const b of allBlocks) {
+        if (!/door|window/i.test(b.sym)) continue;
+
+        const symDef = SYMBOL_LIBRARY[b.sym];
+        if (!symDef) continue;
+        const ax = symDef.anchorX ?? 0.5;
+        // flip multiplier — wait, drawElement uses `allBlocks` which currently only holds `rot`, `sym`, `x`, `y`, `width`.
+        // Let's assume standard door mapping for legacy since `flipX` isn't pushed to `allBlocks`.
+        const localX1 = -b.width * ax;
+        const localX2 = b.width * (1 - ax);
+        const rotRad = ((b.rot || 0) * Math.PI) / 180;
+
+        const p1x = b.x + localX1 * Math.cos(rotRad);
+        const p1y = b.y + localX1 * Math.sin(rotRad);
+        const p2x = b.x + localX2 * Math.cos(rotRad);
+        const p2y = b.y + localX2 * Math.sin(rotRad);
+
+        const t1 = ((p1x - lx) * (el.x2! - lx) + (p1y - ly) * (el.y2! - ly)) / (len * len);
+        const t2 = ((p2x - lx) * (el.x2! - lx) + (p2y - ly) * (el.y2! - ly)) / (len * len);
+
+        const centerT = ((b.x - lx) * (el.x2! - lx) + (b.y - ly) * (el.y2! - ly)) / (len * len);
+        const px = lx + centerT * (el.x2! - lx);
+        const py = ly + centerT * (el.y2! - ly);
+        const dist = Math.hypot(b.x - px, b.y - py);
+
+        if (dist < 300) {
+          splitSpans.push([Math.max(0, Math.min(t1, t2)), Math.min(1, Math.max(t1, t2))]);
+        }
+      }
+    }
+
     const sx = el.x * zoom + pan.x;
     const sy = el.y * zoom + pan.y;
     const ex = el.x2 * zoom + pan.x;
     const ey = el.y2 * zoom + pan.y;
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(ex, ey);
-    ctx.stroke();
+
+    if (splitSpans.length > 0) {
+      splitSpans.sort((a, b) => a[0] - b[0]);
+      let merged: [number, number][] = [];
+      for (const sp of splitSpans) {
+        if (!merged.length) merged.push(sp);
+        else {
+          const last = merged[merged.length - 1];
+          if (sp[0] <= last[1]) last[1] = Math.max(last[1], sp[1]);
+          else merged.push(sp);
+        }
+      }
+
+      let t_curr = 0;
+      for (const sp of merged) {
+        if (sp[0] > t_curr) {
+          ctx.beginPath();
+          ctx.moveTo(sx + (ex - sx) * t_curr, sy + (ey - sy) * t_curr);
+          ctx.lineTo(sx + (ex - sx) * sp[0], sy + (ey - sy) * sp[0]);
+          ctx.stroke();
+        }
+        t_curr = Math.max(t_curr, sp[1]);
+      }
+      if (t_curr < 1) {
+        ctx.beginPath();
+        ctx.moveTo(sx + (ex - sx) * t_curr, sy + (ey - sy) * t_curr);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+      }
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+    }
     if (selected) {
       ctx.fillStyle = COLORS.yellow;
       ctx.beginPath();
@@ -483,7 +779,7 @@ function drawElement(
     const dist = Math.hypot(el.x2 - el.x, el.y2 - el.y);
     // Base font size is 100mm for dimensions
     const scaledFontSize = 100 * (s.annoScale / 100) * zoom;
-    ctx.font = `${scaledFontSize}px 'Courier New', monospace`;
+    ctx.font = `${scaledFontSize}px 'Roboto Mono', monospace`;
     ctx.fillStyle = el.color;
     ctx.textAlign = "center";
     // Offset text slightly above the line
@@ -503,15 +799,109 @@ function drawElement(
     ctx.fillText(formatUnit(dist, s), 0, 0);
     ctx.resetTransform();
   } else if (el.type === "rect") {
-    ctx.beginPath();
-    ctx.rect(
-      el.x * zoom + pan.x,
-      el.y * zoom + pan.y,
-      el.width * zoom,
-      el.height * zoom,
-    );
-    ctx.stroke();
-    if (selected) ctx.fill();
+    if (!selected) {
+      drawRoomHatch(el.x, el.y, el.width, el.height);
+    }
+
+    // ── Check if rect has overlapping doors/windows
+    let splitSpansBottom: [number, number][] = [];
+    let splitSpansTop: [number, number][] = [];
+    let splitSpansLeft: [number, number][] = [];
+    let splitSpansRight: [number, number][] = [];
+
+    if (allBlocks && (/wall|0/.test(el.layer))) {
+      const rx1 = el.x, ry1 = el.y;
+      const rx2 = el.x + el.width, ry2 = el.y + el.height;
+      const rMinX = Math.min(rx1, rx2);
+      const rMaxX = Math.max(rx1, rx2);
+      const rMinY = Math.min(ry1, ry2);
+      const rMaxY = Math.max(ry1, ry2);
+      const width = Math.abs(el.width);
+      const height = Math.abs(el.height);
+      const dTol = 300;
+
+      for (const b of allBlocks) {
+        if (!/door|window/i.test(b.sym)) continue;
+        const hw = b.width / 2;
+
+        // bottom edge (y=rMaxY)
+        if (Math.abs(b.y - rMaxY) < dTol && b.x >= rMinX - hw && b.x <= rMaxX + hw) {
+          let t1 = (b.x - hw - rMinX) / width;
+          let t2 = (b.x + hw - rMinX) / width;
+          splitSpansBottom.push([Math.max(0, t1), Math.min(1, t2)]);
+        }
+        // top edge (y=rMinY)
+        if (Math.abs(b.y - rMinY) < dTol && b.x >= rMinX - hw && b.x <= rMaxX + hw) {
+          let t1 = (b.x - hw - rMinX) / width;
+          let t2 = (b.x + hw - rMinX) / width;
+          splitSpansTop.push([Math.max(0, t1), Math.min(1, t2)]);
+        }
+        // left edge (x=rMinX)
+        if (Math.abs(b.x - rMinX) < dTol && b.y >= rMinY - hw && b.y <= rMaxY + hw) {
+          let t1 = (b.y - hw - rMinY) / height;
+          let t2 = (b.y + hw - rMinY) / height;
+          splitSpansLeft.push([Math.max(0, t1), Math.min(1, t2)]);
+        }
+        // right edge (x=rMaxX)
+        if (Math.abs(b.x - rMaxX) < dTol && b.y >= rMinY - hw && b.y <= rMaxY + hw) {
+          let t1 = (b.y - hw - rMinY) / height;
+          let t2 = (b.y + hw - rMinY) / height;
+          splitSpansRight.push([Math.max(0, t1), Math.min(1, t2)]);
+        }
+      }
+    }
+
+    const drawLineWithHoles = (x1: number, y1: number, x2: number, y2: number, spans: [number, number][]) => {
+      spans.sort((a, b) => a[0] - b[0]);
+      let merged: [number, number][] = [];
+      for (const sp of spans) {
+        if (!merged.length) merged.push(sp);
+        else {
+          const last = merged[merged.length - 1];
+          if (sp[0] <= last[1]) last[1] = Math.max(last[1], sp[1]);
+          else merged.push(sp);
+        }
+      }
+
+      let t_curr = 0;
+      for (const sp of merged) {
+        if (sp[0] > t_curr) {
+          ctx.beginPath();
+          ctx.moveTo(x1 + (x2 - x1) * t_curr, y1 + (y2 - y1) * t_curr);
+          ctx.lineTo(x1 + (x2 - x1) * sp[0], y1 + (y2 - y1) * sp[0]);
+          ctx.stroke();
+        }
+        t_curr = Math.max(t_curr, sp[1]);
+      }
+      if (t_curr < 1) {
+        ctx.beginPath();
+        ctx.moveTo(x1 + (x2 - x1) * t_curr, y1 + (y2 - y1) * t_curr);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    };
+
+    const ex = el.x * zoom + pan.x;
+    const ey = el.y * zoom + pan.y;
+    const ew = el.width * zoom;
+    const eh = el.height * zoom;
+    const hx1 = Math.min(ex, ex + ew);
+    const hx2 = Math.max(ex, ex + ew);
+    const hy1 = Math.min(ey, ey + eh);
+    const hy2 = Math.max(ey, ey + eh);
+
+    if (splitSpansTop.length || splitSpansBottom.length || splitSpansLeft.length || splitSpansRight.length) {
+      drawLineWithHoles(hx1, hy1, hx2, hy1, splitSpansTop);
+      drawLineWithHoles(hx1, hy2, hx2, hy2, splitSpansBottom);
+      drawLineWithHoles(hx1, hy1, hx1, hy2, splitSpansLeft);
+      drawLineWithHoles(hx2, hy1, hx2, hy2, splitSpansRight);
+      if (selected) ctx.fillRect(hx1, hy1, Math.abs(ew), Math.abs(eh));
+    } else {
+      ctx.beginPath();
+      ctx.rect(ex, ey, ew, eh);
+      ctx.stroke();
+      if (selected) ctx.fill();
+    }
   } else if (el.type === "circle") {
     const cx = el.x * zoom + pan.x;
     const cy = el.y * zoom + pan.y;
@@ -526,7 +916,7 @@ function drawElement(
     ctx.fillStyle = selected ? COLORS.yellow : el.color;
     // Base font size is 150mm for general text
     const scaledFontSize = 150 * (s.annoScale / 100) * zoom;
-    ctx.font = `${scaledFontSize}px 'Courier New', monospace`;
+    ctx.font = `${scaledFontSize}px 'Roboto Mono', monospace`;
     ctx.fillText(el.text ?? "", tx, ty);
   } else if (el.type === "polyline") {
     ctx.beginPath();
@@ -545,59 +935,6 @@ function drawElement(
         ctx.fill();
       }
     }
-  } else if (el.type === "dimension") {
-    const dsx = el.x * zoom + pan.x;
-    const dsy = el.y * zoom + pan.y;
-    const ex = (el.x2 ?? el.x) * zoom + pan.x;
-    const ey = (el.y2 ?? el.y) * zoom + pan.y;
-    const dist = Math.sqrt(
-      Math.pow(el.x2! - el.x, 2) + Math.pow(el.y2! - el.y, 2),
-    );
-    ctx.strokeStyle = COLORS.magenta;
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(dsx, dsy);
-    ctx.lineTo(ex, ey);
-    ctx.stroke();
-
-    const angle = Math.atan2(ey - dsy, ex - dsx);
-    // Draw straight, perpendicular end ticks ("sticks")
-    const tickLen = 6;
-    ctx.beginPath();
-    const px1 = dsx + tickLen * Math.cos(angle + Math.PI / 2);
-    const py1 = dsy + tickLen * Math.sin(angle + Math.PI / 2);
-    const px2 = dsx - tickLen * Math.cos(angle + Math.PI / 2);
-    const py2 = dsy - tickLen * Math.sin(angle + Math.PI / 2);
-    ctx.moveTo(px1, py1);
-    ctx.lineTo(px2, py2);
-
-    const qx1 = ex + tickLen * Math.cos(angle + Math.PI / 2);
-    const qy1 = ey + tickLen * Math.sin(angle + Math.PI / 2);
-    const qx2 = ex - tickLen * Math.cos(angle + Math.PI / 2);
-    const qy2 = ey - tickLen * Math.sin(angle + Math.PI / 2);
-    ctx.moveTo(qx1, qy1);
-    ctx.lineTo(qx2, qy2);
-    ctx.stroke();
-
-    const midX = (dsx + ex) / 2;
-    const midY = (dsy + ey) / 2;
-    ctx.fillStyle = COLORS.magenta;
-    const scaledFontSize = 80 * (settings.annoScale / 100) * zoom;
-    ctx.font = `bold ${scaledFontSize}px 'Courier New', monospace`;
-    
-    // Rotate text to align with the dimension line
-    ctx.save();
-    ctx.translate(midX, midY);
-    let textAngle = angle;
-    // Keep text readable (upright)
-    if (textAngle > Math.PI / 2 || textAngle < -Math.PI / 2) {
-      textAngle += Math.PI;
-    }
-    ctx.rotate(textAngle);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.fillText(formatUnit(dist, s), 0, -4);
-    ctx.restore();
   } else if (el.type === "block") {
     const img = getSymbolImage(el.symbolName);
     const bx = el.x * zoom + pan.x;
@@ -625,15 +962,17 @@ function drawElement(
         ctx.filter = "none";
       } else {
         // Dynamic tinting for other colors (Cyan, Green, etc. according to Layer)
+        const tw = Math.max(1, Math.round(bw));
+        const th = Math.max(1, Math.round(bh));
         const tintCnv = document.createElement("canvas");
-        tintCnv.width = bw;
-        tintCnv.height = bh;
+        tintCnv.width = tw;
+        tintCnv.height = th;
         const tCtx = tintCnv.getContext("2d");
         if (tCtx) {
-          tCtx.drawImage(img, 0, 0, bw, bh);
+          tCtx.drawImage(img, 0, 0, tw, th);
           tCtx.globalCompositeOperation = "source-in";
           tCtx.fillStyle = el.color;
-          tCtx.fillRect(0, 0, bw, bh);
+          tCtx.fillRect(0, 0, tw, th);
           ctx.drawImage(tintCnv, drawX, drawY, bw, bh);
         } else {
           ctx.drawImage(img, drawX, drawY, bw, bh);
@@ -647,12 +986,12 @@ function drawElement(
       ctx.strokeRect(drawX, drawY, bw, bh);
       ctx.setLineDash([]);
       ctx.fillStyle = el.color;
-      ctx.font = `${Math.min(bw, bh) * 0.2}px 'Courier New', monospace`;
+      ctx.font = `${Math.min(bw, bh) * 0.2}px 'Roboto Mono', monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(el.symbolName, 0, 0);
       // Retry load
-      if (img) img.onload = () => {}; // trigger re-render on next redraw
+      if (img) img.onload = () => { }; // trigger re-render on next redraw
     }
     if (selected) {
       ctx.strokeStyle = COLORS.yellow;
@@ -694,7 +1033,9 @@ type HistoryState<T> = { past: T[]; present: T; future: T[] };
 type HistoryAction<T> =
   | { type: "SET"; payload: T | ((prev: T) => T) }
   | { type: "UNDO" }
-  | { type: "REDO" };
+  | { type: "REDO" }
+  | { type: "RESET"; payload: T }
+  | { type: "RESTORE"; payload: HistoryState<T> };
 
 function historyReducer<T>(
   state: HistoryState<T>,
@@ -726,6 +1067,14 @@ function historyReducer<T>(
         present: newPresent,
         future: [],
       };
+    case "RESET":
+      return {
+        past: [],
+        present: action.payload,
+        future: [],
+      };
+    case "RESTORE":
+      return action.payload;
     default:
       return state;
   }
@@ -749,19 +1098,33 @@ function useHistory<T>(initialState: T) {
     present: initialState,
     future: [],
   });
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const setState = useCallback(
     (payload: T | ((prev: T) => T)) => dispatch({ type: "SET", payload }),
     [],
   );
   const undo = useCallback(() => dispatch({ type: "UNDO" }), []);
   const redo = useCallback(() => dispatch({ type: "REDO" }), []);
+  const resetState = useCallback(
+    (payload: T) => dispatch({ type: "RESET", payload }),
+    [],
+  );
+  const getSnapshot = useCallback((): HistoryState<T> => stateRef.current, []);
+  const restoreSnapshot = useCallback(
+    (snapshot: HistoryState<T>) => dispatch({ type: "RESTORE", payload: snapshot }),
+    [],
+  );
   return {
     state: state.present,
     setState,
+    resetState,
     undo,
     redo,
     canUndo: state.past.length > 0,
     canRedo: state.future.length > 0,
+    getSnapshot,
+    restoreSnapshot,
   };
 }
 
@@ -770,94 +1133,28 @@ type CommandDef = {
   alias: string;
   name: string;
   description: string;
-  action: Tool | "undo" | "redo";
+  action: Tool | "undo" | "redo" | "clear" | "ortho";
 };
 
 const COMMANDS: CommandDef[] = [
-  {
-    alias: "L",
-    name: "LINE",
-    description: "Draw line segments",
-    action: "line",
-  },
-  {
-    alias: "PL",
-    name: "PLINE",
-    description: "Draw connected polyline segments",
-    action: "polyline",
-  },
-  {
-    alias: "W",
-    name: "WALL",
-    description: "Draw connected thick wall segments",
-    action: "wall",
-  },
-  {
-    alias: "REC",
-    name: "RECTANGLE",
-    description: "Draw a rectangle",
-    action: "rect",
-  },
-  {
-    alias: "C",
-    name: "CIRCLE",
-    description: "Draw a circle by center and radius",
-    action: "circle",
-  },
-  {
-    alias: "DIM",
-    name: "DIMENSION",
-    description: "Add a measurement dimension",
-    action: "dimension",
-  },
-  {
-    alias: "T",
-    name: "TEXT",
-    description: "Place single-line text",
-    action: "text",
-  },
-  {
-    alias: "DT",
-    name: "DTEXT",
-    description: "Place dynamic text",
-    action: "text",
-  },
-  {
-    alias: "O",
-    name: "OFFSET",
-    description: "Create parallel copy at specified distance",
-    action: "offset",
-  },
-  {
-    alias: "E",
-    name: "ERASE",
-    description: "Delete an element",
-    action: "eraser",
-  },
-  {
-    alias: "S",
-    name: "SELECT",
-    description: "Select and inspect elements",
-    action: "select",
-  },
+  { alias: "W", name: "WALL", description: "Draw wall segments", action: "wall" },
+  { alias: "D", name: "DOOR", description: "Place a door on a wall", action: "door" },
+  { alias: "WIN", name: "WINDOW", description: "Place a window on a wall", action: "window" },
+  { alias: "R", name: "RECT", description: "Draw a rectangle", action: "rect" },
+  { alias: "ST", name: "STAIRS", description: "Place a staircase", action: "stairs" },
+  { alias: "FUR", name: "FURNITURE", description: "Open furniture palette to place items", action: "furniture" },
+  { alias: "S", name: "SELECT", description: "Select and inspect elements", action: "select" },
   { alias: "P", name: "PAN", description: "Pan the viewport", action: "pan" },
+  { alias: "E", name: "ERASE", description: "Delete an element", action: "eraser" },
   { alias: "U", name: "UNDO", description: "Undo last action", action: "undo" },
-  {
-    alias: "REDO",
-    name: "REDO",
-    description: "Redo last undone action",
-    action: "redo",
-  },
-  {
-    alias: "AI",
-    name: "AGENT",
-    description: "AI draws from your description",
-    action: "agent",
-  },
+  { alias: "REDO", name: "REDO", description: "Redo last undone action", action: "redo" },
+  { alias: "AI", name: "AGENT", description: "AI draws from your description", action: "agent" },
+  { alias: "CLS", name: "CLEAR", description: "Clear command history", action: "clear" },
+  { alias: "ORTHO", name: "ORTHO", description: "Toggle Ortho mode (F8)", action: "ortho" },
 ];
 
 // Build a lookup map from all aliases and names
-const COMMAND_MAP: Record<string, Tool | "undo" | "redo"> = {};
+const COMMAND_MAP: Record<string, Tool | "undo" | "redo" | "clear" | "ortho"> = {};
 for (const cmd of COMMANDS) {
   COMMAND_MAP[cmd.alias.toLowerCase()] = cmd.action;
   COMMAND_MAP[cmd.name.toLowerCase()] = cmd.action;
@@ -879,40 +1176,88 @@ export default function ArchitecturalStudioCanvas() {
   const cmdHistoryRef = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<Tool>("line");
   const [aiMode, setAiMode] = useState(false);
-  const [color, setColor] = useState(COLORS.white);
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
+  const [color] = useState(COLORS.white);
   const lineWidth = 1;
   const saved = useRef(
-    loadSaved<{
-      elements: DrawingElement[];
-      layers: LayerData[];
-      activeLayer: string;
-    }>(STORAGE_KEY, {
-      elements: [],
+    loadSaved<SavedStudioState>(STORAGE_KEY, {
+      pages: [
+        {
+          id: "page-1",
+          name: "Page 1",
+          elements: [],
+        },
+      ],
+      activePageId: "page-1",
       layers: DEFAULT_LAYERS,
       activeLayer: "Layer 0",
     }),
   );
+
+  const initialPages = useMemo<StudioPage[]>(() => {
+    const persistedPages = saved.current.pages?.filter(
+      (p): p is StudioPage =>
+        !!p &&
+        typeof p.id === "string" &&
+        typeof p.name === "string" &&
+        Array.isArray(p.elements),
+    );
+
+    if (persistedPages && persistedPages.length > 0) {
+      return persistedPages;
+    }
+
+    return [
+      {
+        id: "page-1",
+        name: "Page 1",
+        elements: saved.current.elements ?? [],
+      },
+    ];
+  }, []);
+
+  const initialActivePageId = useMemo(() => {
+    const persistedActiveId = saved.current.activePageId;
+    if (persistedActiveId && initialPages.some((p) => p.id === persistedActiveId)) {
+      return persistedActiveId;
+    }
+    return initialPages[0]?.id ?? "page-1";
+  }, [initialPages]);
+
+  const [pages, setPages] = useState<StudioPage[]>(initialPages);
+  const [activePageId, setActivePageId] = useState(initialActivePageId);
+  const activePage = useMemo(
+    () => pages.find((p) => p.id === activePageId) ?? pages[0],
+    [pages, activePageId],
+  );
+
   const {
     state: elements,
     setState: setElements,
+    resetState: resetElements,
     undo,
     redo,
     canUndo,
     canRedo,
-  } = useHistory<DrawingElement[]>(saved.current.elements);
+    getSnapshot,
+    restoreSnapshot,
+  } = useHistory<DrawingElement[]>(activePage?.elements ?? []);
+  const pageHistoryMap = useRef<Map<string, HistoryState<DrawingElement[]>>>(new Map());
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [clipboard, setClipboard] = useState<DrawingElement[]>([]);
-  const [showProps, setShowProps] = useState(false);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [drawing, setDrawing] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [previewEl, setPreviewEl] = useState<DrawingElement | null>(null);
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
-  const [snapPoint, setSnapPoint] = useState<{ x: number; y: number } | null>(
-    null,
-  );
+  const [snapPoint, setSnapPoint] = useState<{
+    x: number;
+    y: number;
+    type: "endpoint" | "midpoint" | "center" | "intersection" | "perpendicular" | "nearest" | "quadrant";
+  } | null>(null);
+  const [orthoMode, setOrthoMode] = useState(false);
   const [activeLayer, setActiveLayer] = useState(saved.current.activeLayer);
   const [layers, setLayers] = useState<LayerData[]>(saved.current.layers);
   const [cmdInput, setCmdInput] = useState("");
@@ -929,6 +1274,19 @@ export default function ArchitecturalStudioCanvas() {
   const dragStartPos = useRef({ x: 0, y: 0 });
   const [offsetDist, setOffsetDist] = useState<number | null>(null);
   const [offsetSourceId, setOffsetSourceId] = useState<string | null>(null);
+  // Move/Copy base point
+  const [moveBasePoint, setMoveBasePoint] = useState<{ x: number; y: number } | null>(null);
+  // Rotate base point + angle
+  const [rotateBasePoint, setRotateBasePoint] = useState<{ x: number; y: number } | null>(null);
+  const [rotateRefAngle, setRotateRefAngle] = useState<number | null>(null);
+  // Mirror line
+  const [mirrorP1, setMirrorP1] = useState<{ x: number; y: number } | null>(null);
+  // Fillet radius
+  const [filletRadius, setFilletRadius] = useState<number>(0);
+  const [filletFirstLineId, setFilletFirstLineId] = useState<string | null>(null);
+  // Architectural tool state
+  const [pendingSymbol, setPendingSymbol] = useState<string | null>(null);
+  const [doorSwing, setDoorSwing] = useState<"right" | "left">("right");
   const [settings, setSettings] = useState<DrawingSettings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
   const dragMoveStart = useRef<{ wx: number; wy: number } | null>(null);
@@ -938,9 +1296,154 @@ export default function ArchitecturalStudioCanvas() {
     setCmdHistory((prev) => [...prev.slice(-50), msg]);
   }, []);
 
+  const clearTransientDrawingState = useCallback(() => {
+    setSelected(null);
+    setSelectedIds(new Set());
+    setDrawing(false);
+    setPreviewEl(null);
+    setOffsetDist(null);
+    setOffsetSourceId(null);
+    setMoveBasePoint(null);
+    setRotateBasePoint(null);
+    setRotateRefAngle(null);
+    setMirrorP1(null);
+    setFilletFirstLineId(null);
+    setPendingSymbol(null);
+  }, []);
+
+  const flushCurrentPage = useCallback(() => {
+    setPages((prev) => {
+      const idx = prev.findIndex((p) => p.id === activePageId);
+      if (idx === -1) return prev;
+      const snapshot = getSnapshot();
+      if (prev[idx].elements === snapshot.present) return prev;
+      const next = [...prev];
+      next[idx] = { ...next[idx], elements: snapshot.present };
+      return next;
+    });
+  }, [activePageId, getSnapshot]);
+
+  const switchPage = useCallback(
+    (pageId: string) => {
+      if (pageId === activePageId) return;
+      const targetPage = pages.find((p) => p.id === pageId);
+      if (!targetPage) return;
+      // Save current page's history snapshot
+      flushCurrentPage();
+      pageHistoryMap.current.set(activePageId, getSnapshot());
+      // Switch
+      setActivePageId(pageId);
+      // Restore target page's history or reset with its elements
+      const savedHistory = pageHistoryMap.current.get(pageId);
+      if (savedHistory) {
+        restoreSnapshot(savedHistory);
+      } else {
+        resetElements(targetPage.elements);
+      }
+      clearTransientDrawingState();
+      cmdLog(`Switched to ${targetPage.name}`);
+    },
+    [pages, activePageId, flushCurrentPage, getSnapshot, restoreSnapshot, resetElements, clearTransientDrawingState, cmdLog],
+  );
+
+  const addPage = useCallback(() => {
+    // Determine next unique page number
+    const existingNums = pages
+      .map((p) => {
+        const m = p.name.match(/^Page\s+(\d+)$/i);
+        return m ? parseInt(m[1], 10) : 0;
+      })
+      .filter(Boolean);
+    const nextPageNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : pages.length + 1;
+    const newPage: StudioPage = {
+      id: crypto.randomUUID(),
+      name: `Page ${nextPageNum}`,
+      elements: [],
+    };
+    // Save current page's history before switching
+    flushCurrentPage();
+    pageHistoryMap.current.set(activePageId, getSnapshot());
+    setPages((prev) => [...prev, newPage]);
+    setActivePageId(newPage.id);
+    resetElements([]);
+    clearTransientDrawingState();
+    cmdLog(`Created ${newPage.name}`);
+  }, [pages, activePageId, flushCurrentPage, getSnapshot, resetElements, clearTransientDrawingState, cmdLog]);
+
+  const renameActivePage = useCallback(() => {
+    if (!activePage) return;
+    const nextName = prompt("Rename page:", activePage.name)?.trim();
+    if (!nextName) return;
+    setPages((prev) =>
+      prev.map((page) =>
+        page.id === activePage.id ? { ...page, name: nextName } : page,
+      ),
+    );
+    cmdLog(`Renamed page to ${nextName}`);
+  }, [activePage, cmdLog]);
+
+  const duplicateActivePage = useCallback(() => {
+    if (!activePage) return;
+    flushCurrentPage();
+    const existingNums = pages
+      .map((p) => {
+        const m = p.name.match(/^Page\s+(\d+)$/i);
+        return m ? parseInt(m[1], 10) : 0;
+      })
+      .filter(Boolean);
+    const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : pages.length + 1;
+    const duped: StudioPage = {
+      id: crypto.randomUUID(),
+      name: `Page ${nextNum}`,
+      elements: activePage.elements.map((el) => ({ ...el, id: crypto.randomUUID() })),
+    };
+    pageHistoryMap.current.set(activePageId, getSnapshot());
+    setPages((prev) => [...prev, duped]);
+    setActivePageId(duped.id);
+    resetElements(duped.elements);
+    clearTransientDrawingState();
+    cmdLog(`Duplicated as ${duped.name}`);
+  }, [activePage, pages, activePageId, flushCurrentPage, getSnapshot, resetElements, clearTransientDrawingState, cmdLog]);
+
+  const deleteActivePage = useCallback(() => {
+    if (!activePage) return;
+    if (pages.length === 1) {
+      cmdLog("At least one page is required");
+      return;
+    }
+    if (!confirm(`Delete ${activePage.name}?`)) return;
+
+    // Clean up history for deleted page
+    pageHistoryMap.current.delete(activePage.id);
+    const remainingPages = pages.filter((page) => page.id !== activePage.id);
+    const fallbackPage = remainingPages[0];
+    setPages(remainingPages);
+    if (fallbackPage) {
+      setActivePageId(fallbackPage.id);
+      const savedHistory = pageHistoryMap.current.get(fallbackPage.id);
+      if (savedHistory) {
+        restoreSnapshot(savedHistory);
+      } else {
+        resetElements(fallbackPage.elements);
+      }
+      clearTransientDrawingState();
+      cmdLog(`Deleted ${activePage.name}`);
+    }
+  }, [activePage, pages, restoreSnapshot, resetElements, clearTransientDrawingState, cmdLog]);
+
+  useEffect(() => {
+    setPages((prev) => {
+      const idx = prev.findIndex((p) => p.id === activePageId);
+      if (idx === -1 || prev[idx].elements === elements) return prev;
+      const next = [...prev];
+      next[idx] = { ...next[idx], elements };
+      return next;
+    });
+  }, [elements, activePageId]);
+
   // Get the base point for the current drawing operation
   const getBasePoint = useCallback(() => {
-    if (tool === "polyline" && previewEl?.type === "polyline") {
+    if ((tool === "polyline" || tool === "wall") && previewEl?.type === "polyline") {
       const pts = previewEl.points;
       return pts[pts.length - 2];
     }
@@ -958,7 +1461,7 @@ export default function ArchitecturalStudioCanvas() {
   // Apply a computed point to the current drawing tool
   const applyDrawPoint = useCallback(
     (wx: number, wy: number, logMsg: string) => {
-      if (tool === "polyline" && previewEl && previewEl.type === "polyline") {
+      if ((tool === "polyline" || tool === "wall") && previewEl && previewEl.type === "polyline") {
         const pts = previewEl.points;
         setPreviewEl({
           ...previewEl,
@@ -1116,165 +1619,507 @@ export default function ArchitecturalStudioCanvas() {
     });
   }, []);
 
+  // Merge collinear/overlapping wall LINE segments produced by the AI agent.
+  // Walls on the same axis (horizontal or vertical) at the same coordinate are
+  // consolidated into the fewest continuous segments, preserving door gaps.
+  function mergeCollinearWalls(els: DrawingElement[]): DrawingElement[] {
+    const walls: (DrawingElement & { type: "line" })[] = [];
+    const others: DrawingElement[] = [];
+    for (const el of els) {
+      if (el.type === "line" && el.layer === "Walls") {
+        walls.push(el as DrawingElement & { type: "line" });
+      } else {
+        others.push(el);
+      }
+    }
+    if (walls.length === 0) return els;
+
+    // Group walls by orientation + fixed coordinate
+    type WallSeg = { min: number; max: number; src: DrawingElement & { type: "line" } };
+    const hGroups = new Map<number, WallSeg[]>(); // horizontal: keyed by y
+    const vGroups = new Map<number, WallSeg[]>(); // vertical: keyed by x
+    const ungrouped: (DrawingElement & { type: "line" })[] = [];
+
+    for (const w of walls) {
+      if (w.y === w.y2) {
+        // horizontal
+        const key = w.y;
+        const seg: WallSeg = { min: Math.min(w.x, w.x2), max: Math.max(w.x, w.x2), src: w };
+        if (!hGroups.has(key)) hGroups.set(key, []);
+        hGroups.get(key)!.push(seg);
+      } else if (w.x === w.x2) {
+        // vertical
+        const key = w.x;
+        const seg: WallSeg = { min: Math.min(w.y, w.y2), max: Math.max(w.y, w.y2), src: w };
+        if (!vGroups.has(key)) vGroups.set(key, []);
+        vGroups.get(key)!.push(seg);
+      } else {
+        ungrouped.push(w);
+      }
+    }
+
+    function mergeSegments(segs: WallSeg[]): WallSeg[] {
+      if (segs.length <= 1) return segs;
+      segs.sort((a, b) => a.min - b.min);
+      const merged: WallSeg[] = [{ ...segs[0] }];
+      for (let i = 1; i < segs.length; i++) {
+        const last = merged[merged.length - 1];
+        const cur = segs[i];
+        // Merge if overlapping or touching (within 1mm tolerance)
+        if (cur.min <= last.max + 1) {
+          last.max = Math.max(last.max, cur.max);
+        } else {
+          merged.push({ ...cur });
+        }
+      }
+      return merged;
+    }
+
+    const result: DrawingElement[] = [...others, ...ungrouped];
+
+    for (const [y, segs] of hGroups) {
+      const ref = segs[0].src;
+      for (const seg of mergeSegments(segs)) {
+        result.push({
+          id: crypto.randomUUID(),
+          type: "line",
+          x: seg.min,
+          y,
+          x2: seg.max,
+          y2: y,
+          color: ref.color,
+          lineWidth: ref.lineWidth,
+          layer: ref.layer,
+        });
+      }
+    }
+    for (const [x, segs] of vGroups) {
+      const ref = segs[0].src;
+      for (const seg of mergeSegments(segs)) {
+        result.push({
+          id: crypto.randomUUID(),
+          type: "line",
+          x,
+          y: seg.min,
+          x2: x,
+          y2: seg.max,
+          color: ref.color,
+          lineWidth: ref.lineWidth,
+          layer: ref.layer,
+        });
+      }
+    }
+    return result;
+  }
+
   const executeAgentDraw = useCallback(
     async (prompt: string) => {
       setAgentLoading(true);
       cmdLog("AI Agent thinking...");
       try {
         const { data } = await aiApi.drawAgent(prompt, elements);
-        const cmds = data.commands ?? [];
-        if (cmds.length === 0) {
-          cmdLog("AI Agent returned no drawing commands");
-          setAgentLoading(false);
-          return;
-        }
-        cmdLog(`AI Agent generating ${cmds.length} elements...`);
-        const newElements: DrawingElement[] = [];
-        for (const cmd of cmds) {
-          const id = crypto.randomUUID();
-          const p = cmd.params ?? {};
-          let el: DrawingElement | null = null;
-          const layerName = p.layer || activeLayer;
-          const layerDef = layers.find((l) => l.name === layerName);
-          const elementColor = layerDef ? layerDef.color : color;
-          const lw = p.lineWidth ?? lineWidth;
 
-          if (
-            cmd.type === "LINE" &&
-            p.x != null &&
-            p.y != null &&
-            p.x2 != null &&
-            p.y2 != null
-          ) {
-            el = {
-              id,
+        // ─────────────────────────────────────────────────────────────────────
+        // Helper: resolve layer color
+        const layerColor = (name: string) =>
+          layers.find((l) => l.name === name)?.color ?? color;
+
+        const wallColor = layerColor("Walls");
+        const doorColor = layerColor("Doors");
+        const windowColor = layerColor("Windows");
+        const annoColor = layerColor("Annotations");
+        const furnitureColor = layerColor("Layer 0");
+        const structColor = layerColor("Structure");
+        const siteColor = layerColor("Site");
+
+        // ─────────────────────────────────────────────────────────────────────
+        // BRANCH A: NEW PARAMETRIC FORMAT  { walls, doors, windows, ... }
+        // ─────────────────────────────────────────────────────────────────────
+        if (Array.isArray(data.walls)) {
+          const plan = data as ParametricPlan;
+          const newElements: DrawingElement[] = [];
+
+          // ── Walls ── Each wall is a continuous full-length thick line
+          for (const wall of plan.walls) {
+            const thickness = wall.thickness === "interior" ? 150 : settings.wallThickness;
+            newElements.push({
+              id: wall.id ?? crypto.randomUUID(),
               type: "line",
-              x: p.x,
-              y: p.y,
-              x2: p.x2,
-              y2: p.y2,
-              color: elementColor,
-              lineWidth: lw,
-              layer: layerName,
-            };
-          } else if (
-            cmd.type === "RECT" &&
-            p.x != null &&
-            p.y != null &&
-            p.width != null &&
-            p.height != null
-          ) {
-            el = {
-              id,
-              type: "rect",
-              x: p.x,
-              y: p.y,
-              width: p.width,
-              height: p.height,
-              color: elementColor,
-              lineWidth: lw,
-              layer: layerName,
-            };
-          } else if (
-            cmd.type === "CIRCLE" &&
-            p.x != null &&
-            p.y != null &&
-            p.radius != null
-          ) {
-            el = {
-              id,
-              type: "circle",
-              x: p.x,
-              y: p.y,
-              radius: p.radius,
-              color: elementColor,
-              lineWidth: lw,
-              layer: layerName,
-            };
-          } else if (
-            cmd.type === "TEXT" &&
-            p.x != null &&
-            p.y != null &&
-            p.text
-          ) {
-            el = {
-              id,
-              type: "text",
-              x: p.x,
-              y: p.y,
-              text: p.text,
-              color: elementColor,
-              lineWidth: lw,
-              layer: layerName,
-            };
-          } else if (
-            cmd.type === "POLYLINE" &&
-            Array.isArray(p.points) &&
-            p.points.length >= 2
-          ) {
-            el = {
-              id,
-              type: "polyline",
-              points: p.points,
-              color: elementColor,
-              lineWidth: lw,
-              layer: layerName,
-            };
-          } else if (
-            cmd.type === "DIMENSION" &&
-            p.x != null &&
-            p.y != null &&
-            p.x2 != null &&
-            p.y2 != null
-          ) {
-            // Dimensions are always drawn magenta
-            el = {
-              id,
-              type: "dimension",
-              x: p.x,
-              y: p.y,
-              x2: p.x2,
-              y2: p.y2,
-              color: "#f0f",
-              lineWidth: lw,
-              layer: layerName,
-            };
-          } else if (
-            cmd.type === "BLOCK" &&
-            p.x != null &&
-            p.y != null &&
-            p.name
-          ) {
-            const symDef = SYMBOL_LIBRARY[p.name];
-            const w = p.width ?? symDef?.defaultWidth ?? 900;
-            const h = p.height ?? symDef?.defaultHeight ?? 900;
-            el = {
-              id,
-              type: "block",
-              x: p.x,
-              y: p.y,
-              width: w,
-              height: h,
-              symbolName: p.name,
-              rotation: p.rotation ?? 0,
-              color: elementColor,
-              lineWidth: lw,
-              layer: layerName,
-              flipX: p.flipX,
-              flipY: p.flipY,
+              x: wall.x1, y: wall.y1,
+              x2: wall.x2, y2: wall.y2,
+              color: wallColor,
+              lineWidth: thickness,
+              layer: "Walls",
+            });
+          }
+
+          // Helper: given a ParametricWall and a 0..1 t-value, return the (x,y) point
+          function wallPoint(w: ParametricWall, t: number) {
+            return {
+              x: w.x1 + t * (w.x2 - w.x1),
+              y: w.y1 + t * (w.y2 - w.y1),
             };
           }
-          if (el) newElements.push(el);
+
+          // Helper: determine if a wall is more vertical than horizontal
+          function isWallVertical(w: ParametricWall) {
+            return Math.abs(w.y2 - w.y1) > Math.abs(w.x2 - w.x1);
+          }
+
+          // ── Doors ── Compute hinge from wallId + position
+          for (const door of plan.doors) {
+            const wall = plan.walls.find((w) => w.id === door.wallId);
+            if (!wall) continue;
+
+            const doorW = door.width ?? settings.doorWidth;
+            const isVert = isWallVertical(wall);
+
+            // Door hinge at position along wall
+            const pt = wallPoint(wall, door.position);
+
+            // Symbol: garage_door or sliding_door or swing
+            let symbolName = door.swing === "left" ? "door_swing_left" : "door_swing_right";
+            if (door.type === "garage") symbolName = "garage_door";
+            else if (door.type === "sliding") symbolName = "sliding_door";
+
+            let rotation = 0;
+            let flipX = false;
+            let flipY = false;
+            if (door.type === "garage" || door.type === "sliding") {
+              rotation = isVert ? 90 : 0;
+            } else {
+              // Base image lies on the X axis, pointing UP (negative Y).
+              if (!isVert) { // Horizontal wall
+                // Naturally points UP
+                const dir = door.direction ?? "up";
+                if (dir === "down") flipY = true;
+              } else { // Vertical wall
+                // Rotating 90 degrees clockwise makes UP point RIGHT
+                rotation = 90;
+                const dir = door.direction ?? "right";
+                if (dir === "left") flipY = true;
+              }
+            }
+
+            newElements.push({
+              id: door.id ?? crypto.randomUUID(),
+              type: "block",
+              x: pt.x, y: pt.y,
+              width: doorW, height: doorW,
+              symbolName,
+              rotation,
+              color: doorColor,
+              lineWidth: 1,
+              layer: "Doors",
+              flipX,
+              flipY,
+            });
+          }
+
+          // ── Windows ── Compute center from wallId + centerPosition
+          for (const win of plan.windows) {
+            const wall = plan.walls.find((w) => w.id === win.wallId);
+            if (!wall) continue;
+
+            const winW = win.width ?? settings.windowWidth;
+            const isVert = isWallVertical(wall);
+            const pt = wallPoint(wall, win.centerPosition);
+
+            newElements.push({
+              id: win.id ?? crypto.randomUUID(),
+              type: "block",
+              // Center the window block on the wall point
+              x: isVert ? pt.x : pt.x - winW / 2,
+              y: isVert ? pt.y - winW / 2 : pt.y,
+              width: winW, height: settings.windowHeight,
+              symbolName: "window",
+              rotation: isVert ? 90 : 0,
+              color: windowColor,
+              lineWidth: 1,
+              layer: "Windows",
+            });
+          }
+
+          // ── Labels ──
+          for (const lbl of plan.labels ?? []) {
+            newElements.push({
+              id: crypto.randomUUID(),
+              type: "text",
+              x: lbl.x, y: lbl.y,
+              text: lbl.text,
+              color: annoColor,
+              lineWidth: 1,
+              layer: "Annotations",
+            });
+          }
+
+          // ── Furniture ──
+          for (const furn of plan.furniture ?? []) {
+            const symDef = SYMBOL_LIBRARY[furn.name];
+            newElements.push({
+              id: crypto.randomUUID(),
+              type: "block",
+              x: furn.x, y: furn.y,
+              width: furn.width ?? symDef?.defaultWidth ?? 600,
+              height: furn.height ?? symDef?.defaultHeight ?? 600,
+              symbolName: furn.name,
+              rotation: furn.rotation ?? 0,
+              color: furnitureColor,
+              lineWidth: 1,
+              layer: "Layer 0",
+            });
+          }
+
+          // ── Dimensions ──
+          for (const dim of plan.dimensions ?? []) {
+            newElements.push({
+              id: crypto.randomUUID(),
+              type: "dimension",
+              x: dim.x, y: dim.y,
+              x2: dim.x2, y2: dim.y2,
+              color: "#00ffff",
+              lineWidth: 1,
+              layer: "Annotations",
+            });
+          }
+
+          // ── Site elements ──
+          for (const site of plan.site ?? []) {
+            const sp = site as Record<string, number | string | unknown>;
+            const sx = sp.x as number ?? 0;
+            const sy = sp.y as number ?? 0;
+            const sw = sp.width as number ?? 3500;
+            const sh = (sp.height ?? sp.depth) as number ?? 4000;
+            if (site.type === "DRIVEWAY" || site.type === "GARDEN") {
+              newElements.push({
+                id: crypto.randomUUID(),
+                type: "rect",
+                x: sx, y: sy, width: sw, height: sh,
+                color: site.type === "GARDEN" ? "#66bb6a" : "#9e9e9e",
+                lineWidth: 2, layer: "Site",
+              });
+              newElements.push({
+                id: crypto.randomUUID(),
+                type: "text",
+                x: sx + sw / 2, y: sy + sh / 2,
+                text: site.type === "GARDEN" ? ((sp.name as string) || "Garden") : "Driveway",
+                color: annoColor, lineWidth: 1, layer: "Annotations",
+              });
+            } else if (["VERANDA", "CARPORT", "BALCONY"].includes(site.type)) {
+              const depth = (sp.depth ?? sp.height) as number ?? 2500;
+              newElements.push({
+                id: crypto.randomUUID(),
+                type: "rect",
+                x: sx, y: sy, width: sw, height: depth,
+                color: structColor, lineWidth: 2, layer: "Structure",
+              });
+              const colSz = 300;
+              for (const [cx, cy] of [[sx, sy], [sx + sw, sy], [sx, sy + depth], [sx + sw, sy + depth]]) {
+                newElements.push({
+                  id: crypto.randomUUID(), type: "block",
+                  x: cx as number, y: cy as number, width: colSz, height: colSz,
+                  symbolName: "column", rotation: 0,
+                  color: structColor, lineWidth: 1, layer: "Structure",
+                });
+              }
+              newElements.push({
+                id: crypto.randomUUID(), type: "text",
+                x: sx + sw / 2, y: sy + depth / 2,
+                text: site.type.charAt(0) + site.type.slice(1).toLowerCase(),
+                color: annoColor, lineWidth: 1, layer: "Annotations",
+              });
+            } else if (site.type === "POOL") {
+              newElements.push({
+                id: crypto.randomUUID(), type: "block",
+                x: sx, y: sy, width: sw, height: sh,
+                symbolName: "pool", rotation: 0,
+                color: "#42a5f5", lineWidth: 1, layer: "Site",
+              });
+            } else if (site.type === "PARKING") {
+              newElements.push({
+                id: crypto.randomUUID(), type: "block",
+                x: sx, y: sy, width: sw, height: sh,
+                symbolName: "parking", rotation: (sp.rotation as number) ?? 0,
+                color: siteColor, lineWidth: 1, layer: "Site",
+              });
+            } else if (site.type === "STAIRS") {
+              newElements.push({
+                id: crypto.randomUUID(), type: "block",
+                x: sx, y: sy, width: sw, height: (sp.depth as number) ?? 2400,
+                symbolName: "stairs", rotation: (sp.rotation as number) ?? 0,
+                color: structColor, lineWidth: 1, layer: "Structure",
+              });
+            } else if (site.type === "COLUMN") {
+              const sz = (sp.size as number) ?? 300;
+              newElements.push({
+                id: crypto.randomUUID(), type: "block",
+                x: sx, y: sy, width: sz, height: sz,
+                symbolName: "column", rotation: 0,
+                color: structColor, lineWidth: 1, layer: "Structure",
+              });
+            } else if (site.type === "SEPTIC_TANK") {
+              newElements.push({
+                id: crypto.randomUUID(), type: "block",
+                x: sx, y: sy, width: sw || 2000, height: sh || 1200,
+                symbolName: "septic_tank", rotation: 0,
+                color: siteColor, lineWidth: 1, layer: "Site",
+              });
+            } else if (site.type === "ELEVATOR") {
+              newElements.push({
+                id: crypto.randomUUID(), type: "block",
+                x: sx, y: sy, width: sw || 1500, height: sh || 1500,
+                symbolName: "elevator", rotation: 0,
+                color: structColor, lineWidth: 1, layer: "Structure",
+              });
+            } else if (site.type === "SLAB") {
+              newElements.push({
+                id: crypto.randomUUID(), type: "rect",
+                x: sx, y: sy, width: sw, height: sh,
+                color: structColor, lineWidth: 1, layer: "Structure",
+              });
+            }
+          }
+
+          const combined = [...elements, ...newElements];
+          const merged = mergeCollinearWalls(combined);
+          setElements(merged);
+          setTimeout(() => zoomToFit(merged), 100);
+          cmdLog(`AI Agent (parametric): ${plan.summary ?? `${newElements.length} elements drawn`}`);
+
+          // ─────────────────────────────────────────────────────────────────────
+          // BRANCH B: LEGACY COMMANDS FORMAT  { commands: [...] }
+          // ─────────────────────────────────────────────────────────────────────
+        } else {
+          const cmds = data.commands ?? [];
+          if (cmds.length === 0) {
+            cmdLog("AI Agent returned no drawing commands");
+            setAgentLoading(false);
+            return;
+          }
+          cmdLog(`AI Agent generating ${cmds.length} elements...`);
+          const newElements: DrawingElement[] = [];
+
+          // Helper: find closest wall to a point and determine orientation
+          function findNearestWall(px: number, py: number, els: DrawingElement[]) {
+            const TOL = 1500;
+            let bestDist = TOL;
+            let isVert = false;
+            let snapX = px;
+            let snapY = py;
+            for (const el of els) {
+              if (el.type !== "line" || el.layer !== "Walls") continue;
+              const dx = el.x2 - el.x;
+              const dy = el.y2 - el.y;
+              const lenSq = dx * dx + dy * dy;
+              if (lenSq < 1) continue;
+              const t = Math.max(0, Math.min(1, ((px - el.x) * dx + (py - el.y) * dy) / lenSq));
+              const cx = el.x + t * dx;
+              const cy = el.y + t * dy;
+              const dist = Math.hypot(px - cx, py - cy);
+              if (dist < bestDist) {
+                bestDist = dist;
+                const horiz = Math.abs(dy) < Math.abs(dx);
+                isVert = !horiz;
+                snapX = horiz ? px : el.x;
+                snapY = horiz ? el.y : py;
+              }
+            }
+            return { isVertical: isVert, x: snapX, y: snapY, found: bestDist < TOL };
+          }
+
+          for (const cmd of cmds) {
+            const p = cmd.params ?? {};
+            if (cmd.type === "WALL" && p.x != null && p.y != null && p.x2 != null && p.y2 != null) {
+              const thickness = p.thickness === "interior" ? 150 : settings.wallThickness;
+              newElements.push({ id: crypto.randomUUID(), type: "line", x: p.x, y: p.y, x2: p.x2, y2: p.y2, color: wallColor, lineWidth: thickness, layer: "Walls" });
+            } else if (cmd.type === "DOOR" && p.x != null && p.y != null) {
+              const doorW = p.width ?? settings.doorWidth;
+              const swing = p.swing ?? "right";
+              const dir = p.direction ?? "down";
+              const symbolName = swing === "left" ? "door_swing_left" : "door_swing_right";
+              let rotation = 0; let flipX = false; let flipY = false;
+              if (dir === "down") { flipY = true; } else if (dir === "right") { rotation = 90; flipY = true; } else if (dir === "left") { rotation = 90; }
+              const wall = findNearestWall(p.x, p.y, [...elements, ...newElements]);
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: wall.isVertical ? wall.x : p.x, y: wall.isVertical ? p.y : wall.y, width: doorW, height: doorW, symbolName, rotation, color: doorColor, lineWidth: 1, layer: "Doors", flipX, flipY });
+            } else if (cmd.type === "WINDOW" && p.x != null && p.y != null) {
+              const winW = p.width ?? settings.windowWidth;
+              const wall = findNearestWall(p.x, p.y, [...elements, ...newElements]);
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: wall.isVertical ? wall.x : p.x, y: wall.isVertical ? p.y : wall.y, width: winW, height: settings.windowHeight, symbolName: "window", rotation: wall.isVertical ? 90 : 0, color: windowColor, lineWidth: 1, layer: "Windows" });
+            } else if (cmd.type === "FURNITURE" && p.name && p.x != null && p.y != null) {
+              const symDef = SYMBOL_LIBRARY[p.name];
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: p.x, y: p.y, width: p.width ?? symDef?.defaultWidth ?? 600, height: p.height ?? symDef?.defaultHeight ?? 600, symbolName: p.name, rotation: p.rotation ?? 0, color: furnitureColor, lineWidth: 1, layer: "Layer 0" });
+            } else if (cmd.type === "LABEL" && p.x != null && p.y != null && p.text) {
+              newElements.push({ id: crypto.randomUUID(), type: "text", x: p.x, y: p.y, text: p.text, color: annoColor, lineWidth: 1, layer: "Annotations" });
+            } else if (cmd.type === "DIMENSION" && p.x != null && p.y != null && p.x2 != null && p.y2 != null) {
+              newElements.push({ id: crypto.randomUUID(), type: "dimension", x: p.x, y: p.y, x2: p.x2, y2: p.y2, color: "#00ffff", lineWidth: 1, layer: "Annotations" });
+            } else if (cmd.type === "COLUMN" && p.x != null && p.y != null) {
+              const size = p.size ?? 300;
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: p.x, y: p.y, width: size, height: size, symbolName: "column", rotation: 0, color: structColor, lineWidth: 1, layer: "Structure" });
+            } else if (cmd.type === "SLAB" && p.x != null && p.width != null && p.height != null) {
+              newElements.push({ id: crypto.randomUUID(), type: "rect", x: p.x, y: p.y, width: p.width, height: p.height, color: structColor, lineWidth: 1, layer: "Structure" });
+              if (p.name) newElements.push({ id: crypto.randomUUID(), type: "text", x: p.x + p.width / 2, y: p.y + p.height / 2, text: p.name, color: annoColor, lineWidth: 1, layer: "Annotations" });
+            } else if (cmd.type === "STAIRS" && p.x != null) {
+              const symDef = SYMBOL_LIBRARY["stairs"];
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: p.x, y: p.y, width: p.width ?? symDef.defaultWidth, height: p.depth ?? symDef.defaultHeight, symbolName: "stairs", rotation: p.rotation ?? 0, color: structColor, lineWidth: 1, layer: "Structure" });
+            } else if (cmd.type === "SLIDING_DOOR" && p.x != null) {
+              const w = p.width ?? 1800;
+              const wall = findNearestWall(p.x, p.y, [...elements, ...newElements]);
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: wall.x, y: wall.y, width: w, height: 200, symbolName: "sliding_door", rotation: wall.isVertical ? 90 : 0, color: doorColor, lineWidth: 1, layer: "Doors" });
+            } else if (cmd.type === "GARAGE_DOOR" && p.x != null) {
+              const w = p.width ?? 2400;
+              const wall = findNearestWall(p.x, p.y, [...elements, ...newElements]);
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: wall.x, y: wall.y, width: w, height: 200, symbolName: "garage_door", rotation: wall.isVertical ? 90 : 0, color: doorColor, lineWidth: 1, layer: "Doors" });
+            } else if (cmd.type === "DRIVEWAY" && p.x != null && p.width != null && p.height != null) {
+              newElements.push({ id: crypto.randomUUID(), type: "rect", x: p.x, y: p.y, width: p.width, height: p.height, color: "#9e9e9e", lineWidth: 2, layer: "Site" });
+              newElements.push({ id: crypto.randomUUID(), type: "text", x: p.x + p.width / 2, y: p.y + p.height / 2, text: "Driveway", color: annoColor, lineWidth: 1, layer: "Annotations" });
+            } else if (cmd.type === "POOL" && p.x != null) {
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: p.x, y: p.y, width: p.width ?? 4000, height: p.height ?? 8000, symbolName: "pool", rotation: 0, color: "#42a5f5", lineWidth: 1, layer: "Site" });
+            } else if (cmd.type === "GARDEN" && p.x != null && p.width != null && p.height != null) {
+              newElements.push({ id: crypto.randomUUID(), type: "rect", x: p.x, y: p.y, width: p.width, height: p.height, color: "#66bb6a", lineWidth: 2, layer: "Site" });
+              if (p.name) newElements.push({ id: crypto.randomUUID(), type: "text", x: p.x + p.width / 2, y: p.y + p.height / 2, text: p.name, color: "#2e7d32", lineWidth: 1, layer: "Annotations" });
+            } else if (cmd.type === "PARKING" && p.x != null) {
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: p.x, y: p.y, width: p.width ?? 2500, height: p.height ?? 5000, symbolName: "parking", rotation: p.rotation ?? 0, color: siteColor, lineWidth: 1, layer: "Site" });
+            } else if (cmd.type === "SEPTIC_TANK" && p.x != null) {
+              const symDef = SYMBOL_LIBRARY["septic_tank"];
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: p.x, y: p.y, width: p.width ?? symDef.defaultWidth, height: p.height ?? symDef.defaultHeight, symbolName: "septic_tank", rotation: 0, color: siteColor, lineWidth: 1, layer: "Site" });
+            } else if (cmd.type === "VERANDA" && p.x != null && p.width != null && p.depth != null) {
+              newElements.push({ id: crypto.randomUUID(), type: "rect", x: p.x, y: p.y, width: p.width, height: p.depth, color: structColor, lineWidth: 2, layer: "Structure" });
+              const colSize = 300;
+              for (const [cx, cy] of [[p.x, p.y], [p.x + p.width, p.y], [p.x, p.y + p.depth], [p.x + p.width, p.y + p.depth]]) {
+                newElements.push({ id: crypto.randomUUID(), type: "block", x: cx as number, y: cy as number, width: colSize, height: colSize, symbolName: "column", rotation: 0, color: structColor, lineWidth: 1, layer: "Structure" });
+              }
+              newElements.push({ id: crypto.randomUUID(), type: "text", x: p.x + p.width / 2, y: p.y + p.depth / 2, text: "Veranda", color: annoColor, lineWidth: 1, layer: "Annotations" });
+            } else if (cmd.type === "CARPORT" && p.x != null && p.width != null && p.depth != null) {
+              newElements.push({ id: crypto.randomUUID(), type: "rect", x: p.x, y: p.y, width: p.width, height: p.depth, color: structColor, lineWidth: 2, layer: "Structure" });
+              const colSize = 300;
+              for (const [cx, cy] of [[p.x, p.y], [p.x + p.width, p.y], [p.x, p.y + p.depth], [p.x + p.width, p.y + p.depth]]) {
+                newElements.push({ id: crypto.randomUUID(), type: "block", x: cx as number, y: cy as number, width: colSize, height: colSize, symbolName: "column", rotation: 0, color: structColor, lineWidth: 1, layer: "Structure" });
+              }
+              newElements.push({ id: crypto.randomUUID(), type: "text", x: p.x + p.width / 2, y: p.y + p.depth / 2, text: "Carport", color: annoColor, lineWidth: 1, layer: "Annotations" });
+            } else if (cmd.type === "BALCONY" && p.x != null && p.width != null && p.depth != null) {
+              newElements.push({ id: crypto.randomUUID(), type: "rect", x: p.x, y: p.y, width: p.width, height: p.depth, color: structColor, lineWidth: 2, layer: "Structure" });
+              newElements.push({ id: crypto.randomUUID(), type: "text", x: p.x + p.width / 2, y: p.y + p.depth / 2, text: `Balcony${p.floor ? ` (Floor ${p.floor})` : ""}`, color: annoColor, lineWidth: 1, layer: "Annotations" });
+            } else if (cmd.type === "ELEVATOR" && p.x != null) {
+              const symDef = SYMBOL_LIBRARY["elevator"];
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: p.x, y: p.y, width: p.width ?? symDef.defaultWidth, height: p.height ?? symDef.defaultHeight, symbolName: "elevator", rotation: 0, color: structColor, lineWidth: 1, layer: "Structure" });
+            } else if (cmd.type === "ESCALATOR" && p.x != null) {
+              const symDef = SYMBOL_LIBRARY["escalator"];
+              newElements.push({ id: crypto.randomUUID(), type: "block", x: p.x, y: p.y, width: p.width ?? symDef.defaultWidth, height: p.length ?? p.height ?? symDef.defaultHeight, symbolName: "escalator", rotation: p.rotation ?? 0, color: structColor, lineWidth: 1, layer: "Structure" });
+            } else if (cmd.type === "OPENING" && p.x != null) {
+              newElements.push({ id: crypto.randomUUID(), type: "text", x: p.x, y: p.y, text: "OPENING", color: annoColor, lineWidth: 1, layer: "Annotations" });
+            } else if (cmd.type === "BOUNDARY" && Array.isArray(p.points) && p.points.length >= 2) {
+              newElements.push({ id: crypto.randomUUID(), type: "polyline", points: p.points, color: siteColor, lineWidth: 3, layer: "Site" });
+            }
+          }
+
+          const combinedElements = [...elements, ...newElements];
+          const mergedElements = mergeCollinearWalls(combinedElements);
+          setElements(mergedElements);
+          setTimeout(() => zoomToFit(mergedElements), 100);
+          cmdLog(`AI Agent: ${data.summary ?? `${mergedElements.length} elements drawn`}`);
         }
-        setElements(newElements);
-        // Auto-fit view to show the full drawing
-        setTimeout(() => zoomToFit(newElements), 100);
-        cmdLog(
-          `AI Agent: ${data.summary ?? `${newElements.length} elements drawn`}`,
-        );
       } catch (err: any) {
-        const msg =
-          err?.response?.data?.error || err?.message || "Unknown error";
+        const msg = err?.response?.data?.error || err?.message || "Unknown error";
         cmdLog(`AI Agent error: ${msg}`);
       }
       setAgentLoading(false);
@@ -1282,14 +2127,19 @@ export default function ArchitecturalStudioCanvas() {
     [
       elements,
       color,
-      lineWidth,
-      activeLayer,
       layers,
+      settings,
       setElements,
       cmdLog,
       zoomToFit,
     ],
   );
+
+
+
+
+
+
 
   const processCommand = useCallback(
     (input: string) => {
@@ -1405,6 +2255,19 @@ export default function ArchitecturalStudioCanvas() {
         return;
       }
 
+      // FILLET command options while fillet is active: R,<value>
+      if (tool === "fillet") {
+        const rm = raw.match(/^r\s*,\s*([0-9]+(?:\.[0-9]+)?)$/i);
+        if (rm) {
+          const r = Number(rm[1]);
+          if (Number.isFinite(r) && r >= 0) {
+            setFilletRadius(r);
+            cmdLog(`Fillet radius set to ${r.toFixed(0)} mm`);
+            return;
+          }
+        }
+      }
+
       // ── Not drawing — start drawing at coordinate ──────
       const coordMatch = raw.match(
         /^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/,
@@ -1474,16 +2337,36 @@ export default function ArchitecturalStudioCanvas() {
         cmdLog("Redo");
         return;
       }
+      if (cmd === "clear") {
+        setCmdHistory([]);
+        return;
+      }
+      if (cmd === "ortho") {
+        setOrthoMode((v) => {
+          cmdLog(v ? "Ortho OFF" : "Ortho ON");
+          return !v;
+        });
+        return;
+      }
       if (cmd) {
         if (drawing) {
           setDrawing(false);
           setPreviewEl(null);
         }
-        if (cmd === "offset") {
-          setTool("offset");
-          setOffsetDist(null);
-          setOffsetSourceId(null);
-          cmdLog("OFFSET — Enter offset distance:");
+        if (cmd === "door") {
+          setTool("door");
+          setPendingSymbol(doorSwing === "left" ? "door_swing_left" : "door_swing_right");
+          cmdLog("DOOR — Click on a wall to place a door");
+        } else if (cmd === "window") {
+          setTool("window");
+          setPendingSymbol("window");
+          cmdLog("WINDOW — Click on a wall to place a window");
+        } else if (cmd === "stairs") {
+          setTool("stairs");
+          cmdLog("STAIRS — Click to place a staircase");
+        } else if (cmd === "furniture") {
+          setTool("furniture");
+          cmdLog("FURNITURE — Select an item from the palette, then click to place");
         } else {
           setTool(cmd as Tool);
           cmdLog(
@@ -1504,7 +2387,7 @@ export default function ArchitecturalStudioCanvas() {
       }
 
       cmdLog(
-        `Unknown command: "${raw}" — type L, PL, REC, C, DIM, T, E, P, S, U, AI, or enter length / length<angle / x,y`,
+        `Unknown command: "${raw}" — type W, D, WIN, R, ST, FUR, S, P, E, AI, or enter length / length<angle / x,y`,
       );
     },
     [
@@ -1525,6 +2408,7 @@ export default function ArchitecturalStudioCanvas() {
       applyDrawPoint,
       agentLoading,
       executeAgentDraw,
+      filletRadius,
     ],
   );
 
@@ -1543,6 +2427,17 @@ export default function ArchitecturalStudioCanvas() {
         cmdLog("Redo");
         return;
       }
+      if (cmd.action === "clear") {
+        setCmdHistory([]);
+        return;
+      }
+      if (cmd.action === "ortho") {
+        setOrthoMode((v) => {
+          cmdLog(v ? "Ortho OFF" : "Ortho ON");
+          return !v;
+        });
+        return;
+      }
       if (drawing) {
         setDrawing(false);
         setPreviewEl(null);
@@ -1555,6 +2450,8 @@ export default function ArchitecturalStudioCanvas() {
 
   function getToolPrompt(t: Tool): string {
     switch (t) {
+      case "wall":
+        return "Click to start wall. Click points to continue. Enter/dbl-click to finish";
       case "line":
         return "Specify first point (click or x,y)";
       case "polyline":
@@ -1581,6 +2478,32 @@ export default function ArchitecturalStudioCanvas() {
           : offsetSourceId
             ? "Click side to offset to"
             : "Click a line or polyline to offset";
+      case "move":
+        return moveBasePoint ? "Specify destination point" : "Specify base point";
+      case "copy":
+        return moveBasePoint ? "Specify destination point for copy" : "Specify base point";
+      case "rotate":
+        return rotateBasePoint ? "Specify rotation angle" : "Specify base point";
+      case "trim":
+        return "Click segment to remove between intersections";
+      case "extend":
+        return "Click near endpoint to extend to nearest boundary";
+      case "mirror":
+        return mirrorP1 ? "Specify second point of mirror line" : "Specify first point of mirror line";
+      case "fillet":
+        return filletFirstLineId
+          ? "Select second line for fillet"
+          : `Select first line (radius ${filletRadius.toFixed(0)} mm; use R,<value>)`;
+      case "door":
+        return "Click on a wall to place a door";
+      case "window":
+        return "Click on a wall to place a window";
+      case "stairs":
+        return "Click to place a staircase";
+      case "furniture":
+        return pendingSymbol
+          ? `Click to place ${SYMBOL_LIBRARY[pendingSymbol]?.label ?? pendingSymbol}`
+          : "Select an item from the furniture palette";
       default:
         return "";
     }
@@ -1657,12 +2580,12 @@ export default function ArchitecturalStudioCanvas() {
         slen2 === 0
           ? 0
           : Math.max(
-              0,
-              Math.min(
-                1,
-                ((sideX - pts[i].x) * sdx + (sideY - pts[i].y) * sdy) / slen2,
-              ),
-            );
+            0,
+            Math.min(
+              1,
+              ((sideX - pts[i].x) * sdx + (sideY - pts[i].y) * sdy) / slen2,
+            ),
+          );
       const cx = pts[i].x + t * sdx,
         cy = pts[i].y + t * sdy;
       const d = Math.hypot(sideX - cx, sideY - cy);
@@ -1740,36 +2663,105 @@ export default function ArchitecturalStudioCanvas() {
     const activeHidden = new Set(
       layers.filter((l) => !l.visible).map((l) => l.name),
     );
+
+    // Find all doors and windows to cut gaps for
+    const holeBlocks = elements.filter(el => el.type === "block" && /door|window/i.test(el.symbolName));
+
     const groups: Record<string, any[]> = {}; // key: layer
     const layerColors: Record<string, string> = {};
+
+    const getLinePolysWithHoles = (x1: number, y1: number, x2: number, y2: number, lineWidth: number) => {
+      let splitSpans: [number, number][] = [];
+      const len = Math.hypot(x2 - x1, y2 - y1);
+      if (len < 1) return [];
+
+      for (const b of holeBlocks) {
+        const symDef = SYMBOL_LIBRARY[b.symbolName];
+        if (!symDef) continue;
+        const ax = symDef.anchorX ?? 0.5;
+        const flipX = b.flipX ? -1 : 1;
+
+        const localX1 = -b.width * ax;
+        const localX2 = b.width * (1 - ax);
+        const rotRad = ((b.rotation || 0) * Math.PI) / 180;
+
+        const p1x = b.x + (localX1 * flipX) * Math.cos(rotRad);
+        const p1y = b.y + (localX1 * flipX) * Math.sin(rotRad);
+        const p2x = b.x + (localX2 * flipX) * Math.cos(rotRad);
+        const p2y = b.y + (localX2 * flipX) * Math.sin(rotRad);
+
+        const t1 = ((p1x - x1) * (x2 - x1) + (p1y - y1) * (y2 - y1)) / (len * len);
+        const t2 = ((p2x - x1) * (x2 - x1) + (p2y - y1) * (y2 - y1)) / (len * len);
+
+        const centerT = ((b.x - x1) * (x2 - x1) + (b.y - y1) * (y2 - y1)) / (len * len);
+        const px = x1 + centerT * (x2 - x1);
+        const py = y1 + centerT * (y2 - y1);
+        const dist = Math.hypot(b.x - px, b.y - py);
+
+        if (dist < 300) {
+          splitSpans.push([Math.max(0, Math.min(t1, t2)), Math.min(1, Math.max(t1, t2))]);
+        }
+      }
+
+      if (splitSpans.length === 0) {
+        return [thickenLine(x1, y1, x2, y2, lineWidth)];
+      }
+
+      splitSpans.sort((a, b) => a[0] - b[0]);
+      let merged: [number, number][] = [];
+      for (const sp of splitSpans) {
+        if (!merged.length) merged.push(sp);
+        else {
+          const last = merged[merged.length - 1];
+          if (sp[0] <= last[1]) last[1] = Math.max(last[1], sp[1]);
+          else merged.push(sp);
+        }
+      }
+
+      const outPolys = [];
+      let tCurr = 0;
+      for (const sp of merged) {
+        if (sp[0] > tCurr) {
+          outPolys.push(thickenLine(
+            x1 + (x2 - x1) * tCurr, y1 + (y2 - y1) * tCurr,
+            x1 + (x2 - x1) * sp[0], y1 + (y2 - y1) * sp[0],
+            lineWidth
+          ));
+        }
+        tCurr = Math.max(tCurr, sp[1]);
+      }
+      if (tCurr < 1) {
+        outPolys.push(thickenLine(
+          x1 + (x2 - x1) * tCurr, y1 + (y2 - y1) * tCurr,
+          x2, y2, lineWidth
+        ));
+      }
+      return outPolys;
+    };
 
     for (const el of elements) {
       if (activeHidden.has(el.layer)) continue;
       if (
         (el.type === "line" || el.type === "polyline") &&
-        el.lineWidth >= 10
+        el.lineWidth >= settings.wallThickness
       ) {
         const key = el.layer;
         if (!groups[key]) groups[key] = [];
         layerColors[key] = el.color;
 
-        const polys = [];
         if (el.type === "line") {
-          polys.push(thickenLine(el.x, el.y, el.x2!, el.y2!, el.lineWidth));
+          groups[key].push(...getLinePolysWithHoles(el.x, el.y, el.x2!, el.y2!, el.lineWidth));
         } else if (el.type === "polyline") {
           for (let i = 0; i < el.points.length - 1; i++) {
-            polys.push(
-              thickenLine(
-                el.points[i].x,
-                el.points[i].y,
-                el.points[i + 1].x,
-                el.points[i + 1].y,
-                el.lineWidth,
-              ),
+            groups[key].push(
+              ...getLinePolysWithHoles(
+                el.points[i].x, el.points[i].y,
+                el.points[i + 1].x, el.points[i + 1].y,
+                el.lineWidth
+              )
             );
           }
         }
-        groups[key].push(...polys);
       }
     }
 
@@ -1785,7 +2777,7 @@ export default function ArchitecturalStudioCanvas() {
       }
     }
     return results;
-  }, [elements, layers, settings.mergeWalls]);
+  }, [elements, layers, settings.mergeWalls, settings.wallThickness]);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -1798,25 +2790,39 @@ export default function ArchitecturalStudioCanvas() {
     const hiddenLayers = new Set(
       layers.filter((l) => !l.visible).map((l) => l.name),
     );
+    const layerByName = new Map(layers.map((l) => [l.name, l]));
 
     // Draw standard elements
+    const allBlocks: BlockInfo[] = [];
+    for (const el of elements) {
+      if (el.type === "block") {
+        allBlocks.push({
+          x: el.x, y: el.y, width: el.width, height: el.height, rot: el.rotation ?? 0, sym: el.symbolName || ""
+        });
+      }
+    }
+
     for (const el of elements) {
       if (hiddenLayers.has(el.layer)) continue;
       // If we are merging walls, skip standard drawing for thick lines (they will be drawn in the union pass)
       if (
         settings.mergeWalls &&
         (el.type === "line" || el.type === "polyline") &&
-        el.lineWidth >= 10
+        el.lineWidth >= settings.wallThickness
       ) {
         continue;
       }
+
+      const isSelected = el.id === selected || selectedIds.has(el.id);
       drawElement(
         ctx,
         el,
         pan,
         zoom,
-        el.id === selected || selectedIds.has(el.id),
+        isSelected,
         settings,
+        layerByName.get(el.layer)?.lineType ?? "solid",
+        allBlocks
       );
     }
 
@@ -1843,7 +2849,16 @@ export default function ArchitecturalStudioCanvas() {
     }
 
     if (previewEl) {
-      drawElement(ctx, previewEl, pan, zoom, false, settings);
+      drawElement(
+        ctx,
+        previewEl,
+        pan,
+        zoom,
+        false,
+        settings,
+        layerByName.get(previewEl.layer)?.lineType ?? "solid",
+        allBlocks
+      );
 
       ctx.fillStyle = COLORS.cyan;
       ctx.font = "12px Courier New";
@@ -1896,26 +2911,112 @@ export default function ArchitecturalStudioCanvas() {
       }
     }
 
+    // ── Draw OSNAP indicator per snap type ─────────────────
     if (snapPoint) {
-      ctx.strokeStyle = COLORS.magenta;
+      const spx = snapPoint.x * zoom + pan.x;
+      const spy = snapPoint.y * zoom + pan.y;
+      const sz = 6;
       ctx.lineWidth = 2;
-      ctx.strokeRect(
-        snapPoint.x * zoom + pan.x - 5,
-        snapPoint.y * zoom + pan.y - 5,
-        10,
-        10,
-      );
+
+      switch (snapPoint.type) {
+        case "endpoint": // Square
+          ctx.strokeStyle = "#4caf50";
+          ctx.strokeRect(spx - sz, spy - sz, sz * 2, sz * 2);
+          break;
+        case "midpoint": // Triangle
+          ctx.strokeStyle = "#00bcd4";
+          ctx.beginPath();
+          ctx.moveTo(spx, spy - sz);
+          ctx.lineTo(spx + sz, spy + sz);
+          ctx.lineTo(spx - sz, spy + sz);
+          ctx.closePath();
+          ctx.stroke();
+          break;
+        case "center": // Circle
+          ctx.strokeStyle = "#ffeb3b";
+          ctx.beginPath();
+          ctx.arc(spx, spy, sz, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        case "intersection": // X cross
+          ctx.strokeStyle = "#f44336";
+          ctx.beginPath();
+          ctx.moveTo(spx - sz, spy - sz);
+          ctx.lineTo(spx + sz, spy + sz);
+          ctx.moveTo(spx + sz, spy - sz);
+          ctx.lineTo(spx - sz, spy + sz);
+          ctx.stroke();
+          break;
+        case "perpendicular": // ⊥ symbol
+          ctx.strokeStyle = "#e91e63";
+          ctx.beginPath();
+          ctx.moveTo(spx - sz, spy + sz);
+          ctx.lineTo(spx + sz, spy + sz);
+          ctx.moveTo(spx, spy - sz);
+          ctx.lineTo(spx, spy + sz);
+          ctx.stroke();
+          break;
+        case "quadrant": // Diamond
+          ctx.strokeStyle = "#ff9800";
+          ctx.beginPath();
+          ctx.moveTo(spx, spy - sz);
+          ctx.lineTo(spx + sz, spy);
+          ctx.lineTo(spx, spy + sz);
+          ctx.lineTo(spx - sz, spy);
+          ctx.closePath();
+          ctx.stroke();
+          break;
+        case "nearest": // Hourglass
+          ctx.strokeStyle = "#9c27b0";
+          ctx.beginPath();
+          ctx.moveTo(spx - sz, spy - sz);
+          ctx.lineTo(spx + sz, spy + sz);
+          ctx.lineTo(spx - sz, spy + sz);
+          ctx.lineTo(spx + sz, spy - sz);
+          ctx.closePath();
+          ctx.stroke();
+          break;
+      }
+
+      // Snap type label
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.font = "bold 9px 'Roboto Mono', monospace";
+      ctx.fillText(snapPoint.type.toUpperCase(), spx + sz + 4, spy - 2);
     }
 
-    // Coordinates readout
+    // ── Ortho tracking line ──────────────────────────────────
+    if (orthoMode && drawing) {
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = COLORS.cyan + "66";
+      ctx.lineWidth = 1;
+      const sx = startPos.x * zoom + pan.x;
+      const sy = startPos.y * zoom + pan.y;
+      // Horizontal guide
+      ctx.beginPath();
+      ctx.moveTo(0, sy);
+      ctx.lineTo(canvas.width, sy);
+      ctx.stroke();
+      // Vertical guide
+      ctx.beginPath();
+      ctx.moveTo(sx, 0);
+      ctx.lineTo(sx, canvas.height);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Coordinates readout + ORTHO/OSNAP status
     ctx.fillStyle = COLORS.muted;
-    ctx.font = "11px Courier New";
+    ctx.font = "11px 'Roboto Mono', monospace";
+    const statusFlags = [
+      orthoMode ? "ORTHO" : null,
+      "OSNAP",
+    ].filter(Boolean).join(" | ");
     ctx.fillText(
-      `X: ${snapToGrid(cursor.x).toFixed(0)} mm  Y: ${snapToGrid(cursor.y).toFixed(0)} mm  Zoom: ${(zoom * 100).toFixed(0)}%`,
+      `X: ${snapToGrid(cursor.x).toFixed(0)} mm  Y: ${snapToGrid(cursor.y).toFixed(0)} mm  Zoom: ${(zoom * 100).toFixed(0)}%  [${statusFlags}]`,
       12,
       canvas.height - 10,
     );
-  }, [elements, pan, zoom, selected, previewEl, cursor, layers]);
+  }, [elements, pan, zoom, selected, previewEl, cursor, layers, snapPoint, orthoMode, drawing, startPos]);
 
   useEffect(() => {
     redraw();
@@ -1954,52 +3055,164 @@ export default function ArchitecturalStudioCanvas() {
     return () => canvas.removeEventListener("wheel", handleWheel);
   }, [handleWheel]);
 
-  const getSnapPoint = (wx: number, wy: number) => {
-    if (
-      tool === "select" ||
-      tool === "eraser" ||
-      tool === "pan" ||
-      tool === "text"
-    )
-      return null;
-    let bestDist = 15 / zoom;
-    let bestPt: { x: number; y: number } | null = null;
-    const check = (x: number, y: number) => {
-      const d = Math.hypot(x - wx, y - wy);
-      if (d < bestDist) {
-        bestDist = d;
-        bestPt = { x, y };
-      }
-    };
-    const hiddenLayers = new Set(
-      layers.filter((l) => !l.visible).map((l) => l.name),
-    );
+  type SnapType = "endpoint" | "midpoint" | "center" | "intersection" | "perpendicular" | "nearest" | "quadrant";
+  type SnapResult = { x: number; y: number; type: SnapType } | null;
+
+  // ── Geometry helpers for advanced snaps ──────────────────
+  const lineSegments = useCallback((): { x1: number; y1: number; x2: number; y2: number }[] => {
+    const segs: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    const hiddenLayers = new Set(layers.filter((l) => !l.visible).map((l) => l.name));
     for (const el of elements) {
       if (hiddenLayers.has(el.layer)) continue;
       if (el.type === "line" || el.type === "dimension") {
-        check(el.x, el.y);
-        check(el.x2, el.y2);
-        check((el.x + el.x2) / 2, (el.y + el.y2) / 2);
-      } else if (el.type === "rect") {
-        check(el.x, el.y);
-        check(el.x + el.width, el.y);
-        check(el.x, el.y + el.height);
-        check(el.x + el.width, el.y + el.height);
-      } else if (el.type === "circle") {
-        check(el.x, el.y);
+        segs.push({ x1: el.x, y1: el.y, x2: el.x2, y2: el.y2 });
       } else if (el.type === "polyline") {
-        for (let i = 0; i < el.points.length; i++) {
-          check(el.points[i].x, el.points[i].y);
-          if (i < el.points.length - 1) {
-            check(
-              (el.points[i].x + el.points[i + 1].x) / 2,
-              (el.points[i].y + el.points[i + 1].y) / 2,
-            );
-          }
+        for (let i = 0; i < el.points.length - 1; i++) {
+          segs.push({ x1: el.points[i].x, y1: el.points[i].y, x2: el.points[i + 1].x, y2: el.points[i + 1].y });
+        }
+      } else if (el.type === "rect") {
+        const corners = [
+          { x: el.x, y: el.y },
+          { x: el.x + el.width, y: el.y },
+          { x: el.x + el.width, y: el.y + el.height },
+          { x: el.x, y: el.y + el.height },
+        ];
+        for (let i = 0; i < 4; i++) {
+          segs.push({ x1: corners[i].x, y1: corners[i].y, x2: corners[(i + 1) % 4].x, y2: corners[(i + 1) % 4].y });
         }
       }
     }
-    return bestPt;
+    return segs;
+  }, [elements, layers]);
+
+  const segIntersection = (
+    ax1: number, ay1: number, ax2: number, ay2: number,
+    bx1: number, by1: number, bx2: number, by2: number,
+  ): { x: number; y: number } | null => {
+    const dx1 = ax2 - ax1, dy1 = ay2 - ay1;
+    const dx2 = bx2 - bx1, dy2 = by2 - by1;
+    const denom = dx1 * dy2 - dy1 * dx2;
+    if (Math.abs(denom) < 1e-10) return null;
+    const t = ((bx1 - ax1) * dy2 - (by1 - ay1) * dx2) / denom;
+    const u = ((bx1 - ax1) * dy1 - (by1 - ay1) * dx1) / denom;
+    if (t >= -0.001 && t <= 1.001 && u >= -0.001 && u <= 1.001) {
+      return { x: ax1 + t * dx1, y: ay1 + t * dy1 };
+    }
+    return null;
+  };
+
+  const nearestOnSeg = (
+    px: number, py: number,
+    ax: number, ay: number, bx: number, by: number,
+  ) => {
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    if (len2 < 1e-10) return { x: ax, y: ay };
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+    return { x: ax + t * dx, y: ay + t * dy };
+  };
+
+  const getSnapPoint = (wx: number, wy: number): SnapResult => {
+    if (tool === "select" || tool === "eraser" || tool === "pan" || tool === "text") return null;
+
+    const threshold = 15 / zoom;
+    let bestDist = threshold;
+    let bestSnap: SnapResult = null;
+
+    const trySnap = (x: number, y: number, type: SnapType, priority = 0) => {
+      const d = Math.hypot(x - wx, y - wy);
+      // Higher priority snaps (endpoint > midpoint > intersection > perpendicular > nearest)
+      const effectiveDist = d - priority * 0.01;
+      if (d < threshold && effectiveDist < bestDist) {
+        bestDist = effectiveDist;
+        bestSnap = { x, y, type };
+      }
+    };
+
+    const hiddenLayers = new Set(layers.filter((l) => !l.visible).map((l) => l.name));
+
+    // ── Pass 1: Endpoints, midpoints, centers, quadrants ──
+    for (const el of elements) {
+      if (hiddenLayers.has(el.layer)) continue;
+
+      if (el.type === "line" || el.type === "dimension") {
+        trySnap(el.x, el.y, "endpoint", 3);
+        trySnap(el.x2, el.y2, "endpoint", 3);
+        trySnap((el.x + el.x2) / 2, (el.y + el.y2) / 2, "midpoint", 2);
+      } else if (el.type === "rect") {
+        // 4 corners as endpoints
+        trySnap(el.x, el.y, "endpoint", 3);
+        trySnap(el.x + el.width, el.y, "endpoint", 3);
+        trySnap(el.x, el.y + el.height, "endpoint", 3);
+        trySnap(el.x + el.width, el.y + el.height, "endpoint", 3);
+        // 4 edge midpoints
+        trySnap(el.x + el.width / 2, el.y, "midpoint", 2);
+        trySnap(el.x + el.width / 2, el.y + el.height, "midpoint", 2);
+        trySnap(el.x, el.y + el.height / 2, "midpoint", 2);
+        trySnap(el.x + el.width, el.y + el.height / 2, "midpoint", 2);
+        // Center
+        trySnap(el.x + el.width / 2, el.y + el.height / 2, "center", 2);
+      } else if (el.type === "circle") {
+        // Center
+        trySnap(el.x, el.y, "center", 3);
+        // Quadrant points (N, S, E, W)
+        trySnap(el.x + el.radius, el.y, "quadrant", 2);
+        trySnap(el.x - el.radius, el.y, "quadrant", 2);
+        trySnap(el.x, el.y + el.radius, "quadrant", 2);
+        trySnap(el.x, el.y - el.radius, "quadrant", 2);
+      } else if (el.type === "polyline") {
+        for (let i = 0; i < el.points.length; i++) {
+          trySnap(el.points[i].x, el.points[i].y, "endpoint", 3);
+          if (i < el.points.length - 1) {
+            trySnap(
+              (el.points[i].x + el.points[i + 1].x) / 2,
+              (el.points[i].y + el.points[i + 1].y) / 2,
+              "midpoint", 2,
+            );
+          }
+        }
+      } else if (el.type === "block") {
+        trySnap(el.x, el.y, "endpoint", 3);
+        trySnap(el.x + el.width, el.y + el.height, "endpoint", 3);
+        trySnap(el.x + el.width / 2, el.y + el.height / 2, "center", 2);
+      }
+    }
+
+    // ── Pass 2: Intersections ──────────────────────────────
+    const segs = lineSegments();
+    for (let i = 0; i < segs.length; i++) {
+      for (let j = i + 1; j < segs.length; j++) {
+        const pt = segIntersection(
+          segs[i].x1, segs[i].y1, segs[i].x2, segs[i].y2,
+          segs[j].x1, segs[j].y1, segs[j].x2, segs[j].y2,
+        );
+        if (pt) trySnap(pt.x, pt.y, "intersection", 2.5);
+      }
+    }
+
+    // ── Pass 3: Perpendicular (if currently drawing) ──────
+    if (drawing && (tool === "line" || tool === "wall" || tool === "polyline" || tool === "dimension")) {
+      for (const seg of segs) {
+        const perp = nearestOnSeg(wx, wy, seg.x1, seg.y1, seg.x2, seg.y2);
+        // Only snap perpendicular if it's actually perpendicular (not an endpoint)
+        const dToEnd1 = Math.hypot(perp.x - seg.x1, perp.y - seg.y1);
+        const dToEnd2 = Math.hypot(perp.x - seg.x2, perp.y - seg.y2);
+        const segLen = Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1);
+        if (dToEnd1 > segLen * 0.05 && dToEnd2 > segLen * 0.05) {
+          trySnap(perp.x, perp.y, "perpendicular", 1);
+        }
+      }
+    }
+
+    // ── Pass 4: Nearest on line (lowest priority) ─────────
+    if (!bestSnap) {
+      for (const seg of segs) {
+        const near = nearestOnSeg(wx, wy, seg.x1, seg.y1, seg.x2, seg.y2);
+        trySnap(near.x, near.y, "nearest", 0);
+      }
+    }
+
+    return bestSnap;
   };
 
   const getPos = (e: React.MouseEvent | MouseEvent) => {
@@ -2011,7 +3224,18 @@ export default function ArchitecturalStudioCanvas() {
     let finalX = snapToGrid(w.x);
     let finalY = snapToGrid(w.y);
 
-    const snapPt = getSnapPoint(w.x, w.y);
+    // Ortho mode: constrain to 0°/90° from the start position when drawing
+    if (orthoMode && drawing) {
+      const dx = finalX - startPos.x;
+      const dy = finalY - startPos.y;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        finalY = startPos.y; // horizontal lock
+      } else {
+        finalX = startPos.x; // vertical lock
+      }
+    }
+
+    const snapPt = getSnapPoint(finalX, finalY);
     if (snapPt) {
       finalX = snapPt.x;
       finalY = snapPt.y;
@@ -2074,6 +3298,390 @@ export default function ArchitecturalStudioCanvas() {
         return;
       }
     }
+    // ── MOVE tool ───────────────────────────────────────────
+    if (tool === "move") {
+      if (selectedIds.size === 0) {
+        cmdLog("Select elements first, then use MOVE");
+        setTool("select");
+        return;
+      }
+      if (!moveBasePoint) {
+        setMoveBasePoint({ x: wx, y: wy });
+        cmdLog("Base point set — click destination point");
+        return;
+      }
+      // Apply displacement
+      const dx = wx - moveBasePoint.x;
+      const dy = wy - moveBasePoint.y;
+      setElements((prev) =>
+        prev.map((el) => {
+          if (!selectedIds.has(el.id)) return el;
+          if (el.type === "line" || el.type === "dimension") return { ...el, x: el.x + dx, y: el.y + dy, x2: el.x2 + dx, y2: el.y2 + dy };
+          if (el.type === "polyline") return { ...el, points: el.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
+          return { ...el, x: el.x + dx, y: el.y + dy };
+        }),
+      );
+      cmdLog(`Moved ${selectedIds.size} element(s) by (${dx.toFixed(0)}, ${dy.toFixed(0)})`);
+      setMoveBasePoint(null);
+      setTool("select");
+      return;
+    }
+
+    // ── COPY tool ─────────────────────────────────────────
+    if (tool === "copy") {
+      if (selectedIds.size === 0) {
+        cmdLog("Select elements first, then use COPY");
+        setTool("select");
+        return;
+      }
+      if (!moveBasePoint) {
+        setMoveBasePoint({ x: wx, y: wy });
+        cmdLog("Base point set — click destination for copy");
+        return;
+      }
+      const dx = wx - moveBasePoint.x;
+      const dy = wy - moveBasePoint.y;
+      const copies = elements
+        .filter((el) => selectedIds.has(el.id))
+        .map((el) => {
+          const newId = crypto.randomUUID();
+          if (el.type === "line" || el.type === "dimension") return { ...el, id: newId, x: el.x + dx, y: el.y + dy, x2: el.x2 + dx, y2: el.y2 + dy };
+          if (el.type === "polyline") return { ...el, id: newId, points: el.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
+          return { ...el, id: newId, x: el.x + dx, y: el.y + dy };
+        });
+      setElements((prev) => [...prev, ...copies]);
+      cmdLog(`Copied ${copies.length} element(s) — click another destination or Escape`);
+      // Keep base point so user can place multiple copies
+      return;
+    }
+
+    // ── ROTATE tool ───────────────────────────────────────
+    if (tool === "rotate") {
+      if (selectedIds.size === 0) {
+        cmdLog("Select elements first, then use ROTATE");
+        setTool("select");
+        return;
+      }
+      if (!rotateBasePoint) {
+        setRotateBasePoint({ x: wx, y: wy });
+        cmdLog("Base point set — click to set rotation angle");
+        return;
+      }
+      // Compute angle from base point to click
+      const angle = Math.atan2(wy - rotateBasePoint.y, wx - rotateBasePoint.x);
+      const refAngle = rotateRefAngle ?? 0;
+      const deltaAngle = angle - refAngle;
+      const cosA = Math.cos(deltaAngle);
+      const sinA = Math.sin(deltaAngle);
+      const bp = rotateBasePoint;
+      const rotPt = (px: number, py: number) => ({
+        x: bp.x + (px - bp.x) * cosA - (py - bp.y) * sinA,
+        y: bp.y + (px - bp.x) * sinA + (py - bp.y) * cosA,
+      });
+      setElements((prev) =>
+        prev.map((el) => {
+          if (!selectedIds.has(el.id)) return el;
+          if (el.type === "line" || el.type === "dimension") {
+            const p1 = rotPt(el.x, el.y);
+            const p2 = rotPt(el.x2, el.y2);
+            return { ...el, x: p1.x, y: p1.y, x2: p2.x, y2: p2.y };
+          }
+          if (el.type === "polyline") {
+            return { ...el, points: el.points.map((p) => rotPt(p.x, p.y)) };
+          }
+          if (el.type === "block") {
+            const rp = rotPt(el.x, el.y);
+            return { ...el, x: rp.x, y: rp.y, rotation: (el.rotation || 0) + (deltaAngle * 180) / Math.PI };
+          }
+          const rp = rotPt(el.x, el.y);
+          return { ...el, x: rp.x, y: rp.y };
+        }),
+      );
+      cmdLog(`Rotated ${selectedIds.size} element(s) by ${((deltaAngle * 180) / Math.PI).toFixed(1)}°`);
+      setRotateBasePoint(null);
+      setRotateRefAngle(null);
+      setTool("select");
+      return;
+    }
+
+    // ── MIRROR tool ───────────────────────────────────────
+    if (tool === "mirror") {
+      if (selectedIds.size === 0) {
+        cmdLog("Select elements first, then use MIRROR");
+        setTool("select");
+        return;
+      }
+      if (!mirrorP1) {
+        setMirrorP1({ x: wx, y: wy });
+        cmdLog("First point of mirror line — click second point");
+        return;
+      }
+      // Mirror across the line from mirrorP1 to (wx, wy)
+      const mx1 = mirrorP1.x, my1 = mirrorP1.y;
+      const mx2 = wx, my2 = wy;
+      const mdx = mx2 - mx1, mdy = my2 - my1;
+      const mlen2 = mdx * mdx + mdy * mdy;
+      if (mlen2 < 1) { cmdLog("Mirror line too short"); return; }
+      const mirPt = (px: number, py: number) => {
+        const t = ((px - mx1) * mdx + (py - my1) * mdy) / mlen2;
+        const projX = mx1 + t * mdx;
+        const projY = my1 + t * mdy;
+        return { x: 2 * projX - px, y: 2 * projY - py };
+      };
+      const copies = elements
+        .filter((el) => selectedIds.has(el.id))
+        .map((el) => {
+          const newId = crypto.randomUUID();
+          if (el.type === "line" || el.type === "dimension") {
+            const p1 = mirPt(el.x, el.y);
+            const p2 = mirPt(el.x2, el.y2);
+            return { ...el, id: newId, x: p1.x, y: p1.y, x2: p2.x, y2: p2.y };
+          }
+          if (el.type === "polyline") {
+            return { ...el, id: newId, points: el.points.map((p) => mirPt(p.x, p.y)) };
+          }
+          const rp = mirPt(el.x, el.y);
+          return { ...el, id: newId, x: rp.x, y: rp.y };
+        });
+      setElements((prev) => [...prev, ...copies]);
+      cmdLog(`Mirrored ${copies.length} element(s)`);
+      setMirrorP1(null);
+      setTool("select");
+      return;
+    }
+
+    // ── TRIM tool ─────────────────────────────────────────
+    if (tool === "trim") {
+      // Click on a line segment to trim it at the nearest intersection
+      const hiddenLayers = new Set(layers.filter((l) => !l.visible).map((l) => l.name));
+      for (let i = elements.length - 1; i >= 0; i--) {
+        const el = elements[i];
+        if (hiddenLayers.has(el.layer)) continue;
+        if ((el.type === "line") && hitTest(el, wx, wy)) {
+          // Find all intersection points with other lines
+          const ints: { x: number; y: number; t: number }[] = [];
+          for (const other of elements) {
+            if (other.id === el.id || hiddenLayers.has(other.layer)) continue;
+            const otherSegs: { x1: number; y1: number; x2: number; y2: number }[] = [];
+            if (other.type === "line" || other.type === "dimension") otherSegs.push({ x1: other.x, y1: other.y, x2: other.x2, y2: other.y2 });
+            else if (other.type === "polyline") {
+              for (let j = 0; j < other.points.length - 1; j++) otherSegs.push({ x1: other.points[j].x, y1: other.points[j].y, x2: other.points[j + 1].x, y2: other.points[j + 1].y });
+            } else if (other.type === "rect") {
+              const c = [{ x: other.x, y: other.y }, { x: other.x + other.width, y: other.y }, { x: other.x + other.width, y: other.y + other.height }, { x: other.x, y: other.y + other.height }];
+              for (let j = 0; j < 4; j++) otherSegs.push({ x1: c[j].x, y1: c[j].y, x2: c[(j + 1) % 4].x, y2: c[(j + 1) % 4].y });
+            }
+            for (const seg of otherSegs) {
+              const pt = segIntersection(el.x, el.y, el.x2, el.y2, seg.x1, seg.y1, seg.x2, seg.y2);
+              if (pt) {
+                const dx = el.x2 - el.x, dy = el.y2 - el.y;
+                const t = Math.abs(dx) > Math.abs(dy) ? (pt.x - el.x) / dx : (pt.y - el.y) / dy;
+                ints.push({ ...pt, t });
+              }
+            }
+          }
+          if (ints.length === 0) { cmdLog("No intersections found on this line"); return; }
+          ints.sort((a, b) => a.t - b.t);
+          // Find where the click is on the line (t parameter)
+          const ldx = el.x2 - el.x, ldy = el.y2 - el.y;
+          const clickT = Math.abs(ldx) > Math.abs(ldy) ? (wx - el.x) / ldx : (wy - el.y) / ldy;
+          // Find the two bounding intersections around the click
+          let lo = 0, hi = 1;
+          for (const ip of ints) {
+            if (ip.t < clickT && ip.t > lo) lo = ip.t;
+            if (ip.t > clickT && ip.t < hi) hi = ip.t;
+          }
+          // Remove the segment between lo and hi (trim the clicked portion)
+          const newEls: DrawingElement[] = [];
+          if (lo > 0.001) {
+            newEls.push({ ...el, id: crypto.randomUUID(), x2: el.x + ldx * lo, y2: el.y + ldy * lo });
+          }
+          if (hi < 0.999) {
+            newEls.push({ ...el, id: crypto.randomUUID(), x: el.x + ldx * hi, y: el.y + ldy * hi });
+          }
+          setElements((prev) => [...prev.filter((e) => e.id !== el.id), ...newEls]);
+          cmdLog("Trimmed — click another line or Escape");
+          return;
+        }
+      }
+      cmdLog("No line found. Click on a line to trim it.");
+      return;
+    }
+
+    // ── EXTEND tool ───────────────────────────────────────
+    if (tool === "extend") {
+      const hiddenLayers = new Set(layers.filter((l) => !l.visible).map((l) => l.name));
+      for (let i = elements.length - 1; i >= 0; i--) {
+        const el = elements[i];
+        if (hiddenLayers.has(el.layer)) continue;
+        if (el.type === "line" && hitTest(el, wx, wy)) {
+          // Determine which endpoint is closer to click — extend that end
+          const d1 = Math.hypot(wx - el.x, wy - el.y);
+          const d2 = Math.hypot(wx - el.x2, wy - el.y2);
+          const extendStart = d1 < d2;
+          // Find nearest intersection along the line's direction with all other segments
+          const segs = lineSegments().filter((s) => {
+            const isSelf = s.x1 === el.x && s.y1 === el.y && s.x2 === el.x2 && s.y2 === el.y2;
+            return !isSelf;
+          });
+          let bestDist = Infinity;
+          let bestPt: { x: number; y: number } | null = null;
+          const ldx = el.x2 - el.x, ldy = el.y2 - el.y;
+          for (const seg of segs) {
+            // Extend the line to infinity in the direction from the extending end
+            const bigT = 100;
+            let ax: number, ay: number, bx: number, by: number;
+            if (extendStart) {
+              ax = el.x - ldx * bigT; ay = el.y - ldy * bigT; bx = el.x; by = el.y;
+            } else {
+              ax = el.x2; ay = el.y2; bx = el.x2 + ldx * bigT; by = el.y2 + ldy * bigT;
+            }
+            const pt = segIntersection(ax, ay, bx, by, seg.x1, seg.y1, seg.x2, seg.y2);
+            if (pt) {
+              const d = extendStart ? Math.hypot(pt.x - el.x, pt.y - el.y) : Math.hypot(pt.x - el.x2, pt.y - el.y2);
+              if (d < bestDist) { bestDist = d; bestPt = pt; }
+            }
+          }
+          if (bestPt) {
+            setElements((prev) =>
+              prev.map((e) => {
+                if (e.id !== el.id) return e;
+                if (extendStart) return { ...e, x: bestPt!.x, y: bestPt!.y };
+                return { ...e, x2: bestPt!.x, y2: bestPt!.y };
+              }),
+            );
+            cmdLog("Extended — click another line or Escape");
+          } else {
+            cmdLog("No boundary found to extend to");
+          }
+          return;
+        }
+      }
+      cmdLog("No line found. Click on a line to extend it.");
+      return;
+    }
+
+    // ── FILLET tool (line-line) ──────────────────────────
+    if (tool === "fillet") {
+      const hiddenLayers = new Set(layers.filter((l) => !l.visible).map((l) => l.name));
+      const clickedLine = (() => {
+        for (let i = elements.length - 1; i >= 0; i--) {
+          const el = elements[i];
+          if (hiddenLayers.has(el.layer)) continue;
+          if (el.type === "line" && hitTest(el, wx, wy)) return el;
+        }
+        return null;
+      })();
+
+      if (!clickedLine) {
+        cmdLog("FILLET: click on a line");
+        return;
+      }
+
+      if (!filletFirstLineId) {
+        setFilletFirstLineId(clickedLine.id);
+        cmdLog("FILLET: first line selected, now click second line");
+        return;
+      }
+
+      if (clickedLine.id === filletFirstLineId) {
+        cmdLog("FILLET: choose a different second line");
+        return;
+      }
+
+      const lineA = elements.find((e) => e.id === filletFirstLineId && e.type === "line") as (DrawingElement & { type: "line" }) | undefined;
+      const lineB = clickedLine as DrawingElement & { type: "line" };
+      if (!lineA) {
+        setFilletFirstLineId(null);
+        cmdLog("FILLET: first line no longer exists");
+        return;
+      }
+
+      const ip = segIntersection(lineA.x, lineA.y, lineA.x2, lineA.y2, lineB.x, lineB.y, lineB.x2, lineB.y2);
+      if (!ip) {
+        setFilletFirstLineId(null);
+        cmdLog("FILLET: lines do not intersect");
+        return;
+      }
+
+      const radius = Math.max(0, filletRadius);
+      const uxA = lineA.x2 - lineA.x;
+      const uyA = lineA.y2 - lineA.y;
+      const lenA = Math.hypot(uxA, uyA) || 1;
+      const ax = uxA / lenA;
+      const ay = uyA / lenA;
+
+      const uxB = lineB.x2 - lineB.x;
+      const uyB = lineB.y2 - lineB.y;
+      const lenB = Math.hypot(uxB, uyB) || 1;
+      const bx = uxB / lenB;
+      const by = uyB / lenB;
+
+      const nearestEnd = (el: DrawingElement & { type: "line" }, p: { x: number; y: number }) => {
+        const d1 = Math.hypot(el.x - p.x, el.y - p.y);
+        const d2 = Math.hypot(el.x2 - p.x, el.y2 - p.y);
+        return d1 < d2 ? "start" : "end";
+      };
+
+      const aSide = nearestEnd(lineA, ip);
+      const bSide = nearestEnd(lineB, ip);
+
+      const aTrim = {
+        x: ip.x + (aSide === "start" ? ax : -ax) * radius,
+        y: ip.y + (aSide === "start" ? ay : -ay) * radius,
+      };
+      const bTrim = {
+        x: ip.x + (bSide === "start" ? bx : -bx) * radius,
+        y: ip.y + (bSide === "start" ? by : -by) * radius,
+      };
+
+      const arcPts: { x: number; y: number }[] = [];
+      const a0 = Math.atan2(aTrim.y - ip.y, aTrim.x - ip.x);
+      const a1 = Math.atan2(bTrim.y - ip.y, bTrim.x - ip.x);
+      let da = a1 - a0;
+      while (da > Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      const steps = Math.max(4, Math.min(18, Math.round(Math.abs(da) * 8)));
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const a = a0 + da * t;
+        arcPts.push({ x: ip.x + Math.cos(a) * radius, y: ip.y + Math.sin(a) * radius });
+      }
+
+      const next: DrawingElement[] = [];
+      for (const el of elements) {
+        if (el.id === lineA.id) {
+          next.push(
+            aSide === "start"
+              ? { ...el, x: aTrim.x, y: aTrim.y }
+              : { ...el, x2: aTrim.x, y2: aTrim.y },
+          );
+        } else if (el.id === lineB.id) {
+          next.push(
+            bSide === "start"
+              ? { ...el, x: bTrim.x, y: bTrim.y }
+              : { ...el, x2: bTrim.x, y2: bTrim.y },
+          );
+        } else {
+          next.push(el);
+        }
+      }
+      if (radius > 0) {
+        next.push({
+          id: crypto.randomUUID(),
+          type: "polyline",
+          points: arcPts,
+          color: lineA.color,
+          lineWidth: lineA.lineWidth,
+          layer: lineA.layer,
+        });
+      }
+
+      setElements(next);
+      setFilletFirstLineId(null);
+      cmdLog("FILLET applied");
+      return;
+    }
+
     if (tool === "select") {
       const hiddenLayers = new Set(
         layers.filter((l) => !l.visible).map((l) => l.name),
@@ -2085,7 +3693,7 @@ export default function ArchitecturalStudioCanvas() {
       for (let i = elements.length - 1; i >= 0; i--) {
         const el = elements[i];
         if (hiddenLayers.has(el.layer) || lockedLayers.has(el.layer)) continue;
-        if (hitTest(el, wx, wy)) {
+        if (hitTest(el, rawX, rawY)) {
           found = el.id;
           break;
         }
@@ -2120,7 +3728,7 @@ export default function ArchitecturalStudioCanvas() {
     }
     if (tool === "eraser") {
       for (let i = elements.length - 1; i >= 0; i--) {
-        if (hitTest(elements[i], wx, wy)) {
+        if (hitTest(elements[i], rawX, rawY)) {
           setElements((prev) => prev.filter((_, idx) => idx !== i));
           return;
         }
@@ -2191,6 +3799,190 @@ export default function ArchitecturalStudioCanvas() {
       return;
     }
 
+    // ── Door tool ─────────────────────────────────────────────
+    if (tool === "door") {
+      const symName = doorSwing === "left" ? "door_swing_left" : "door_swing_right";
+      const snap = autoSnapBlock(wx, wy, symName, elements);
+      if (snap) {
+        const scaleFactor = Math.max(settings.annoScale, 1);
+        const doorWidth = settings.doorWidth / scaleFactor;
+        setElements(prev => [...prev, {
+          id: crypto.randomUUID(),
+          type: "block",
+          x: snap.x, y: snap.y,
+          width: doorWidth,
+          height: doorWidth,
+          symbolName: symName,
+          rotation: snap.rotation,
+          color, lineWidth, layer: "Doors",
+        }]);
+        cmdLog(`Placed ${doorSwing} swing door on wall`);
+      } else {
+        cmdLog("No wall found nearby — click closer to a wall");
+      }
+      return;
+    }
+
+    // ── Window tool ───────────────────────────────────────────
+    if (tool === "window") {
+      const snap = autoSnapBlock(wx, wy, "window", elements);
+      if (snap) {
+        const scaleFactor = Math.max(settings.annoScale, 1);
+        const windowWidth = settings.windowWidth / scaleFactor;
+        const windowHeight = settings.windowHeight / scaleFactor;
+        setElements(prev => [...prev, {
+          id: crypto.randomUUID(),
+          type: "block",
+          x: snap.x, y: snap.y,
+          width: windowWidth,
+          height: windowHeight,
+          symbolName: "window",
+          rotation: snap.rotation,
+          color, lineWidth, layer: "Windows",
+        }]);
+        cmdLog("Placed window on wall");
+      } else {
+        cmdLog("No wall found nearby — click closer to a wall");
+      }
+      return;
+    }
+
+    // ── Stairs tool ───────────────────────────────────────────
+    if (tool === "stairs") {
+      const scaleFactor = Math.max(settings.annoScale, 1);
+      const stairW = settings.stairWidth / scaleFactor;
+      const stairH = settings.stairDepth / scaleFactor;
+      setElements(prev => [...prev, {
+        id: crypto.randomUUID(),
+        type: "rect",
+        x: wx - stairW / 2,
+        y: wy - stairH / 2,
+        width: stairW,
+        height: stairH,
+        color: layers.find(l => l.name === "Furniture")?.color ?? "#6b7280",
+        lineWidth: 2, layer: "Furniture",
+        text: "STAIRS",
+      }]);
+      cmdLog("Placed staircase");
+      return;
+    }
+
+    // ── Furniture tool ────────────────────────────────────────
+    if (tool === "furniture") {
+      if (!pendingSymbol) {
+        cmdLog("Select a furniture item from the palette first");
+        return;
+      }
+      const symDef = SYMBOL_LIBRARY[pendingSymbol];
+      if (!symDef) {
+        cmdLog(`Unknown symbol: ${pendingSymbol}`);
+        return;
+      }
+      const scaleFactor = Math.max(settings.annoScale, 1);
+      setElements(prev => [...prev, {
+        id: crypto.randomUUID(),
+        type: "block",
+        x: wx, y: wy,
+        width: symDef.defaultWidth / scaleFactor,
+        height: symDef.defaultHeight / scaleFactor,
+        symbolName: pendingSymbol,
+        rotation: 0,
+        color, lineWidth, layer: "Furniture",
+      }]);
+      cmdLog(`Placed ${symDef.label}`);
+      return;
+    }
+
+    // ── Column tool ──────────────────────────────────────────
+    if (tool === "column") {
+      const colDef = SYMBOL_LIBRARY["column"];
+      const structLayerColor = layers.find(l => l.name === "Structure")?.color ?? color;
+      setElements(prev => [...prev, {
+        id: crypto.randomUUID(),
+        type: "block",
+        x: wx, y: wy,
+        width: colDef.defaultWidth,
+        height: colDef.defaultHeight,
+        symbolName: "column",
+        rotation: 0,
+        color: structLayerColor,
+        lineWidth: 1,
+        layer: "Structure",
+      }]);
+      cmdLog("Placed column");
+      return;
+    }
+
+    // ── Sliding Door tool ────────────────────────────────────
+    if (tool === "sliding_door") {
+      const snap = autoSnapBlock(wx, wy, "sliding_door", elements);
+      if (snap) {
+        const sdDef = SYMBOL_LIBRARY["sliding_door"];
+        const doorLayerColor = layers.find(l => l.name === "Doors")?.color ?? color;
+        setElements(prev => [...prev, {
+          id: crypto.randomUUID(),
+          type: "block",
+          x: snap.x, y: snap.y,
+          width: sdDef.defaultWidth,
+          height: sdDef.defaultHeight,
+          symbolName: "sliding_door",
+          rotation: snap.rotation,
+          color: doorLayerColor,
+          lineWidth: 1,
+          layer: "Doors",
+        }]);
+        cmdLog("Placed sliding door");
+      } else {
+        cmdLog("Click near a wall to place sliding door");
+      }
+      return;
+    }
+
+    // ── Wall tool (continuous polyline-style) ────────────────
+    if (tool === "wall") {
+      const wallColor = layers.find(l => l.name === "Walls")?.color ?? color;
+      const wallLW = settings.wallThickness;
+      if (!drawing) {
+        setDrawing(true);
+        setStartPos({ x: wx, y: wy });
+        dragStartPos.current = { x: e.clientX, y: e.clientY };
+        setPreviewEl({
+          id: "__preview__",
+          type: "polyline",
+          points: [{ x: wx, y: wy }, { x: wx, y: wy }],
+          color: wallColor,
+          lineWidth: wallLW,
+          layer: "Walls",
+        });
+        cmdLog(`Wall start: ${wx.toFixed(0)}, ${wy.toFixed(0)} — click next points, Enter/dbl-click to finish`);
+      } else {
+        if (previewEl && previewEl.type === "polyline") {
+          const pts = previewEl.points;
+          const firstPt = pts[0];
+          const lastPt = pts[pts.length - 2];
+          // Close/finish if clicking near previous point (double-click) or near start (close loop)
+          const nearStart = pts.length > 3 && Math.hypot(wx - firstPt.x, wy - firstPt.y) < 20 / zoom;
+          const nearLast = Math.hypot(wx - lastPt.x, wy - lastPt.y) < 2;
+          if (nearLast || nearStart) {
+            const finalPts = nearStart
+              ? [...pts.slice(0, pts.length - 1), { x: firstPt.x, y: firstPt.y }]
+              : pts.slice(0, pts.length - 1);
+            finishWallPolyline(finalPts);
+            return;
+          }
+          setPreviewEl({
+            ...previewEl,
+            points: [
+              ...pts.slice(0, pts.length - 1),
+              { x: wx, y: wy },
+              { x: wx, y: wy },
+            ],
+          });
+        }
+      }
+      return;
+    }
+
     if (!drawing) {
       setDrawing(true);
       setStartPos({ x: wx, y: wy });
@@ -2201,6 +3993,30 @@ export default function ArchitecturalStudioCanvas() {
     } else {
       finishDrawing(wx, wy);
     }
+  };
+
+  const finishWallPolyline = (pts: { x: number; y: number }[]) => {
+    if (pts.length < 2) {
+      setDrawing(false);
+      setPreviewEl(null);
+      return;
+    }
+    const wallColor = layers.find(l => l.name === "Walls")?.color ?? color;
+    const wallLW = settings.wallThickness;
+    const newEls: DrawingElement[] = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      newEls.push({
+        id: crypto.randomUUID(),
+        type: "line",
+        x: pts[i].x, y: pts[i].y,
+        x2: pts[i + 1].x, y2: pts[i + 1].y,
+        color: wallColor, lineWidth: wallLW, layer: "Walls",
+      });
+    }
+    setElements(prev => [...prev, ...newEls]);
+    setDrawing(false);
+    setPreviewEl(null);
+    cmdLog(`Wall completed: ${newEls.length} segment${newEls.length > 1 ? "s" : ""}`);
   };
 
   const finishDrawing = (wx: number, wy: number) => {
@@ -2343,9 +4159,8 @@ export default function ArchitecturalStudioCanvas() {
       return;
     }
     const { x: sx0, y: sy0 } = startPos;
-    const partialEl: DrawingElement = {
+    const previewBase = {
       id: "__preview__",
-      type: tool as any,
       x: sx0,
       y: sy0,
       color,
@@ -2354,21 +4169,21 @@ export default function ArchitecturalStudioCanvas() {
     };
     if (tool === "line" || tool === "dimension") {
       setPreviewEl({
-        ...partialEl,
+        ...previewBase,
         type: tool === "dimension" ? "dimension" : "line",
         x2: wx,
         y2: wy,
       });
     } else if (tool === "rect") {
       setPreviewEl({
-        ...partialEl,
+        ...previewBase,
         type: "rect",
         width: wx - sx0,
         height: wy - sy0,
       });
     } else if (tool === "circle") {
       const r = Math.sqrt(Math.pow(wx - sx0, 2) + Math.pow(wy - sy0, 2));
-      setPreviewEl({ ...partialEl, type: "circle", radius: r });
+      setPreviewEl({ ...previewBase, type: "circle", radius: r });
     }
   };
 
@@ -2378,7 +4193,7 @@ export default function ArchitecturalStudioCanvas() {
       dragMoveStart.current = null;
       if (isDragging.current) {
         isDragging.current = false;
-        
+
         // Auto-snap single block drops (doors/windows into walls)
         if (selectedIds.size === 1) {
           const id = Array.from(selectedIds)[0];
@@ -2392,7 +4207,7 @@ export default function ArchitecturalStudioCanvas() {
             }
           }
         }
-        
+
         cmdLog("Element moved");
       }
       return;
@@ -2402,7 +4217,7 @@ export default function ArchitecturalStudioCanvas() {
       return;
     }
     if (!drawing) return;
-    if (tool === "polyline") return; // Polylines strictly use clicks
+    if (tool === "polyline" || tool === "wall") return; // Click-based tools
 
     const dist = Math.hypot(
       e.clientX - dragStartPos.current.x,
@@ -2415,7 +4230,7 @@ export default function ArchitecturalStudioCanvas() {
   };
 
   function hitTest(el: DrawingElement, wx: number, wy: number): boolean {
-    const tol = 5;
+    const tol = 8 / zoom;
     if (el.type === "line" || el.type === "dimension") {
       return distToSeg(wx, wy, el.x, el.y, el.x2 ?? el.x, el.y2 ?? el.y) < tol;
     } else if (el.type === "rect") {
@@ -2450,7 +4265,7 @@ export default function ArchitecturalStudioCanvas() {
       const symDef = SYMBOL_LIBRARY[el.symbolName];
       const ax = symDef?.anchorX ?? 0.5;
       const ay = symDef?.anchorY ?? 0.5;
-      
+
       const rot = ((el.rotation || 0) * Math.PI) / 180;
       const flipX = el.flipX ? -1 : 1;
       const flipY = el.flipY ? -1 : 1;
@@ -2458,7 +4273,7 @@ export default function ArchitecturalStudioCanvas() {
       // 1. Inverse Translate
       const dx = wx - el.x;
       const dy = wy - el.y;
-      
+
       // 2. Inverse Rotate
       const cosR = Math.cos(-rot);
       const sinR = Math.sin(-rot);
@@ -2473,7 +4288,7 @@ export default function ArchitecturalStudioCanvas() {
       // Local Bounding Box (at origin)
       const minX = -el.width * ax;
       const minY = -el.height * ay;
-      
+
       return (
         lx >= minX - tol &&
         lx <= minX + el.width + tol &&
@@ -2506,48 +4321,63 @@ export default function ArchitecturalStudioCanvas() {
 
   function autoSnapBlock(wx: number, wy: number, symbolName: string, elements: DrawingElement[]) {
     // Only auto-snap wall-mounted elements
-    if (!["door_swing_right", "door_swing_left", "window", "garage"].includes(symbolName)) return null;
+    const wallMounted = ["door_swing_right", "door_swing_left", "window", "garage", "sliding_door", "garage_door"];
+    if (!wallMounted.includes(symbolName)) return null;
 
-    const SNAP_DIST = 400; // Snapping radius (400mm)
-    let bestLine: DrawingElement | null = null;
+    // Large snap radius so user doesn't have to be pixel-perfect
+    const SNAP_DIST = 800;
+    let bestWall: (DrawingElement & { type: "line" }) | null = null;
     let minDist = SNAP_DIST;
     let projX = wx;
     let projY = wy;
-    let lineAngle = 0;
+    let wallDx = 0;
+    let wallDy = 0;
 
+    // Only consider wall lines (thick lines on the Walls layer)
     for (const el of elements) {
-      if (el.type === "line") {
-        const px = (el.x2 ?? el.x) - el.x;
-        const py = (el.y2 ?? el.y) - el.y;
-        const lenSq = px * px + py * py;
-        // Project cursor onto the line (allowing extension past endpoints to span gaps)
-        let t = lenSq === 0 ? 0 : ((wx - el.x) * px + (wy - el.y) * py) / lenSq;
-        // Allows snapping into gaps between walls up to 100% of wall lengths away
-        t = Math.max(-1.0, Math.min(2.0, t)); 
-        
-        const cx = el.x + t * px;
-        const cy = el.y + t * py;
-        
-        const dist = Math.hypot(wx - cx, wy - cy);
-        if (dist < minDist) {
-          minDist = dist;
-          bestLine = el;
-          projX = cx;
-          projY = cy;
-          lineAngle = Math.atan2(py, px);
-        }
+      if (el.type !== "line") continue;
+      if (el.layer !== "Walls") continue;
+
+      const dx = el.x2 - el.x;
+      const dy = el.y2 - el.y;
+      const lenSq = dx * dx + dy * dy;
+      if (lenSq < 1) continue;
+
+      // Project click point onto the wall segment, clamped to [0,1]
+      const t = Math.max(0, Math.min(1, ((wx - el.x) * dx + (wy - el.y) * dy) / lenSq));
+      const cx = el.x + t * dx;
+      const cy = el.y + t * dy;
+
+      const dist = Math.hypot(wx - cx, wy - cy);
+      if (dist < minDist) {
+        minDist = dist;
+        bestWall = el as DrawingElement & { type: "line" };
+        projX = cx;
+        projY = cy;
+        wallDx = dx;
+        wallDy = dy;
       }
     }
 
-    if (bestLine) {
-      let rotDeg = (lineAngle * 180) / Math.PI;
-      if (rotDeg < 0) rotDeg += 360;
-      // Snap rotation to perfectly orthogonal angles aligned with the wall line
-      rotDeg = Math.round(rotDeg / 90) * 90;
-      
-      return { x: projX, y: projY, rotation: rotDeg };
+    if (!bestWall) return null;
+
+    // Determine if wall is horizontal or vertical
+    const isHoriz = Math.abs(wallDy) < Math.abs(wallDx);
+    // For horizontal walls: block is placed with 0° rotation (width along X)
+    // For vertical walls: block is placed with 90° rotation (width along Y)
+    const rotDeg = isHoriz ? 0 : 90;
+
+    // Snap the projected point to exactly the wall's fixed coordinate
+    // so the element sits precisely on the wall centerline
+    if (isHoriz) {
+      // Lock Y to the wall's Y (constant Y for horizontal wall)
+      projY = bestWall.y;
+    } else {
+      // Lock X to the wall's X (constant X for vertical wall)
+      projX = bestWall.x;
     }
-    return null;
+
+    return { x: projX, y: projY, rotation: rotDeg, isHorizontalWall: isHoriz };
   }
 
   const handleKeyDown = useCallback(
@@ -2565,26 +4395,43 @@ export default function ArchitecturalStudioCanvas() {
         return;
       }
 
+      // F8 = Ortho toggle (always works, like AutoCAD)
+      if (e.key === "F8") {
+        setOrthoMode((v) => {
+          cmdLog(v ? "Ortho OFF" : "Ortho ON");
+          return !v;
+        });
+        e.preventDefault();
+        return;
+      }
+
       // If command input is focused, let it handle its own keys
       if (e.target === cmdInputRef.current) return;
 
       if (
         e.key === "Enter" &&
-        tool === "polyline" &&
+        (tool === "polyline" || tool === "wall") &&
         previewEl &&
         previewEl.type === "polyline"
       ) {
         const pts = previewEl.points;
         const finalPts = pts.slice(0, pts.length - 1);
         if (finalPts.length > 1) {
-          setElements((prev) => [
-            ...prev,
-            { ...previewEl, id: crypto.randomUUID(), points: finalPts },
-          ]);
-          cmdLog("Polyline completed");
+          if (tool === "wall") {
+            finishWallPolyline(finalPts);
+          } else {
+            setElements((prev) => [
+              ...prev,
+              { ...previewEl, id: crypto.randomUUID(), points: finalPts },
+            ]);
+            cmdLog("Polyline completed");
+            setDrawing(false);
+            setPreviewEl(null);
+          }
+        } else {
+          setDrawing(false);
+          setPreviewEl(null);
         }
-        setDrawing(false);
-        setPreviewEl(null);
         return;
       }
 
@@ -2656,7 +4503,7 @@ export default function ArchitecturalStudioCanvas() {
         e.preventDefault();
       }
     },
-    [selected, selectedIds, elements, clipboard, undo, redo, tool, previewEl, drawing, cmdLog],
+    [selected, selectedIds, elements, clipboard, undo, redo, tool, previewEl, drawing, cmdLog, orthoMode],
   );
 
   useEffect(() => {
@@ -2669,12 +4516,12 @@ export default function ArchitecturalStudioCanvas() {
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ elements, layers, activeLayer }),
+        JSON.stringify({ pages, activePageId, layers, activeLayer }),
       );
     } catch {
       /* storage full, ignore */
     }
-  }, [elements, layers, activeLayer]);
+  }, [pages, activePageId, layers, activeLayer]);
 
   // Auto-scroll command history
   useEffect(() => {
@@ -2707,44 +4554,106 @@ export default function ArchitecturalStudioCanvas() {
     a.click();
   };
 
+  // ── CAD-style SVG icons ───────────────────────────────────
+  const cadIcon = (d: string, vb = "0 0 24 24") => (
+    <svg width="16" height="16" viewBox={vb} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} />
+    </svg>
+  );
+
   const toolDefs: {
     id: Tool;
     icon: React.ReactNode;
     label: string;
     key: string;
   }[] = [
-    { id: "select", icon: <DragOutlined />, label: "Select", key: "S" },
-    { id: "pan", icon: <ArrowsAltOutlined />, label: "Pan", key: "P" },
-    { id: "line", icon: <LineOutlined />, label: "Line", key: "L" },
-    {
-      id: "polyline",
-      icon: <DeploymentUnitOutlined />,
-      label: "Polyline",
-      key: "PL",
-    },
-    { id: "wall", icon: <BlockOutlined />, label: "Wall", key: "W" },
-    { id: "rect", icon: <BorderOutlined />, label: "Rectangle", key: "REC" },
-    {
-      id: "circle",
-      icon: <RadiusSettingOutlined />,
-      label: "Circle",
-      key: "C",
-    },
-    { id: "text", icon: <FontSizeOutlined />, label: "Text", key: "T" },
-    {
-      id: "dimension",
-      icon: <ColumnWidthOutlined />,
-      label: "Dimension",
-      key: "DIM",
-    },
-    {
-      id: "eraser",
-      icon: <FormatPainterOutlined />,
-      label: "Eraser",
-      key: "E",
-    },
-    { id: "agent", icon: <RobotOutlined />, label: "AI Agent", key: "AI" },
-  ];
+      {
+        id: "wall",
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="1" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="12" y1="4" x2="12" y2="12" />
+            <line x1="8" y1="12" x2="8" y2="20" />
+            <line x1="16" y1="12" x2="16" y2="20" />
+          </svg>
+        ),
+        label: "Wall (W)",
+        key: "W",
+      },
+      {
+        id: "door",
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="5" y="3" width="14" height="18" rx="1" />
+            <circle cx="16" cy="12" r="1.2" fill="currentColor" />
+            <path d="M5 21 Q5 10 16 3" strokeDasharray="2 2" />
+          </svg>
+        ),
+        label: "Door (D)",
+        key: "D",
+      },
+      {
+        id: "window",
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="6" width="18" height="12" rx="1" />
+            <line x1="12" y1="6" x2="12" y2="18" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+          </svg>
+        ),
+        label: "Window (WIN)",
+        key: "WIN",
+      },
+      {
+        id: "stairs",
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="4,20 4,16 8,16 8,12 12,12 12,8 16,8 16,4 20,4" />
+          </svg>
+        ),
+        label: "Stairs (ST)",
+        key: "ST",
+      },
+      {
+        id: "furniture",
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="8" width="16" height="8" rx="2" />
+            <rect x="6" y="6" width="12" height="2" rx="1" />
+            <line x1="6" y1="16" x2="6" y2="19" />
+            <line x1="18" y1="16" x2="18" y2="19" />
+          </svg>
+        ),
+        label: "Furniture (FUR)",
+        key: "FUR",
+      },
+      {
+        id: "column",
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="7" />
+            <line x1="12" y1="5" x2="12" y2="19" strokeWidth="1" />
+            <line x1="5" y1="12" x2="19" y2="12" strokeWidth="1" />
+          </svg>
+        ),
+        label: "Column (COL)",
+        key: "COL",
+      },
+      {
+        id: "sliding_door",
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="6" width="8" height="12" />
+            <rect x="13" y="6" width="8" height="12" />
+            <line x1="7" y1="12" x2="10" y2="12" strokeWidth="1" strokeDasharray="2 1" />
+            <line x1="17" y1="12" x2="14" y2="12" strokeWidth="1" strokeDasharray="2 1" />
+          </svg>
+        ),
+        label: "Sliding Door (SD)",
+        key: "SD",
+      },
+    ];
 
   const getCursorStyle = () => {
     if (tool === "pan") return "grab";
@@ -2769,7 +4678,7 @@ export default function ArchitecturalStudioCanvas() {
         className="fixed inset-0 z-[9999] flex flex-col overflow-hidden select-none"
         style={{
           background: COLORS.bg,
-          fontFamily: "'Courier New', monospace",
+          fontFamily: "'Roboto Mono', monospace",
         }}
       >
         {/* ── Top Menu Bar ──────────────────────────────── */}
@@ -2802,10 +4711,20 @@ export default function ArchitecturalStudioCanvas() {
                     label: "New Drawing",
                     action: () => {
                       if (confirm("Clear all?")) {
-                        setElements([]);
+                        const freshPage: StudioPage = {
+                          id: "page-1",
+                          name: "Page 1",
+                          elements: [],
+                        };
+                        setPages([freshPage]);
+                        setActivePageId(freshPage.id);
+                        resetElements([]);
                         setLayers(DEFAULT_LAYERS);
                         setActiveLayer("Layer 0");
+                        clearTransientDrawingState();
+                        pageHistoryMap.current.clear();
                         localStorage.removeItem(STORAGE_KEY);
+                        cmdLog("Started a new drawing");
                       }
                     },
                   },
@@ -2848,6 +4767,10 @@ export default function ArchitecturalStudioCanvas() {
                     },
                   },
                   { label: "Pan Hand", action: () => setTool("pan") },
+                  {
+                    label: viewMode === "2d" ? "Switch to 3D View" : "Switch to 2D View",
+                    action: () => setViewMode(viewMode === "2d" ? "3d" : "2d"),
+                  },
                 ],
               },
               {
@@ -2925,31 +4848,188 @@ export default function ArchitecturalStudioCanvas() {
               </Dropdown>
             ))}
           </div>
+          <div
+            className="ml-3 flex items-center gap-1"
+            style={{
+              borderLeft: `1px solid ${COLORS.toolbarBorder}`,
+              paddingLeft: 8,
+            }}
+          >
+            {/* Compact page selector dropdown */}
+            <Dropdown
+              menu={{
+                items: [
+                  ...pages.map((page, idx) => ({
+                    key: page.id,
+                    label: (
+                      <span style={{
+                        fontWeight: activePageId === page.id ? 700 : 400,
+                        color: activePageId === page.id ? COLORS.cyan : COLORS.white,
+                      }}>
+                        {idx + 1}. {page.name}
+                      </span>
+                    ),
+                    onClick: () => switchPage(page.id),
+                  })),
+                  { type: "divider" as const, key: "div" },
+                  {
+                    key: "add",
+                    label: <span style={{ color: COLORS.cyan }}>+ New Page</span>,
+                    onClick: addPage,
+                  },
+                ],
+              }}
+              trigger={["click"]}
+              getPopupContainer={(trigger) =>
+                trigger.parentNode as HTMLElement
+              }
+            >
+              <button
+                className="text-[10px] px-2.5 py-1 rounded flex items-center gap-1.5 transition-colors hover:bg-white/10"
+                style={{
+                  color: COLORS.white,
+                  background: COLORS.highlight,
+                  border: `1px solid ${COLORS.accent}`,
+                  maxWidth: 180,
+                }}
+                title="Switch page"
+              >
+                <span className="truncate">{activePage?.name || "Page 1"}</span>
+                <span style={{ fontSize: 8, opacity: 0.6 }}>▼</span>
+                <span
+                  className="ml-0.5 px-1 rounded"
+                  style={{
+                    background: COLORS.accent + "44",
+                    color: COLORS.cyan,
+                    fontSize: 9,
+                  }}
+                >
+                  {pages.length}
+                </span>
+              </button>
+            </Dropdown>
+
+            {/* Page actions menu */}
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: "add",
+                    label: "+ Add Page",
+                    onClick: addPage,
+                  },
+                  {
+                    key: "dup",
+                    label: "⧉ Duplicate",
+                    onClick: duplicateActivePage,
+                  },
+                  {
+                    key: "rename",
+                    label: "✎ Rename",
+                    onClick: renameActivePage,
+                  },
+                  { type: "divider" as const, key: "div2" },
+                  {
+                    key: "del",
+                    label: <span style={{ color: COLORS.red }}>✕ Delete Page</span>,
+                    onClick: deleteActivePage,
+                  },
+                ],
+              }}
+              trigger={["click"]}
+              getPopupContainer={(trigger) =>
+                trigger.parentNode as HTMLElement
+              }
+            >
+              <button
+                className="text-[10px] px-1.5 py-1 rounded hover:bg-white/10 transition-colors"
+                style={{
+                  color: COLORS.muted,
+                  border: `1px solid ${COLORS.toolbarBorder}`,
+                }}
+                title="Page actions"
+              >
+                ⋯
+              </button>
+            </Dropdown>
+          </div>
           <div className="ml-auto flex items-center gap-3">
             <span className="text-[10px]" style={{ color: COLORS.muted }}>
               {elements.length} object{elements.length !== 1 ? "s" : ""}
             </span>
             <button
+              onClick={() => setViewMode(viewMode === "2d" ? "3d" : "2d")}
+              className="text-[10px] px-2.5 py-0.5 rounded font-bold tracking-wider uppercase transition-all duration-200"
+              style={{
+                color: viewMode === "3d" ? "#22d3ee" : COLORS.muted,
+                background: viewMode === "3d" ? "#22d3ee18" : "transparent",
+                border: viewMode === "3d" ? "1px solid #22d3ee55" : `1px solid ${COLORS.toolbarBorder}`,
+              }}
+              title="Toggle 2D / 3D view"
+            >
+              {viewMode === "2d" ? "3D" : "2D"}
+            </button>
+            <button
               onClick={() => {
+                if (viewMode === "3d") return; // 3D viewport handles its own orbit controls
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                const newZoom = zoom * 1.3;
+                setPan({ x: cx - (cx - pan.x) * (newZoom / zoom), y: cy - (cy - pan.y) * (newZoom / zoom) });
+                setZoom(newZoom);
+              }}
+              className={`text-[10px] px-2 py-0.5 rounded ${viewMode === "3d" ? "opacity-50 cursor-not-allowed" : "hover:bg-white/10"}`}
+              style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyan}44` }}
+              title={viewMode === "3d" ? "Use mouse scroll to zoom in 3D" : "Zoom In"}
+            >
+              +
+            </button>
+            <button
+              onClick={() => {
+                if (viewMode === "3d") return;
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                const newZoom = zoom / 1.3;
+                setPan({ x: cx - (cx - pan.x) * (newZoom / zoom), y: cy - (cy - pan.y) * (newZoom / zoom) });
+                setZoom(newZoom);
+              }}
+              className={`text-[10px] px-2 py-0.5 rounded ${viewMode === "3d" ? "opacity-50 cursor-not-allowed" : "hover:bg-white/10"}`}
+              style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyan}44` }}
+              title={viewMode === "3d" ? "Use mouse scroll to zoom in 3D" : "Zoom Out"}
+            >
+              −
+            </button>
+            <button
+              onClick={() => {
+                if (viewMode === "3d") return;
                 setPan({ x: 0, y: 0 });
                 setZoom(1);
               }}
-              className="text-[10px] px-2 py-0.5 rounded hover:bg-white/10"
+              className={`text-[10px] px-2 py-0.5 rounded ${viewMode === "3d" ? "opacity-50 cursor-not-allowed" : "hover:bg-white/10"}`}
               style={{
                 color: COLORS.cyan,
                 border: `1px solid ${COLORS.cyan}44`,
               }}
+              title={viewMode === "3d" ? "3D view cannot be reset here" : "Reset View"}
             >
               Reset View
             </button>
             {elements.length > 0 && (
               <button
-                onClick={() => zoomToFit(elements)}
-                className="text-[10px] px-2 py-0.5 rounded hover:bg-white/10"
+                onClick={() => {
+                  if (viewMode === "3d") return;
+                  zoomToFit(elements);
+                }}
+                className={`text-[10px] px-2 py-0.5 rounded ${viewMode === "3d" ? "opacity-50 cursor-not-allowed" : "hover:bg-white/10"}`}
                 style={{
                   color: COLORS.cyan,
                   border: `1px solid ${COLORS.cyan}44`,
                 }}
+                title={viewMode === "3d" ? "3D view cannot be auto-fit here" : "Zoom to Fit"}
               >
                 Zoom to Fit
               </button>
@@ -3047,20 +5127,43 @@ export default function ArchitecturalStudioCanvas() {
             ))}
           </div>
 
-          {/* ── Canvas ───────────────────────────────────── */}
-          <canvas
-            ref={canvasRef}
-            className="flex-1 block"
-            style={{ cursor: getCursorStyle() }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={() => {
-              panStart.current = null;
-              setDrawing(false);
-              setPreviewEl(null);
-            }}
-          />
+          {/* ── Canvas / 3D Viewport ─────────────────────── */}
+          {viewMode === "2d" ? (
+            <canvas
+              ref={canvasRef}
+              className="flex-1 block"
+              style={{ cursor: getCursorStyle() }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={() => {
+                panStart.current = null;
+                setDrawing(false);
+                setPreviewEl(null);
+              }}
+            />
+          ) : (
+            <div className="flex-1 relative">
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center h-full" style={{ background: "#0a0a0a" }}>
+                    <LoadingOutlined style={{ fontSize: 32, color: "#00e5ff" }} />
+                  </div>
+                }
+              >
+                <ThreeCADViewport
+                  elements={elements}
+                  layers={layers}
+                  pan={pan}
+                  zoom={zoom}
+                  gridSize={settings.gridSize}
+                  majorGrid={settings.majorGrid}
+                  canvasWidth={canvasRef.current?.width ?? window.innerWidth}
+                  canvasHeight={canvasRef.current?.height ?? window.innerHeight}
+                />
+              </Suspense>
+            </div>
+          )}
 
           {/* ── Right Properties Panel ───────────────────── */}
           <div
@@ -3148,6 +5251,36 @@ export default function ArchitecturalStudioCanvas() {
                       className="w-2 h-2 rounded-full shrink-0"
                       style={{ background: l.color }}
                     />
+                    {/* Line type */}
+                    <button
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        setLayers((prev) =>
+                          prev.map((la) => {
+                            if (la.name !== l.name) return la;
+                            const current = la.lineType ?? "solid";
+                            const idx = LAYER_LINE_TYPES.indexOf(current);
+                            const next = LAYER_LINE_TYPES[(idx + 1) % LAYER_LINE_TYPES.length];
+                            return { ...la, lineType: next };
+                          }),
+                        );
+                      }}
+                      className="px-1 rounded text-[8px] uppercase tracking-wider shrink-0"
+                      title={`Line type: ${(l.lineType ?? "solid").toUpperCase()}`}
+                      style={{
+                        color: activeLayer === l.name ? COLORS.cyan : COLORS.muted,
+                        border: `1px solid ${COLORS.toolbarBorder}`,
+                        background: "transparent",
+                      }}
+                    >
+                      {(l.lineType ?? "solid") === "solid"
+                        ? "SOL"
+                        : (l.lineType ?? "solid") === "dashed"
+                          ? "DAS"
+                          : (l.lineType ?? "solid") === "center"
+                            ? "CEN"
+                            : "HID"}
+                    </button>
                     {/* Name */}
                     <span
                       className="text-[10px] truncate flex-1"
@@ -3199,7 +5332,13 @@ export default function ArchitecturalStudioCanvas() {
                   if (!name || layers.some((l) => l.name === name)) return;
                   setLayers((prev) => [
                     ...prev,
-                    { name, visible: true, locked: false, color: COLORS.white },
+                    {
+                      name,
+                      visible: true,
+                      locked: false,
+                      color: COLORS.white,
+                      lineType: "solid",
+                    },
                   ]);
                 }}
                 className="w-full flex items-center justify-center gap-1 py-1 rounded text-[10px] hover:bg-white/10 transition-colors"
@@ -3220,6 +5359,73 @@ export default function ArchitecturalStudioCanvas() {
                 on active layer
               </p>
             </div>
+
+            {/* Door swing toggle */}
+            {tool === "door" && (
+              <div className="px-2 pt-1.5 pb-1.5 border-b" style={{ borderColor: COLORS.toolbarBorder }}>
+                <p className="text-[9px] font-bold uppercase mb-1.5 tracking-widest" style={{ color: COLORS.muted }}>Door Type</p>
+                <div className="flex gap-1">
+                  {(["right", "left"] as const).map(swing => (
+                    <button
+                      key={swing}
+                      onClick={() => {
+                        setDoorSwing(swing);
+                        setPendingSymbol(swing === "left" ? "door_swing_left" : "door_swing_right");
+                      }}
+                      className="flex-1 py-1 rounded text-[10px] capitalize transition-colors border"
+                      style={{
+                        background: doorSwing === swing ? COLORS.highlight : COLORS.bg,
+                        borderColor: doorSwing === swing ? COLORS.cyan : COLORS.toolbarBorder,
+                        color: doorSwing === swing ? COLORS.cyan : COLORS.muted,
+                      }}
+                    >
+                      {swing} Swing
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Furniture palette */}
+            {tool === "furniture" && (
+              <div className="px-2 pt-1.5 pb-1.5 border-b" style={{ borderColor: COLORS.toolbarBorder }}>
+                <p className="text-[9px] font-bold uppercase mb-1.5 tracking-widest" style={{ color: COLORS.muted }}>Furniture</p>
+                {[
+                  { category: "Bathroom", items: ["toilet", "basin", "bathtub", "shower"] },
+                  { category: "Kitchen", items: ["stove", "sink", "fridge", "kitchen_counter"] },
+                  { category: "Bedroom", items: ["bed_single", "bed_double"] },
+                  { category: "Living", items: ["sofa", "dining_table", "tv_unit"] },
+                  { category: "Other", items: ["garage"] },
+                  { category: "Structure", items: ["stairs", "column", "elevator", "escalator"] },
+                  { category: "Site", items: ["pool", "septic_tank", "parking"] },
+                ].map(group => (
+                  <div key={group.category} className="mb-1.5">
+                    <p className="text-[8px] uppercase tracking-wider mb-0.5" style={{ color: COLORS.muted }}>{group.category}</p>
+                    <div className="grid grid-cols-2 gap-0.5">
+                      {group.items.map(sym => {
+                        const def = SYMBOL_LIBRARY[sym];
+                        if (!def) return null;
+                        return (
+                          <button
+                            key={sym}
+                            onClick={() => setPendingSymbol(sym)}
+                            className="py-1 px-1 rounded text-[9px] text-left truncate transition-colors border"
+                            title={def.label}
+                            style={{
+                              background: pendingSymbol === sym ? COLORS.highlight : COLORS.bg,
+                              borderColor: pendingSymbol === sym ? COLORS.cyan : COLORS.toolbarBorder,
+                              color: pendingSymbol === sym ? COLORS.cyan : COLORS.white,
+                            }}
+                          >
+                            {def.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Selection info */}
             {selectedIds.size > 0 && (
@@ -3256,9 +5462,9 @@ export default function ArchitecturalStudioCanvas() {
                             <div className="flex flex-col gap-1 mt-1">
                               <div className="flex items-center gap-1">
                                 <span>Rot:</span>
-                                <input 
-                                  type="number" 
-                                  value={(el as any).rotation || 0} 
+                                <input
+                                  type="number"
+                                  value={(el as any).rotation || 0}
                                   onChange={(e) => {
                                     let val = parseFloat(e.target.value) || 0;
                                     setElements(prev => prev.map(p => p.id === el.id ? { ...p, rotation: val } : p));
@@ -3314,10 +5520,10 @@ export default function ArchitecturalStudioCanvas() {
 
         {/* ── Command Line ─────────────────────────────────── */}
         <div
-          className="shrink-0 flex flex-col relative"
+          className="shrink-0 flex flex-col relative transition-colors duration-300"
           style={{
-            background: "#0d0f14",
-            borderTop: `1px solid ${COLORS.toolbarBorder}`,
+            background: aiMode ? "#120a1e" : "#0d0f14",
+            borderTop: aiMode ? "1px solid #7c3aed44" : `1px solid ${COLORS.toolbarBorder}`,
           }}
         >
           {/* Autocomplete suggestions dropdown */}
@@ -3339,7 +5545,7 @@ export default function ArchitecturalStudioCanvas() {
                 style={{
                   background: "#161922",
                   borderColor: COLORS.toolbarBorder,
-                  maxHeight: 200,
+                  maxHeight: 240,
                   overflowY: "auto",
                   scrollbarWidth: "thin",
                 }}
@@ -3354,7 +5560,7 @@ export default function ArchitecturalStudioCanvas() {
                       setShowSuggestions(false);
                       cmdInputRef.current?.focus();
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-1.5 text-left transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-2 text-left transition-colors"
                     style={{
                       background:
                         i === suggestionIdx ? COLORS.highlight : "transparent",
@@ -3365,25 +5571,25 @@ export default function ArchitecturalStudioCanvas() {
                     }}
                   >
                     <span
-                      className="text-[11px] font-bold w-10 shrink-0"
+                      className="text-xs font-bold w-12 shrink-0"
                       style={{
                         color: COLORS.cyan,
-                        fontFamily: "'Courier New', monospace",
+                        fontFamily: "'Roboto Mono', monospace",
                       }}
                     >
                       {cmd.alias}
                     </span>
                     <span
-                      className="text-[11px] w-24 shrink-0"
+                      className="text-xs w-28 shrink-0"
                       style={{
                         color: COLORS.white,
-                        fontFamily: "'Courier New', monospace",
+                        fontFamily: "'Roboto Mono', monospace",
                       }}
                     >
                       {cmd.name}
                     </span>
                     <span
-                      className="text-[10px] truncate"
+                      className="text-[11px] truncate"
                       style={{ color: COLORS.muted }}
                     >
                       {cmd.description}
@@ -3396,23 +5602,26 @@ export default function ArchitecturalStudioCanvas() {
           {/* Command history */}
           <div
             ref={cmdHistoryRef}
-            className="px-3 py-1 overflow-y-auto text-[11px] leading-relaxed"
+            className="px-4 py-1.5 overflow-y-auto text-xs leading-relaxed"
             style={{
-              maxHeight: 60,
+              maxHeight: 90,
               color: COLORS.muted,
-              fontFamily: "'Courier New', monospace",
+              fontFamily: "'Roboto Mono', monospace",
               scrollbarWidth: "thin",
             }}
           >
             {cmdHistory.map((line, i) => (
               <div
                 key={i}
+                className="py-px"
                 style={{
                   color: line.startsWith(">")
                     ? COLORS.white
                     : line.startsWith("Command:")
                       ? COLORS.cyan
-                      : COLORS.muted,
+                      : line.startsWith("AI AGENT")
+                        ? "#a855f7"
+                        : COLORS.muted,
                 }}
               >
                 {line}
@@ -3421,23 +5630,29 @@ export default function ArchitecturalStudioCanvas() {
           </div>
           {/* Input row */}
           <div
-            className="flex items-center gap-2 px-3 h-7"
+            className="flex items-center gap-2 px-4 transition-colors duration-300"
             style={{
-              background: "#0a0c10",
-              borderTop: `1px solid ${COLORS.toolbarBorder}`,
+              height: 40,
+              background: aiMode ? "#1a0e2e" : "#0a0c10",
+              borderTop: aiMode ? "1px solid #7c3aed33" : `1px solid ${COLORS.toolbarBorder}`,
             }}
           >
+            {/* Mode badge */}
             <span
-              className="text-[10px] font-bold shrink-0"
-              style={{ color: COLORS.cyan, letterSpacing: 1 }}
+              className="text-[11px] font-bold shrink-0 px-1.5 py-0.5 rounded transition-colors duration-300"
+              style={{
+                color: aiMode ? "#c084fc" : COLORS.cyan,
+                background: aiMode ? "#7c3aed22" : "transparent",
+                letterSpacing: 1,
+              }}
             >
-              {tool.toUpperCase()}
+              {aiMode ? "AI" : tool.toUpperCase()}
             </span>
             <span
-              className="text-[10px] shrink-0"
-              style={{ color: COLORS.muted }}
+              className="text-xs shrink-0"
+              style={{ color: aiMode ? "#7c3aed" : COLORS.muted }}
             >
-              {">"}
+              {aiMode ? "~" : ">"}
             </span>
             <input
               ref={cmdInputRef}
@@ -3531,15 +5746,17 @@ export default function ArchitecturalStudioCanvas() {
                   }
                 }
               }}
-              className="flex-1 bg-transparent outline-none text-[11px]"
+              className="flex-1 bg-transparent outline-none text-[13px]"
               style={{
-                color: COLORS.white,
-                fontFamily: "'Courier New', monospace",
-                caretColor: COLORS.cyan,
+                color: aiMode ? "#e9d5ff" : COLORS.white,
+                fontFamily: "'Roboto Mono', monospace",
+                caretColor: aiMode ? "#a855f7" : COLORS.cyan,
               }}
               placeholder={
                 aiMode
-                  ? 'Ask the AI architect to generate geometry (e.g., "draw a 2 bedroom floor plan")'
+                  ? agentLoading
+                    ? "AI Agent is generating your drawing..."
+                    : 'Describe what to draw (e.g. "3-bedroom house with garage")'
                   : agentLoading
                     ? "AI Agent is drawing..."
                     : drawing
@@ -3548,36 +5765,42 @@ export default function ArchitecturalStudioCanvas() {
               }
               autoComplete="off"
               spellCheck={false}
+              disabled={agentLoading}
             />
-            <div
-              className="flex items-center gap-2 ml-auto shrink-0 pl-4 border-l"
-              style={{ borderColor: COLORS.toolbarBorder }}
-            >
-              <span
-                className="text-[10px] font-bold tracking-widest uppercase flex items-center gap-1"
-                style={{ color: aiMode ? "#a855f7" : COLORS.muted }}
-              >
-                <RobotOutlined /> AI Mode
-              </span>
-              <Switch
-                size="small"
-                checked={aiMode}
-                onChange={(val) => {
-                  setAiMode(val);
-                  setTimeout(() => cmdInputRef.current?.focus(), 50);
-                }}
-              />
-            </div>
+            {/* AI loading indicator */}
             {agentLoading && (
               <span
-                className="text-[10px] shrink-0 animate-pulse"
-                style={{ color: COLORS.yellow }}
+                className="shrink-0 flex items-center gap-1.5 animate-pulse"
+                style={{ color: "#a855f7" }}
               >
-                <LoadingOutlined style={{ fontSize: 12 }} /> Drawing...
+                <LoadingOutlined style={{ fontSize: 14 }} />
+                <span className="text-[11px] font-medium">Generating...</span>
               </span>
             )}
+            {/* AI mode toggle */}
+            <div
+              className="flex items-center gap-2 ml-auto shrink-0 pl-4 border-l transition-colors duration-300"
+              style={{ borderColor: aiMode ? "#7c3aed33" : COLORS.toolbarBorder }}
+            >
+              <button
+                onClick={() => {
+                  setAiMode(!aiMode);
+                  setTimeout(() => cmdInputRef.current?.focus(), 50);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all duration-300"
+                style={{
+                  color: aiMode ? "#c084fc" : COLORS.muted,
+                  background: aiMode ? "#7c3aed33" : "transparent",
+                  border: aiMode ? "1px solid #7c3aed55" : `1px solid ${COLORS.toolbarBorder}`,
+                  boxShadow: aiMode ? "0 0 12px #7c3aed22" : "none",
+                }}
+              >
+                <RobotOutlined style={{ fontSize: 13 }} />
+                {aiMode ? "AI On" : "AI Off"}
+              </button>
+            </div>
             <span
-              className="text-[9px] shrink-0"
+              className="text-[10px] shrink-0"
               style={{ color: COLORS.muted }}
             >
               Layer: {activeLayer} | Snap: ON
@@ -3589,6 +5812,8 @@ export default function ArchitecturalStudioCanvas() {
         <Modal
           title="DRAWING SETTINGS"
           open={showSettings}
+          getContainer={false}
+          zIndex={1100}
           onOk={() => setShowSettings(false)}
           onCancel={() => setShowSettings(false)}
           footer={[
@@ -3702,12 +5927,121 @@ export default function ArchitecturalStudioCanvas() {
                   setSettings((s) => ({ ...s, mergeWalls: e.target.checked }))
                 }
               >
-                Merge Walls (Thickness ≥ 10)
+                Merge Walls (Thickness-based)
               </Checkbox>
+              <Checkbox
+                checked={settings.hatchRooms}
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, hatchRooms: e.target.checked }))
+                }
+              >
+                Hatch Rooms (Rectangles)
+              </Checkbox>
+              <Checkbox
+                checked={settings.roomLabels}
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, roomLabels: e.target.checked }))
+                }
+              >
+                Room Labels + Area
+              </Checkbox>
+            </div>
+
+            <div className="border-t pt-3" style={{ borderColor: COLORS.toolbarBorder }}>
+              <p className="text-[10px] font-semibold tracking-wider mb-2" style={{ color: COLORS.muted }}>
+                ARCHITECTURAL TOOL SETTINGS
+              </p>
+
+              <div className="flex gap-4 mb-3">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">
+                    Wall Thickness (mm)
+                  </label>
+                  <InputNumber
+                    min={50}
+                    className="w-full"
+                    value={settings.wallThickness}
+                    onChange={(val) =>
+                      setSettings((s) => ({ ...s, wallThickness: Number(val) || 200 }))
+                    }
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">
+                    Door Width (mm)
+                  </label>
+                  <InputNumber
+                    min={100}
+                    className="w-full"
+                    value={settings.doorWidth}
+                    onChange={(val) =>
+                      setSettings((s) => ({ ...s, doorWidth: Number(val) || 900 }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4 mb-3">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">
+                    Window Width (mm)
+                  </label>
+                  <InputNumber
+                    min={100}
+                    className="w-full"
+                    value={settings.windowWidth}
+                    onChange={(val) =>
+                      setSettings((s) => ({ ...s, windowWidth: Number(val) || 1200 }))
+                    }
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">
+                    Window Height (mm)
+                  </label>
+                  <InputNumber
+                    min={50}
+                    className="w-full"
+                    value={settings.windowHeight}
+                    onChange={(val) =>
+                      setSettings((s) => ({ ...s, windowHeight: Number(val) || 200 }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">
+                    Stair Width (mm)
+                  </label>
+                  <InputNumber
+                    min={100}
+                    className="w-full"
+                    value={settings.stairWidth}
+                    onChange={(val) =>
+                      setSettings((s) => ({ ...s, stairWidth: Number(val) || 900 }))
+                    }
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">
+                    Stair Depth (mm)
+                  </label>
+                  <InputNumber
+                    min={100}
+                    className="w-full"
+                    value={settings.stairDepth}
+                    onChange={(val) =>
+                      setSettings((s) => ({ ...s, stairDepth: Number(val) || 1800 }))
+                    }
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </Modal>
       </div>
-    </ConfigProvider>
+    </ConfigProvider >
   );
 }

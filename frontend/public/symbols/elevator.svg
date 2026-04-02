@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Shaft outline -->
+  <rect x="2" y="2" width="96" height="96" stroke-width="2.5"/>
+  <!-- Diagonal cross (standard elevator symbol) -->
+  <line x1="2" y1="2" x2="98" y2="98" stroke-width="1.5"/>
+  <line x1="98" y1="2" x2="2" y2="98" stroke-width="1.5"/>
+  <!-- Up/down arrows -->
+  <polygon points="50,18 42,32 58,32" fill="currentColor" stroke="none"/>
+  <polygon points="50,82 42,68 58,68" fill="currentColor" stroke="none"/>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Track lines (top and bottom) -->
+  <line x1="0" y1="5" x2="100" y2="5" stroke-width="1.5"/>
+  <line x1="0" y1="95" x2="100" y2="95" stroke-width="1.5"/>
+  <!-- Left panel (closed position) -->
+  <rect x="2" y="10" width="48" height="80" stroke-width="2" fill="none"/>
+  <!-- Right panel (overlapping, slightly offset) -->
+  <rect x="50" y="10" width="48" height="80" stroke-width="2" fill="none"/>
+  <!-- Arrow indicating slide direction -->
+  <line x1="20" y1="50" x2="40" y2="50" stroke-width="1" stroke-dasharray="3 2"/>
+  <line x1="80" y1="50" x2="60" y2="50" stroke-width="1" stroke-dasharray="3 2"/>
+</svg>

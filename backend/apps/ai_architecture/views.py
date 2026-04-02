@@ -6,6 +6,7 @@ import json
 import uuid
 import base64
 import logging
+import time
 import requests as http_requests
 from django.conf import settings
 from django.db.models import Avg, Q
@@ -423,74 +424,245 @@ def _search_floor_plans(query: str, limit: int = 6) -> list:
 
 
 
-# ── Gemini AI helpers ────────────────────────────────────────────────
+# ── AI provider helpers (OpenAI-compatible API) ─────────────────────
+
+def _get_ai_provider() -> str:
+    """Return selected AI provider name."""
+    return (getattr(settings, "AI_API_PROVIDER", "") or "github_models").strip().lower()
+
+
+def _get_ai_base_url() -> str:
+    """Resolve active AI base URL."""
+    configured = (getattr(settings, "AI_BASE_URL", "") or "").strip()
+    if configured:
+        return configured.rstrip("/")
+
+    return "https://models.github.ai"
+
+def _get_ai_api_key() -> str:
+    """Return configured AI API key (prioritizes Gemini API key)."""
+    return (
+        getattr(settings, "AI_API_KEY", "")
+        or os.getenv("GEMINI_API_KEY", "")
+        or ""
+    ).strip()
+
 
 def _get_gemini_chat_model() -> str:
-    """Return the Gemini model name used for general chat / tool calls."""
-    return (getattr(settings, "GEMINI_CHAT_MODEL", "") or "gemini-2.5-flash").strip()
+    """Return model name used for general chat / tool calls."""
+    return (
+        getattr(settings, "AI_CHAT_MODEL", "")
+        or "gemini-3.1-pro-preview"
+    ).strip()
+
+
+def _get_ai_headers(api_key: str) -> dict:
+    """Build standard headers for GitHub Models REST API calls."""
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": getattr(settings, "AI_API_VERSION", "2026-03-10"),
+    }
+
+
+def _get_chat_completions_url() -> str:
+    """Resolve provider chat completions URL."""
+    base_url = _get_ai_base_url().rstrip("/")
+    if "googleapis.com" in base_url or base_url.endswith("/inference"):
+        return f"{base_url}/chat/completions"
+    return f"{base_url}/inference/chat/completions"
+
+
+def _apply_max_tokens(payload: dict, model_name: str, max_tokens: int | None) -> None:
+    """Apply provider/model-compatible completion token parameter."""
+    # User requested unlimited tokens, so we ignore max_tokens and let the model use its full capacity
+    pass
+
+
+def _apply_temperature(payload: dict, model_name: str, temperature: float | None) -> None:
+    """Apply model-compatible temperature parameter."""
+    if temperature is None:
+        return
+    payload["temperature"] = temperature
+
+
+def _post_ai_with_retries(url: str, api_key: str, payload: dict, timeout: float, retries: int = 2):
+    """POST helper with lightweight retry for rate-limits/transient upstream errors."""
+    last_resp = None
+    for attempt in range(retries + 1):
+        resp = http_requests.post(
+            url,
+            headers=_get_ai_headers(api_key),
+            json=payload,
+            timeout=timeout,
+        )
+        last_resp = resp
+
+        if resp.status_code not in (429, 502, 503, 504):
+            return resp
+
+        if attempt >= retries:
+            return resp
+
+        retry_after = resp.headers.get("Retry-After")
+        if retry_after and retry_after.isdigit():
+            sleep_s = min(8.0, max(1.0, float(retry_after)))
+        else:
+            sleep_s = 1.2 * (attempt + 1)
+
+        logger.warning("[AI Chat] transient HTTP %s, retrying in %.1fs (attempt %d/%d)", resp.status_code, sleep_s, attempt + 1, retries)
+        time.sleep(sleep_s)
+
+    return last_resp
+
+
+def _build_openai_messages(messages: list, system: str = "", images: list | None = None) -> list[dict]:
+    """Build OpenAI-compatible message payload from internal message format."""
+    built: list[dict] = []
+    system_text = system.strip()
+    if system_text:
+        built.append({"role": "system", "content": system_text})
+
+    last_index = len(messages) - 1
+    for i, m in enumerate(messages):
+        raw_role = (m.get("role") or "user").strip().lower()
+        role = "assistant" if raw_role in ("assistant", "model") else "user"
+        text = m.get("content", "") or ""
+
+        if i == last_index and role == "user" and images:
+            parts: list[dict] = []
+            if text:
+                parts.append({"type": "text", "text": text})
+            for img_data in images:
+                data_url = img_data if img_data.startswith("data:") else f"data:image/png;base64,{img_data}"
+                parts.append({"type": "image_url", "image_url": {"url": data_url}})
+            built.append({"role": "user", "content": parts if parts else text})
+        else:
+            built.append({"role": role, "content": text})
+
+    return built
+
+
+def _extract_openai_content(message: dict) -> str:
+    """Extract text content from OpenAI-style message payload."""
+    content = message.get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                text_parts.append(part.get("text", ""))
+        return "\n".join([p for p in text_parts if p])
+    return ""
 
 
 def _call_gemini(messages: list, system: str = "", max_tokens: int = 8192,
                  temperature: float = 0.7, images: list | None = None) -> str:
-    """Call Gemini for chat/text completion. Returns assistant text."""
-    api_key = settings.GEMINI_API_KEY
+    """Call OpenAI-compatible chat completion API. Returns assistant text."""
+    api_key = _get_ai_api_key()
     if not api_key or len(api_key) < 10:
-        raise RuntimeError("GEMINI_API_KEY is not configured.")
+        raise RuntimeError("AI_API_KEY is not configured.")
 
     model_name = _get_gemini_chat_model()
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}"
-        f":generateContent?key={api_key}"
-    )
-
-    contents = []
-    full_system = system.strip()
-
-    for i, m in enumerate(messages):
-        role = "user" if m.get("role", "user") == "user" else "model"
-        parts: list[dict] = []
-
-        if i == 0 and full_system:
-            parts.append({"text": f"{full_system}\n\n{m.get('content', '')}"})
-        else:
-            parts.append({"text": m.get("content", "")})
-
-        if i == len(messages) - 1 and role == "user" and images:
-            for img_data in images:
-                if img_data.startswith("data:"):
-                    media_type = img_data.split(";")[0].split(":")[1]
-                    b64 = img_data.split(",", 1)[1]
-                else:
-                    media_type = "image/png"
-                    b64 = img_data
-                parts.append({"inlineData": {"mimeType": media_type, "data": b64}})
-
-        contents.append({"role": role, "parts": parts})
+    url = _get_chat_completions_url()
 
     payload = {
-        "contents": contents,
-        "generationConfig": {
-            "temperature": temperature,
-            "maxOutputTokens": max_tokens,
-        },
+        "model": model_name,
+        "messages": _build_openai_messages(messages=messages, system=system, images=images),
     }
+    _apply_max_tokens(payload, model_name, max_tokens)
+    _apply_temperature(payload, model_name, temperature)
 
-    logger.info("[Gemini Chat] Calling %s", model_name)
-    resp = http_requests.post(url, json=payload, timeout=120.0)
+    logger.info("[AI Chat] Calling %s", model_name)
+    resp = _post_ai_with_retries(url=url, api_key=api_key, payload=payload, timeout=120.0)
 
     if resp.status_code != 200:
         body = resp.text[:600]
-        logger.error("Gemini Chat HTTP %s: %s", resp.status_code, body)
-        raise RuntimeError(f"Gemini API error (HTTP {resp.status_code}): {body}")
+        logger.error("AI Chat HTTP %s: %s", resp.status_code, body)
+        raise RuntimeError(f"AI API error (HTTP {resp.status_code}): {body}")
 
     data = resp.json()
-    candidates = data.get("candidates", [])
-    if not candidates:
-        raise RuntimeError("Gemini returned no candidates.")
+    choices = data.get("choices", [])
+    if not choices:
+        raise RuntimeError("AI provider returned no choices.")
 
-    content_parts = candidates[0].get("content", {}).get("parts", [])
-    text_parts = [p["text"] for p in content_parts if "text" in p]
-    return "\n".join(text_parts)
+    message = choices[0].get("message", {})
+    return _extract_openai_content(message)
+
+
+def _get_draw_model() -> str:
+    """Return model name used specifically for the draw agent.
+    Uses AI_DRAW_MODEL setting, falling back to gemini-3.1-pro-preview."""
+    return (
+        getattr(settings, "AI_DRAW_MODEL", "")
+        or "gemini-3.1-pro-preview"
+    ).strip()
+
+
+def _call_draw_agent(messages: list, system: str = "", max_tokens: int = 16384) -> str:
+    """Call the draw agent model with JSON mode enforced.
+
+    Uses gpt-4o-mini (or configured AI_DRAW_MODEL) with response_format
+    set to json_object so the model is guaranteed to return valid JSON.
+    Falls back to the general chat model without JSON mode if the draw
+    model's token limits are exceeded.
+    """
+    api_key = _get_ai_api_key()
+    if not api_key or len(api_key) < 10:
+        raise RuntimeError("AI_API_KEY is not configured.")
+
+    model_name = _get_draw_model()
+    url = _get_chat_completions_url()
+
+    payload = {
+        "model": model_name,
+        "messages": _build_openai_messages(messages=messages, system=system),
+        "response_format": {"type": "json_object"},
+    }
+    _apply_max_tokens(payload, model_name, max_tokens)
+    _apply_temperature(payload, model_name, 0.3)
+
+    logger.info("[DrawAgent] Calling %s with JSON mode", model_name)
+    resp = _post_ai_with_retries(url=url, api_key=api_key, payload=payload, timeout=180.0)
+
+    if resp.status_code == 200:
+        data = resp.json()
+        choices = data.get("choices", [])
+        if choices:
+            message = choices[0].get("message", {})
+            return _extract_openai_content(message)
+
+    # If primary model fails (token limit, 413, etc.), fall back to chat model
+    body = resp.text[:600] if resp else "No response"
+    logger.warning("[DrawAgent] Primary model %s failed (HTTP %s): %s — falling back to chat model",
+                   model_name, getattr(resp, 'status_code', '?'), body[:200])
+
+    fallback_model = _get_gemini_chat_model()
+    fallback_payload = {
+        "model": fallback_model,
+        "messages": _build_openai_messages(messages=messages, system=system),
+    }
+    _apply_max_tokens(fallback_payload, fallback_model, max_tokens)
+    _apply_temperature(fallback_payload, fallback_model, 0.3)
+
+    logger.info("[DrawAgent] Retrying with fallback model %s (no JSON mode)", fallback_model)
+    resp2 = _post_ai_with_retries(url=url, api_key=api_key, payload=fallback_payload, timeout=180.0)
+
+    if resp2.status_code != 200:
+        body2 = resp2.text[:600]
+        logger.error("[DrawAgent] Fallback also failed HTTP %s: %s", resp2.status_code, body2)
+        raise RuntimeError(f"Draw agent API error (HTTP {resp2.status_code}): {body2}")
+
+    data2 = resp2.json()
+    choices2 = data2.get("choices", [])
+    if not choices2:
+        raise RuntimeError("Draw agent returned no choices.")
+
+    message2 = choices2[0].get("message", {})
+    return _extract_openai_content(message2)
+
 
 
 def _repair_truncated_json(text: str) -> dict:
@@ -514,7 +686,7 @@ _GEMINI_UNSUPPORTED_SCHEMA_KEYS = {
 
 
 def _sanitize_schema_for_gemini(schema: dict) -> dict:
-    """Strip JSON Schema fields the Gemini API rejects."""
+    """Strip extra JSON Schema fields to keep tool defs provider-safe."""
     if not isinstance(schema, dict):
         return schema
     cleaned: dict = {}
@@ -535,90 +707,72 @@ def _sanitize_schema_for_gemini(schema: dict) -> dict:
 
 def _call_gemini_with_tools(messages: list, system: str = "", max_tokens: int = 8192,
                             temperature: float = 0.7, images: list | None = None) -> str:
-    """Call Gemini with function-calling. Loops until a final text response."""
-    api_key = settings.GEMINI_API_KEY
+    """Call AI model with function-calling. Loops until a final text response."""
+    api_key = _get_ai_api_key()
     if not api_key or len(api_key) < 10:
-        raise RuntimeError("GEMINI_API_KEY is not configured.")
+        raise RuntimeError("AI_API_KEY is not configured.")
 
     model_name = _get_gemini_chat_model()
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}"
-        f":generateContent?key={api_key}"
-    )
+    url = _get_chat_completions_url()
 
     mcp_tools = sync_get_mcp_tools()
     all_tool_defs = _TOOL_DEFINITIONS + mcp_tools
 
-    gemini_tools = []
+    openai_tools = []
     for td in all_tool_defs:
         fn_decl = {
-            "name": td["name"],
-            "description": td.get("description", ""),
+            "type": "function",
+            "function": {
+                "name": td["name"],
+                "description": td.get("description", ""),
+            }
         }
         schema = td.get("input_schema")
         if schema:
-            fn_decl["parameters"] = _sanitize_schema_for_gemini(schema)
-        gemini_tools.append(fn_decl)
+            fn_decl["function"]["parameters"] = _sanitize_schema_for_gemini(schema)
+        openai_tools.append(fn_decl)
 
-    tool_config = {"functionDeclarations": gemini_tools} if gemini_tools else None
-
-    contents = []
-    full_system = system.strip()
-
-    for i, m in enumerate(messages):
-        role = "user" if m.get("role", "user") == "user" else "model"
-        parts: list[dict] = []
-        if i == 0 and full_system:
-            parts.append({"text": f"{full_system}\n\n{m.get('content', '')}"})
-        else:
-            parts.append({"text": m.get("content", "")})
-
-        if i == len(messages) - 1 and role == "user" and images:
-            for img_data in images:
-                if img_data.startswith("data:"):
-                    media_type = img_data.split(";")[0].split(":")[1]
-                    b64 = img_data.split(",", 1)[1]
-                else:
-                    media_type = "image/png"
-                    b64 = img_data
-                parts.append({"inlineData": {"mimeType": media_type, "data": b64}})
-
-        contents.append({"role": role, "parts": parts})
+    built_messages = _build_openai_messages(messages=messages, system=system, images=images)
 
     for _round in range(5):
         payload: dict = {
-            "contents": contents,
-            "generationConfig": {
-                "temperature": temperature,
-                "maxOutputTokens": max_tokens,
-            },
+            "model": model_name,
+            "messages": built_messages,
         }
-        if tool_config:
-            payload["tools"] = [tool_config]
+        _apply_max_tokens(payload, model_name, max_tokens)
+        _apply_temperature(payload, model_name, temperature)
+        if openai_tools:
+            payload["tools"] = openai_tools
+            payload["tool_choice"] = "auto"
 
-        resp = http_requests.post(url, json=payload, timeout=120.0)
+        resp = _post_ai_with_retries(url=url, api_key=api_key, payload=payload, timeout=120.0)
         if resp.status_code != 200:
             body = resp.text[:600]
-            raise RuntimeError(f"Gemini API error (HTTP {resp.status_code}): {body}")
+            raise RuntimeError(f"AI API error (HTTP {resp.status_code}): {body}")
 
         data = resp.json()
-        candidates = data.get("candidates", [])
-        if not candidates:
-            raise RuntimeError("Gemini returned no candidates.")
+        choices = data.get("choices", [])
+        if not choices:
+            raise RuntimeError("AI provider returned no choices.")
 
-        parts = candidates[0].get("content", {}).get("parts", [])
-
-        fn_calls = [p for p in parts if "functionCall" in p]
+        assistant_message = choices[0].get("message", {})
+        fn_calls = assistant_message.get("tool_calls", [])
         if not fn_calls:
-            text_parts = [p.get("text", "") for p in parts if "text" in p]
-            return "\n".join(text_parts)
+            return _extract_openai_content(assistant_message)
 
-        contents.append({"role": "model", "parts": parts})
-        fn_response_parts = []
-        for fc_part in fn_calls:
-            fc = fc_part["functionCall"]
-            fn_name = fc["name"]
-            fn_args = fc.get("args", {})
+        built_messages.append({
+            "role": "assistant",
+            "content": assistant_message.get("content") or "",
+            "tool_calls": fn_calls,
+        })
+
+        for fc in fn_calls:
+            fn_name = (fc.get("function") or {}).get("name", "")
+            raw_args = (fc.get("function") or {}).get("arguments", "{}")
+            try:
+                fn_args = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
+            except json.JSONDecodeError:
+                fn_args = {}
 
             tool_fn = _TOOL_MAP.get(fn_name)
             if tool_fn:
@@ -629,74 +783,63 @@ def _call_gemini_with_tools(messages: list, system: str = "", max_tokens: int = 
             else:
                 result = sync_execute_mcp_tool(fn_name, fn_args)
 
-            fn_response_parts.append({
-                "functionResponse": {
-                    "name": fn_name,
-                    "response": result if isinstance(result, dict) else {"result": str(result)},
-                }
+            built_messages.append({
+                "role": "tool",
+                "tool_call_id": fc.get("id", ""),
+                "content": json.dumps(result if isinstance(result, dict) else {"result": str(result)}),
             })
 
-        contents.append({"role": "user", "parts": fn_response_parts})
-
-    text_parts = [p.get("text", "") for p in parts if "text" in p]
-    return "\n".join(text_parts) if text_parts else "I was unable to complete the request."
+    return "I was unable to complete the request."
 
 
 def _get_analyse_model_name() -> str:
-    """Resolve the Gemini model used by `/analyse`."""
-    return (getattr(settings, "GEMINI_ANALYSE_MODEL", "") or "gemini-2.5-pro").strip()
+    """Resolve the model used by `/analyse`."""
+    return (
+        getattr(settings, "AI_ANALYSE_MODEL", "")
+        or _get_gemini_chat_model()
+    ).strip()
 
 
 def _call_gemini_analyse(system: str, user_content: str, images: list | None = None,
                          max_tokens: int = 16384, temperature: float = 0.3) -> str:
-    """Call Gemini vision for /analyse. Returns raw text."""
-    api_key = settings.GEMINI_API_KEY
+    """Call AI model for /analyse. Returns raw JSON/text."""
+    api_key = _get_ai_api_key()
     if not api_key or len(api_key) < 10:
-        raise RuntimeError("GEMINI_API_KEY is not configured.")
+        raise RuntimeError("AI_API_KEY is not configured.")
 
     model_name = _get_analyse_model_name()
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}"
-        f":generateContent?key={api_key}"
-    )
-
-    parts: list[dict] = [{"text": f"{system}\n\n{user_content}"}]
-
-    if images:
-        for img_data in images:
-            if img_data.startswith("data:"):
-                media_type = img_data.split(";")[0].split(":")[1]
-                b64 = img_data.split(",", 1)[1]
-            else:
-                media_type = "image/png"
-                b64 = img_data
-            parts.append({"inlineData": {"mimeType": media_type, "data": b64}})
+    url = _get_chat_completions_url()
 
     payload = {
-        "contents": [{"parts": parts}],
-        "generationConfig": {
-            "temperature": temperature,
-            "maxOutputTokens": max_tokens,
-            "responseMimeType": "application/json",
-        },
+        "model": model_name,
+        "messages": _build_openai_messages(
+            messages=[{"role": "user", "content": user_content}],
+            system=system,
+            images=images,
+        ),
+        "response_format": {"type": "json_object"},
     }
+    _apply_max_tokens(payload, model_name, max_tokens)
+    _apply_temperature(payload, model_name, temperature)
 
-    logger.info("[Analyse] Calling Gemini %s (max_tokens=%d)", model_name, max_tokens)
-    resp = http_requests.post(url, json=payload, timeout=180.0)
+    logger.info("[Analyse] Calling %s (max_tokens=%d)", model_name, max_tokens)
+    resp = _post_ai_with_retries(url=url, api_key=api_key, payload=payload, timeout=180.0)
+
+    if resp.status_code == 400 and "response_format" in (resp.text or ""):
+        payload.pop("response_format", None)
+        resp = _post_ai_with_retries(url=url, api_key=api_key, payload=payload, timeout=180.0)
 
     if resp.status_code != 200:
         body = resp.text[:600]
-        logger.error("Gemini Analyse HTTP %s: %s", resp.status_code, body)
-        raise RuntimeError(f"Gemini API error (HTTP {resp.status_code}): {body}")
+        logger.error("Analyse HTTP %s: %s", resp.status_code, body)
+        raise RuntimeError(f"AI API error (HTTP {resp.status_code}): {body}")
 
     data = resp.json()
-    candidates = data.get("candidates", [])
-    if not candidates:
-        raise RuntimeError("Gemini returned no candidates.")
+    choices = data.get("choices", [])
+    if not choices:
+        raise RuntimeError("AI provider returned no choices.")
 
-    content_parts = candidates[0].get("content", {}).get("parts", [])
-    text_parts = [p["text"] for p in content_parts if "text" in p]
-    return "\n".join(text_parts)
+    return _extract_openai_content(choices[0].get("message", {}))
 
 
 def _coerce_float(value, default: float = 0.0) -> float:
@@ -2181,18 +2324,11 @@ class DrawAgentView(APIView):
 
         current_elements = request.data.get('current_elements', [])
 
-        api_key = settings.GEMINI_API_KEY
+        api_key = _get_ai_api_key()
         if not api_key or len(api_key) < 10:
-            return Response({'error': 'GEMINI_API_KEY not configured'}, status=500)
+            return Response({'error': 'AI_API_KEY not configured'}, status=500)
 
-        # Use Gemini 3.1 Pro Preview
-        model_name = "gemini-3.1-pro-preview"
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}"
-            f":generateContent?key={api_key}"
-        )
-
-        # Extract rich context from current elements
+        # Extract compact context from current elements to avoid token-limit errors
         context_str = f"Drawing has {len(current_elements)} elements.\n"
         if current_elements:
             try:
@@ -2204,39 +2340,72 @@ class DrawAgentView(APIView):
                 
                 existing_rooms = [e.get('text').split('\n')[0] for e in current_elements if e.get('type') == 'text' and 'm²' in e.get('text', '')]
                 if existing_rooms:
-                    context_str += f"Existing Rooms: {', '.join(existing_rooms)}\n"
+                    context_str += f"Existing Rooms: {', '.join(existing_rooms[:8])}\n"
+
+                # Prioritize wall elements so AI understands the layout
+                def _compact(e):
+                    return {
+                        "type": e.get("type"),
+                        "x": e.get("x"),
+                        "y": e.get("y"),
+                        "x2": e.get("x2"),
+                        "y2": e.get("y2"),
+                        "width": e.get("width"),
+                        "height": e.get("height"),
+                        "text": (e.get("text") or "")[:60],
+                    }
+
+                MAX_SAMPLE = 40
+                walls = [e for e in current_elements if e.get("layer") == "Walls"]
+                others = [e for e in current_elements if e.get("layer") != "Walls"]
+                sample_elements = [_compact(e) for e in walls[:MAX_SAMPLE]]
+                remaining = MAX_SAMPLE - len(sample_elements)
+                if remaining > 0:
+                    sample_elements.extend(_compact(e) for e in others[:remaining])
+                if sample_elements:
+                    context_str += f"Element sample ({len(sample_elements)} of {len(current_elements)}): {json.dumps(sample_elements, ensure_ascii=False)}\n"
             except Exception as e:
                 logger.warning(f"Failed to parse context bounds: {e}")
 
-        user_text = f"{context_str}\nAction Requested: {prompt}"
-        payload = {
-            "contents": [
-                {"role": "user", "parts": [{"text": f"{DRAW_AGENT_SYSTEM}\n\n{user_text}"}]}
-            ],
-            "generationConfig": {
-                "temperature": 0.4,
-                "responseMimeType": "application/json",
-            },
-        }
+        user_text = f"{context_str}\nAction Requested: {prompt[:900]}"
+        user_text = user_text[:4000]
 
-        logger.info("[DrawAgent] Calling %s", model_name)
+        def _is_token_limit_error(exc_text: str) -> bool:
+            lowered = (exc_text or "").lower()
+            return any(term in lowered for term in [
+                "request too large",
+                "rate_limit_exceeded",
+                "tokens per minute",
+                "413",
+                "token",
+            ])
+
         try:
-            resp = http_requests.post(url, json=payload, timeout=180.0)
+            text = _call_draw_agent(
+                messages=[{"role": "user", "content": user_text}],
+                system=DRAW_AGENT_SYSTEM,
+                max_tokens=16384,
+            ).strip()
         except Exception as e:
-            logger.error("[DrawAgent] Request failed: %s", e)
-            return Response({'error': f'AI service timeout: {e}'}, status=502)
+            if not _is_token_limit_error(str(e)):
+                logger.error("[DrawAgent] Request failed: %s", e)
+                return Response({'error': f'AI service timeout: {e}'}, status=502)
 
-        if resp.status_code != 200:
-            logger.error("[DrawAgent] API error %s: %s", resp.status_code, resp.text[:500])
-            return Response({'error': f'Gemini API error: {resp.status_code}'}, status=502)
-
-        # Extract text from Gemini response
-        try:
-            data = resp.json()
-            text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        except (KeyError, IndexError) as e:
-            logger.error("[DrawAgent] Bad response structure: %s", e)
-            return Response({'error': 'Unexpected AI response format'}, status=502)
+            logger.warning("[DrawAgent] Token overflow; retrying with minimal context")
+            minimal_text = f"Action Requested: {prompt[:450]}\nDrawing element count: {len(current_elements)}"
+            try:
+                text = _call_draw_agent(
+                    messages=[{"role": "user", "content": minimal_text}],
+                    system=DRAW_AGENT_SYSTEM,
+                    max_tokens=4096,
+                ).strip()
+                user_text = minimal_text
+            except Exception as retry_exc:
+                logger.error("[DrawAgent] Retry also failed: %s", retry_exc)
+                return Response(
+                    {'error': 'AI service is busy. Please try a simpler request.'},
+                    status=502,
+                )
 
         # Strip markdown fences if present
         if text.startswith('```'):
@@ -2268,8 +2437,15 @@ class DrawAgentView(APIView):
                     'raw': text[:1000],
                 }, status=502)
 
-        commands = result.get('commands', [])
-        summary = result.get('summary', f'{len(commands)} drawing commands generated')
+        summary = result.get('summary')
+        if not summary:
+            if 'walls' in result:
+                summary = f"Parametric layout generated: {len(result.get('walls', []))} walls"
+            elif 'commands' in result:
+                summary = f"{len(result.get('commands', []))} drawing commands generated"
+            else:
+                summary = "Generated elements"
+            result['summary'] = summary
 
         TokenUsage.objects.create(
             user=request.user,
@@ -2279,8 +2455,5 @@ class DrawAgentView(APIView):
             total_tokens=(len(user_text) + len(text)) // 4,
         )
 
-        return Response({
-            'commands': commands,
-            'summary': summary,
-        })
+        return Response(result)
 

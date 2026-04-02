@@ -18,6 +18,15 @@ import { routeTree } from './routeTree.gen'
 // Styles
 import './styles/index.css'
 
+// Suppress known noisy internal Supabase AbortErrors during React StrictMode overlapping fetches
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    if (event.reason?.name === 'AbortError' || event.reason?.message?.includes('AbortError')) {
+      event.preventDefault();
+    }
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

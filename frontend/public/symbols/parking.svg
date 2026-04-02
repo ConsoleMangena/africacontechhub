@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Parking bay outline -->
+  <rect x="2" y="2" width="96" height="96" stroke-width="2"/>
+  <!-- P letter -->
+  <text x="50" y="65" font-size="50" font-weight="bold" text-anchor="middle" fill="currentColor" stroke="none" font-family="sans-serif">P</text>
+  <!-- Bay divider lines -->
+  <line x1="2" y1="50" x2="15" y2="50" stroke-width="1.5"/>
+  <line x1="85" y1="50" x2="98" y2="50" stroke-width="1.5"/>
+</svg>
