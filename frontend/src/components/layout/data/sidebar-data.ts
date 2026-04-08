@@ -28,59 +28,59 @@ export const sidebarData: SidebarData = {
       title: 'Admin Workspace',
       items: [
         {
+          title: 'Dashboard Analytics',
+          url: '/admin/dashboard-analytics',
+          icon: 'monitoring',
+        },
+        {
           title: 'Overview',
           url: '/admin',
-          icon: 'admin_panel_settings',
+          icon: 'security',
         },
         {
           title: 'Projects',
           url: '/admin/projects',
-          icon: 'folder',
+          icon: 'business_center',
         },
         {
           title: 'AI Command Center',
           url: '/admin/ai-command-center',
-          icon: 'auto_awesome',
+          icon: 'smart_toy',
         },
         {
           title: 'User Management',
           url: '/admin/users',
-          icon: 'people',
+          icon: 'group',
         },
         {
           title: 'Team Management',
           url: '/admin/team',
-          icon: 'groups',
+          icon: 'engineering',
         },
         {
           title: 'Procurement',
           url: '/admin/procurement',
-          icon: 'shopping_cart',
+          icon: 'inventory_2',
         },
         {
           title: 'Knowledge Base',
           url: '/admin/knowledge-base',
-          icon: 'library_books',
+          icon: 'menu_book',
         },
         {
           title: 'Floor Plans',
           url: '/admin/floor-plans',
-          icon: 'architecture',
-        },
-        {
-          title: 'Activity Log',
-          url: '/admin/activity-log',
-          icon: 'manage_history',
+          icon: 'image',
         },
         {
           title: 'Platform Billing',
           url: '/admin/billing',
-          icon: 'credit_card',
+          icon: 'payments',
         },
         {
           title: 'System Settings',
           url: '/admin/settings',
-          icon: 'settings',
+          icon: 'settings_suggest',
         },
       ],
     },
@@ -95,17 +95,17 @@ export const sidebarData: SidebarData = {
         {
           title: 'Design Drafting',
           url: '/builder/design-drafting',
-          icon: 'draw',
+          icon: 'architecture',
         },
         {
           title: 'Construction Budget',
           url: '/builder/measurements',
-          icon: 'request_quote',
+          icon: 'receipt_long',
         },
         {
           title: 'Procurement',
           url: '/builder/procurement',
-          icon: 'shopping_cart',
+          icon: 'inventory_2',
         },
         {
           title: 'Building the Project',
@@ -125,12 +125,12 @@ export const sidebarData: SidebarData = {
         {
           title: 'Bids',
           url: '/contractor',
-          icon: 'gavel',
+          icon: 'description',
         },
         {
           title: 'WIPAA',
           url: '/contractor',
-          icon: 'analytics',
+          icon: 'audio_waveform',
         },
         {
           title: 'Projects',
@@ -150,12 +150,12 @@ export const sidebarData: SidebarData = {
         {
           title: 'Orders',
           url: '/supplier',
-          icon: 'receipt',
+          icon: 'shopping_cart',
         },
         {
           title: 'Products',
           url: '/supplier',
-          icon: 'category',
+          icon: 'inventory_2',
         },
         {
           title: 'Deliveries',
@@ -170,7 +170,7 @@ export const sidebarData: SidebarData = {
         {
           title: 'SQB Building Team',
           url: '/sqb-team',
-          icon: 'engineering',
+          icon: 'verified_user',
         },
         {
           title: 'Settings',
@@ -207,6 +207,51 @@ export const sidebarData: SidebarData = {
           title: 'Billing',
           url: '/billing',
           icon: 'credit_card',
+        },
+      ],
+    },
+    {
+      title: 'Finance Management',
+      items: [
+        {
+          title: 'Financial Reports',
+          url: '/admin/finance?tab=pl',
+          icon: 'account_balance',
+        },
+        {
+          title: 'Balance Sheet',
+          url: '/admin/finance?tab=balance',
+          icon: 'balance',
+        },
+        {
+          title: 'Profit & Loss',
+          url: '/admin/finance?tab=pl',
+          icon: 'trending_up',
+        },
+        {
+          title: 'Cash Flow',
+          url: '/admin/finance?tab=cashflow',
+          icon: 'water',
+        },
+        {
+          title: 'Invoices',
+          url: '/admin/finance?tab=invoices',
+          icon: 'receipt_long',
+        },
+      ],
+    },
+    {
+      title: 'Cyber Info',
+      items: [
+        {
+          title: 'Activity Log',
+          url: '/admin/activity-log',
+          icon: 'history',
+        },
+        {
+          title: 'Audit Log',
+          url: '/admin/audit-log',
+          icon: 'travel_explore',
         },
       ],
     },

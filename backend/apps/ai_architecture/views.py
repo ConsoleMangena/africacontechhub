@@ -6,7 +6,6 @@ import json
 import uuid
 import base64
 import logging
-import time
 import requests as http_requests
 from django.conf import settings
 from django.db.models import Avg, Q
@@ -16,15 +15,13 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
-from apps.authentication.permissions import IsApproved
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from .models import (
     KnowledgeDocument, AIInstruction, ChatSession, ChatMessage,
-    MaterialPrice, TokenUsage,
+    DrawingStylePreset, ImageFeedback, MaterialPrice, TokenUsage,
     BOQTemplate, SiteIntel,
 )
-from .prompts import DRAW_AGENT_SYSTEM
 from apps.builder_dashboard.models import Project
 from .mcp_manager import sync_get_mcp_tools, sync_execute_mcp_tool
 
@@ -276,9 +273,16 @@ _TOOL_DEFINITIONS = [
 
 # ── Command detection ────────────────────────────────────────────────
 
+_DRAW_KEYWORDS = ['/draw']
 _PLANS_KEYWORDS = ['/plans']
 _ANALYSE_KEYWORDS = ['/analyse', '/analyze']
+_SCAN_KEYWORDS = ['/scan']
 
+
+def _is_drawing_request(text: str) -> bool:
+    """Return True when the user's message looks like a drawing request."""
+    lower = text.lower()
+    return any(kw in lower for kw in _DRAW_KEYWORDS)
 
 
 def _is_floor_plan_search(text: str) -> bool:
@@ -293,8 +297,10 @@ def _is_analyse_request(text: str) -> bool:
     return any(kw in lower for kw in _ANALYSE_KEYWORDS)
 
 
-
-
+def _is_scan_request(text: str) -> bool:
+    """Return True when the user wants to scan a hand-drawn plan and generate a professional drawing."""
+    lower = text.lower()
+    return any(kw in lower for kw in _SCAN_KEYWORDS)
 
 
 def _extract_search_terms(text: str) -> str:
@@ -306,6 +312,13 @@ def _extract_search_terms(text: str) -> str:
     return lower
 
 
+def _extract_scan_description(text: str) -> str:
+    """Strip the /scan command and return any extra user description."""
+    stripped = text.strip()
+    for kw in _SCAN_KEYWORDS:
+        if stripped.lower().startswith(kw):
+            return stripped[len(kw):].strip()
+    return stripped
 
 
 def _to_bool(value, default: bool = False) -> bool:
@@ -418,251 +431,212 @@ def _search_floor_plans(query: str, limit: int = 6) -> list:
     return results
 
 
+def _match_style_preset(text: str):
+    """
+    Find the best-matching active DrawingStylePreset for the user's query.
+    Returns the preset or None.
+    """
+    lower = text.lower()
+    presets = DrawingStylePreset.objects.filter(is_active=True).order_by('-priority')
+    for preset in presets:
+        if any(kw in lower for kw in preset.get_keywords_list()):
+            return preset
+    return None
 
 
+def _get_top_rated_prompts(preset, limit=3):
+    """
+    Fetch the highest-rated prompts from ImageFeedback for a given preset.
+    These serve as few-shot examples for Gemini's prompt engineering.
+    """
+    if not preset:
+        feedback = ImageFeedback.objects.filter(
+            rating__gte=4
+        ).order_by('-rating', '-created_at')[:limit]
+    else:
+        feedback = ImageFeedback.objects.filter(
+            preset_used=preset, rating__gte=4
+        ).order_by('-rating', '-created_at')[:limit]
+
+    return [f.original_prompt for f in feedback]
 
 
+# ── Image generation ─────────────────────────────────────────────────
 
+def _generate_image_from_gemini(prompt: str, negative_prompt: str = "", guidance_scale: float = 7.5, model_override: str | None = None) -> tuple[str | None, str | None]:
+    """Returns (image_url, error_message). One will always be None."""
+    from PIL import Image
 
-# ── AI provider helpers (OpenAI-compatible API) ─────────────────────
+    api_key = settings.GEMINI_API_KEY
+    if not api_key or 'your-' in api_key.lower() or len(api_key) < 10:
+        logger.error("GEMINI_API_KEY is not configured or is a placeholder.")
+        return None, (
+            "⚠️ Image generation is not configured. The Gemini API key is missing or invalid. "
+            "Please ask the admin to set a valid GEMINI_API_KEY in the environment."
+        )
 
-def _get_ai_provider() -> str:
-    """Return selected AI provider name."""
-    return (getattr(settings, "AI_API_PROVIDER", "") or "github_models").strip().lower()
+    model_name = model_override or settings.GEMINI_IMAGE_MODEL
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
 
+    enhanced_prompt = prompt
+    if negative_prompt:
+        enhanced_prompt += f" (Do NOT include: {negative_prompt})"
 
-def _get_ai_base_url() -> str:
-    """Resolve active AI base URL."""
-    configured = (getattr(settings, "AI_BASE_URL", "") or "").strip()
-    if configured:
-        return configured.rstrip("/")
-
-    return "https://models.github.ai"
-
-def _get_ai_api_key() -> str:
-    """Return configured AI API key (prioritizes Gemini API key)."""
-    return (
-        getattr(settings, "AI_API_KEY", "")
-        or os.getenv("GEMINI_API_KEY", "")
-        or ""
-    ).strip()
-
-
-def _get_gemini_chat_model() -> str:
-    """Return model name used for general chat / tool calls."""
-    return (
-        getattr(settings, "AI_CHAT_MODEL", "")
-        or "gemini-3.1-pro-preview"
-    ).strip()
-
-
-def _get_ai_headers(api_key: str) -> dict:
-    """Build standard headers for GitHub Models REST API calls."""
-    return {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": getattr(settings, "AI_API_VERSION", "2026-03-10"),
+    payload = {
+        "contents": [{
+            "parts": [{"text": enhanced_prompt}]
+        }],
+        "generationConfig": {
+            "responseModalities": ["Text", "Image"],
+            "temperature": 1.0,
+            "topP": 0.95,
+            "topK": 40,
+        },
     }
 
+    try:
+        logger.info("[Gemini Image] Calling %s with prompt: %.120s…", model_name, enhanced_prompt)
+        response = http_requests.post(url, json=payload, timeout=90.0)
 
-def _get_chat_completions_url() -> str:
-    """Resolve provider chat completions URL."""
-    base_url = _get_ai_base_url().rstrip("/")
-    if "googleapis.com" in base_url or base_url.endswith("/inference"):
-        return f"{base_url}/chat/completions"
-    return f"{base_url}/inference/chat/completions"
+        if response.status_code != 200:
+            body = response.text[:500]
+            logger.error("Gemini Image API HTTP %s: %s", response.status_code, body)
+            return None, (
+                f"⚠️ Image generation failed (HTTP {response.status_code}). "
+                "The Gemini API returned an error. Please try again or contact support."
+            )
 
+        data = response.json()
 
-def _apply_max_tokens(payload: dict, model_name: str, max_tokens: int | None) -> None:
-    """Apply provider/model-compatible completion token parameter."""
-    # User requested unlimited tokens, so we ignore max_tokens and let the model use its full capacity
-    pass
+        if data.get("promptFeedback", {}).get("blockReason"):
+            reason = data["promptFeedback"]["blockReason"]
+            logger.warning("Gemini Image blocked: %s", reason)
+            return None, (
+                f"⚠️ Image generation was blocked by safety filters ({reason}). "
+                "Please rephrase your request and try again."
+            )
 
+        candidates = data.get("candidates", [])
+        if not candidates:
+            logger.warning("No candidates returned from Gemini Image API. Response: %s", str(data)[:300])
+            return None, "⚠️ The image model returned no results. Please try rephrasing your request."
 
-def _apply_temperature(payload: dict, model_name: str, temperature: float | None) -> None:
-    """Apply model-compatible temperature parameter."""
-    if temperature is None:
-        return
-    payload["temperature"] = temperature
+        parts = candidates[0].get("content", {}).get("parts", [])
+        if not parts:
+            logger.warning("No parts in the first candidate.")
+            return None, "⚠️ The image model returned an empty response. Please try again."
 
+        # The response may contain multiple parts: text part(s) and image part(s).
+        # Iterate all parts to find the inlineData (image).
+        b64_data = None
+        mime_type = "image/png"
+        for part in parts:
+            inline_data = part.get("inlineData", {})
+            if inline_data.get("data"):
+                b64_data = inline_data["data"]
+                mime_type = inline_data.get("mimeType", "image/png")
+                break
 
-def _post_ai_with_retries(url: str, api_key: str, payload: dict, timeout: float, retries: int = 2):
-    """POST helper with lightweight retry for rate-limits/transient upstream errors."""
-    last_resp = None
-    for attempt in range(retries + 1):
-        resp = http_requests.post(
-            url,
-            headers=_get_ai_headers(api_key),
-            json=payload,
-            timeout=timeout,
-        )
-        last_resp = resp
+        if not b64_data:
+            # The model returned text only — no image was generated
+            text_content = " ".join(p.get("text", "") for p in parts if "text" in p)
+            logger.warning("Gemini returned text-only (no image). Text: %.200s", text_content)
+            return None, (
+                "⚠️ The image model did not generate an image for this request. "
+                "It may have been too complex or filtered. Please try a simpler description."
+            )
 
-        if resp.status_code not in (429, 502, 503, 504):
-            return resp
+        # Decode the image
+        img_bytes = base64.b64decode(b64_data)
+        image = Image.open(io.BytesIO(img_bytes))
 
-        if attempt >= retries:
-            return resp
+        media_dir = os.path.join(settings.MEDIA_ROOT, 'ai_generated')
+        os.makedirs(media_dir, exist_ok=True)
+        ext = "png" if "png" in mime_type else "jpeg"
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        filepath = os.path.join(media_dir, filename)
 
-        retry_after = resp.headers.get("Retry-After")
-        if retry_after and retry_after.isdigit():
-            sleep_s = min(8.0, max(1.0, float(retry_after)))
-        else:
-            sleep_s = 1.2 * (attempt + 1)
+        image.save(filepath, format=ext.upper())
+        logger.info("[Gemini Image] Saved generated image: %s", filepath)
 
-        logger.warning("[AI Chat] transient HTTP %s, retrying in %.1fs (attempt %d/%d)", resp.status_code, sleep_s, attempt + 1, retries)
-        time.sleep(sleep_s)
+        return f"{settings.MEDIA_URL}ai_generated/{filename}", None
 
-    return last_resp
-
-
-def _build_openai_messages(messages: list, system: str = "", images: list | None = None) -> list[dict]:
-    """Build OpenAI-compatible message payload from internal message format."""
-    built: list[dict] = []
-    system_text = system.strip()
-    if system_text:
-        built.append({"role": "system", "content": system_text})
-
-    last_index = len(messages) - 1
-    for i, m in enumerate(messages):
-        raw_role = (m.get("role") or "user").strip().lower()
-        role = "assistant" if raw_role in ("assistant", "model") else "user"
-        text = m.get("content", "") or ""
-
-        if i == last_index and role == "user" and images:
-            parts: list[dict] = []
-            if text:
-                parts.append({"type": "text", "text": text})
-            for img_data in images:
-                data_url = img_data if img_data.startswith("data:") else f"data:image/png;base64,{img_data}"
-                parts.append({"type": "image_url", "image_url": {"url": data_url}})
-            built.append({"role": "user", "content": parts if parts else text})
-        else:
-            built.append({"role": role, "content": text})
-
-    return built
+    except http_requests.exceptions.Timeout:
+        logger.error("Gemini Image API timed out after 90s")
+        return None, "⚠️ Image generation timed out. The request was too complex — please try a simpler description."
+    except Exception as e:
+        logger.error("Image generation error: %s", e)
+        return None, f"⚠️ Image generation failed: {e}"
 
 
-def _extract_openai_content(message: dict) -> str:
-    """Extract text content from OpenAI-style message payload."""
-    content = message.get("content", "")
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        text_parts: list[str] = []
-        for part in content:
-            if isinstance(part, dict) and part.get("type") == "text":
-                text_parts.append(part.get("text", ""))
-        return "\n".join([p for p in text_parts if p])
-    return ""
+# ── Gemini AI helpers ────────────────────────────────────────────────
+
+def _get_gemini_chat_model() -> str:
+    """Return the Gemini model name used for general chat / tool calls."""
+    return (getattr(settings, "GEMINI_CHAT_MODEL", "") or "gemini-2.5-flash").strip()
 
 
 def _call_gemini(messages: list, system: str = "", max_tokens: int = 8192,
                  temperature: float = 0.7, images: list | None = None) -> str:
-    """Call OpenAI-compatible chat completion API. Returns assistant text."""
-    api_key = _get_ai_api_key()
+    """Call Gemini for chat/text completion. Returns assistant text."""
+    api_key = settings.GEMINI_API_KEY
     if not api_key or len(api_key) < 10:
-        raise RuntimeError("AI_API_KEY is not configured.")
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
 
     model_name = _get_gemini_chat_model()
-    url = _get_chat_completions_url()
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}"
+        f":generateContent?key={api_key}"
+    )
+
+    contents = []
+    full_system = system.strip()
+
+    for i, m in enumerate(messages):
+        role = "user" if m.get("role", "user") == "user" else "model"
+        parts: list[dict] = []
+
+        if i == 0 and full_system:
+            parts.append({"text": f"{full_system}\n\n{m.get('content', '')}"})
+        else:
+            parts.append({"text": m.get("content", "")})
+
+        if i == len(messages) - 1 and role == "user" and images:
+            for img_data in images:
+                if img_data.startswith("data:"):
+                    media_type = img_data.split(";")[0].split(":")[1]
+                    b64 = img_data.split(",", 1)[1]
+                else:
+                    media_type = "image/png"
+                    b64 = img_data
+                parts.append({"inlineData": {"mimeType": media_type, "data": b64}})
+
+        contents.append({"role": role, "parts": parts})
 
     payload = {
-        "model": model_name,
-        "messages": _build_openai_messages(messages=messages, system=system, images=images),
+        "contents": contents,
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        },
     }
-    _apply_max_tokens(payload, model_name, max_tokens)
-    _apply_temperature(payload, model_name, temperature)
 
-    logger.info("[AI Chat] Calling %s", model_name)
-    resp = _post_ai_with_retries(url=url, api_key=api_key, payload=payload, timeout=120.0)
+    logger.info("[Gemini Chat] Calling %s", model_name)
+    resp = http_requests.post(url, json=payload, timeout=120.0)
 
     if resp.status_code != 200:
         body = resp.text[:600]
-        logger.error("AI Chat HTTP %s: %s", resp.status_code, body)
-        raise RuntimeError(f"AI API error (HTTP {resp.status_code}): {body}")
+        logger.error("Gemini Chat HTTP %s: %s", resp.status_code, body)
+        raise RuntimeError(f"Gemini API error (HTTP {resp.status_code}): {body}")
 
     data = resp.json()
-    choices = data.get("choices", [])
-    if not choices:
-        raise RuntimeError("AI provider returned no choices.")
+    candidates = data.get("candidates", [])
+    if not candidates:
+        raise RuntimeError("Gemini returned no candidates.")
 
-    message = choices[0].get("message", {})
-    return _extract_openai_content(message)
-
-
-def _get_draw_model() -> str:
-    """Return model name used specifically for the draw agent.
-    Uses AI_DRAW_MODEL setting, falling back to gemini-3.1-pro-preview."""
-    return (
-        getattr(settings, "AI_DRAW_MODEL", "")
-        or "gemini-3.1-pro-preview"
-    ).strip()
-
-
-def _call_draw_agent(messages: list, system: str = "", max_tokens: int = 16384) -> str:
-    """Call the draw agent model with JSON mode enforced.
-
-    Uses gpt-4o-mini (or configured AI_DRAW_MODEL) with response_format
-    set to json_object so the model is guaranteed to return valid JSON.
-    Falls back to the general chat model without JSON mode if the draw
-    model's token limits are exceeded.
-    """
-    api_key = _get_ai_api_key()
-    if not api_key or len(api_key) < 10:
-        raise RuntimeError("AI_API_KEY is not configured.")
-
-    model_name = _get_draw_model()
-    url = _get_chat_completions_url()
-
-    payload = {
-        "model": model_name,
-        "messages": _build_openai_messages(messages=messages, system=system),
-        "response_format": {"type": "json_object"},
-    }
-    _apply_max_tokens(payload, model_name, max_tokens)
-    _apply_temperature(payload, model_name, 0.3)
-
-    logger.info("[DrawAgent] Calling %s with JSON mode", model_name)
-    resp = _post_ai_with_retries(url=url, api_key=api_key, payload=payload, timeout=180.0)
-
-    if resp.status_code == 200:
-        data = resp.json()
-        choices = data.get("choices", [])
-        if choices:
-            message = choices[0].get("message", {})
-            return _extract_openai_content(message)
-
-    # If primary model fails (token limit, 413, etc.), fall back to chat model
-    body = resp.text[:600] if resp else "No response"
-    logger.warning("[DrawAgent] Primary model %s failed (HTTP %s): %s — falling back to chat model",
-                   model_name, getattr(resp, 'status_code', '?'), body[:200])
-
-    fallback_model = _get_gemini_chat_model()
-    fallback_payload = {
-        "model": fallback_model,
-        "messages": _build_openai_messages(messages=messages, system=system),
-    }
-    _apply_max_tokens(fallback_payload, fallback_model, max_tokens)
-    _apply_temperature(fallback_payload, fallback_model, 0.3)
-
-    logger.info("[DrawAgent] Retrying with fallback model %s (no JSON mode)", fallback_model)
-    resp2 = _post_ai_with_retries(url=url, api_key=api_key, payload=fallback_payload, timeout=180.0)
-
-    if resp2.status_code != 200:
-        body2 = resp2.text[:600]
-        logger.error("[DrawAgent] Fallback also failed HTTP %s: %s", resp2.status_code, body2)
-        raise RuntimeError(f"Draw agent API error (HTTP {resp2.status_code}): {body2}")
-
-    data2 = resp2.json()
-    choices2 = data2.get("choices", [])
-    if not choices2:
-        raise RuntimeError("Draw agent returned no choices.")
-
-    message2 = choices2[0].get("message", {})
-    return _extract_openai_content(message2)
-
+    content_parts = candidates[0].get("content", {}).get("parts", [])
+    text_parts = [p["text"] for p in content_parts if "text" in p]
+    return "\n".join(text_parts)
 
 
 def _repair_truncated_json(text: str) -> dict:
@@ -686,7 +660,7 @@ _GEMINI_UNSUPPORTED_SCHEMA_KEYS = {
 
 
 def _sanitize_schema_for_gemini(schema: dict) -> dict:
-    """Strip extra JSON Schema fields to keep tool defs provider-safe."""
+    """Strip JSON Schema fields the Gemini API rejects."""
     if not isinstance(schema, dict):
         return schema
     cleaned: dict = {}
@@ -707,72 +681,90 @@ def _sanitize_schema_for_gemini(schema: dict) -> dict:
 
 def _call_gemini_with_tools(messages: list, system: str = "", max_tokens: int = 8192,
                             temperature: float = 0.7, images: list | None = None) -> str:
-    """Call AI model with function-calling. Loops until a final text response."""
-    api_key = _get_ai_api_key()
+    """Call Gemini with function-calling. Loops until a final text response."""
+    api_key = settings.GEMINI_API_KEY
     if not api_key or len(api_key) < 10:
-        raise RuntimeError("AI_API_KEY is not configured.")
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
 
     model_name = _get_gemini_chat_model()
-    url = _get_chat_completions_url()
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}"
+        f":generateContent?key={api_key}"
+    )
 
     mcp_tools = sync_get_mcp_tools()
     all_tool_defs = _TOOL_DEFINITIONS + mcp_tools
 
-    openai_tools = []
+    gemini_tools = []
     for td in all_tool_defs:
         fn_decl = {
-            "type": "function",
-            "function": {
-                "name": td["name"],
-                "description": td.get("description", ""),
-            }
+            "name": td["name"],
+            "description": td.get("description", ""),
         }
         schema = td.get("input_schema")
         if schema:
-            fn_decl["function"]["parameters"] = _sanitize_schema_for_gemini(schema)
-        openai_tools.append(fn_decl)
+            fn_decl["parameters"] = _sanitize_schema_for_gemini(schema)
+        gemini_tools.append(fn_decl)
 
-    built_messages = _build_openai_messages(messages=messages, system=system, images=images)
+    tool_config = {"functionDeclarations": gemini_tools} if gemini_tools else None
+
+    contents = []
+    full_system = system.strip()
+
+    for i, m in enumerate(messages):
+        role = "user" if m.get("role", "user") == "user" else "model"
+        parts: list[dict] = []
+        if i == 0 and full_system:
+            parts.append({"text": f"{full_system}\n\n{m.get('content', '')}"})
+        else:
+            parts.append({"text": m.get("content", "")})
+
+        if i == len(messages) - 1 and role == "user" and images:
+            for img_data in images:
+                if img_data.startswith("data:"):
+                    media_type = img_data.split(";")[0].split(":")[1]
+                    b64 = img_data.split(",", 1)[1]
+                else:
+                    media_type = "image/png"
+                    b64 = img_data
+                parts.append({"inlineData": {"mimeType": media_type, "data": b64}})
+
+        contents.append({"role": role, "parts": parts})
 
     for _round in range(5):
         payload: dict = {
-            "model": model_name,
-            "messages": built_messages,
+            "contents": contents,
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens,
+            },
         }
-        _apply_max_tokens(payload, model_name, max_tokens)
-        _apply_temperature(payload, model_name, temperature)
-        if openai_tools:
-            payload["tools"] = openai_tools
-            payload["tool_choice"] = "auto"
+        if tool_config:
+            payload["tools"] = [tool_config]
 
-        resp = _post_ai_with_retries(url=url, api_key=api_key, payload=payload, timeout=120.0)
+        resp = http_requests.post(url, json=payload, timeout=120.0)
         if resp.status_code != 200:
             body = resp.text[:600]
-            raise RuntimeError(f"AI API error (HTTP {resp.status_code}): {body}")
+            raise RuntimeError(f"Gemini API error (HTTP {resp.status_code}): {body}")
 
         data = resp.json()
-        choices = data.get("choices", [])
-        if not choices:
-            raise RuntimeError("AI provider returned no choices.")
+        candidates = data.get("candidates", [])
+        if not candidates:
+            raise RuntimeError("Gemini returned no candidates.")
 
-        assistant_message = choices[0].get("message", {})
-        fn_calls = assistant_message.get("tool_calls", [])
+        parts = candidates[0].get("content", {}).get("parts", [])
+
+        fn_calls = [p for p in parts if "functionCall" in p]
         if not fn_calls:
-            return _extract_openai_content(assistant_message)
+            text_parts = [p.get("text", "") for p in parts if "text" in p]
+            return "\n".join(text_parts)
 
-        built_messages.append({
-            "role": "assistant",
-            "content": assistant_message.get("content") or "",
-            "tool_calls": fn_calls,
-        })
-
-        for fc in fn_calls:
-            fn_name = (fc.get("function") or {}).get("name", "")
-            raw_args = (fc.get("function") or {}).get("arguments", "{}")
-            try:
-                fn_args = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
-            except json.JSONDecodeError:
-                fn_args = {}
+        contents.append({"role": "model", "parts": parts})
+        fn_response_parts = []
+        for fc_part in fn_calls:
+            fc = fc_part["functionCall"]
+            fn_name = fc["name"]
+            fn_args = fc.get("args", {})
 
             tool_fn = _TOOL_MAP.get(fn_name)
             if tool_fn:
@@ -783,63 +775,74 @@ def _call_gemini_with_tools(messages: list, system: str = "", max_tokens: int = 
             else:
                 result = sync_execute_mcp_tool(fn_name, fn_args)
 
-            built_messages.append({
-                "role": "tool",
-                "tool_call_id": fc.get("id", ""),
-                "content": json.dumps(result if isinstance(result, dict) else {"result": str(result)}),
+            fn_response_parts.append({
+                "functionResponse": {
+                    "name": fn_name,
+                    "response": result if isinstance(result, dict) else {"result": str(result)},
+                }
             })
 
-    return "I was unable to complete the request."
+        contents.append({"role": "user", "parts": fn_response_parts})
+
+    text_parts = [p.get("text", "") for p in parts if "text" in p]
+    return "\n".join(text_parts) if text_parts else "I was unable to complete the request."
 
 
 def _get_analyse_model_name() -> str:
-    """Resolve the model used by `/analyse`."""
-    return (
-        getattr(settings, "AI_ANALYSE_MODEL", "")
-        or _get_gemini_chat_model()
-    ).strip()
+    """Resolve the Gemini model used by `/analyse`."""
+    return (getattr(settings, "GEMINI_ANALYSE_MODEL", "") or "gemini-2.5-pro").strip()
 
 
 def _call_gemini_analyse(system: str, user_content: str, images: list | None = None,
                          max_tokens: int = 16384, temperature: float = 0.3) -> str:
-    """Call AI model for /analyse. Returns raw JSON/text."""
-    api_key = _get_ai_api_key()
+    """Call Gemini vision for /analyse. Returns raw text."""
+    api_key = settings.GEMINI_API_KEY
     if not api_key or len(api_key) < 10:
-        raise RuntimeError("AI_API_KEY is not configured.")
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
 
     model_name = _get_analyse_model_name()
-    url = _get_chat_completions_url()
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}"
+        f":generateContent?key={api_key}"
+    )
+
+    parts: list[dict] = [{"text": f"{system}\n\n{user_content}"}]
+
+    if images:
+        for img_data in images:
+            if img_data.startswith("data:"):
+                media_type = img_data.split(";")[0].split(":")[1]
+                b64 = img_data.split(",", 1)[1]
+            else:
+                media_type = "image/png"
+                b64 = img_data
+            parts.append({"inlineData": {"mimeType": media_type, "data": b64}})
 
     payload = {
-        "model": model_name,
-        "messages": _build_openai_messages(
-            messages=[{"role": "user", "content": user_content}],
-            system=system,
-            images=images,
-        ),
-        "response_format": {"type": "json_object"},
+        "contents": [{"parts": parts}],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+            "responseMimeType": "application/json",
+        },
     }
-    _apply_max_tokens(payload, model_name, max_tokens)
-    _apply_temperature(payload, model_name, temperature)
 
-    logger.info("[Analyse] Calling %s (max_tokens=%d)", model_name, max_tokens)
-    resp = _post_ai_with_retries(url=url, api_key=api_key, payload=payload, timeout=180.0)
-
-    if resp.status_code == 400 and "response_format" in (resp.text or ""):
-        payload.pop("response_format", None)
-        resp = _post_ai_with_retries(url=url, api_key=api_key, payload=payload, timeout=180.0)
+    logger.info("[Analyse] Calling Gemini %s (max_tokens=%d)", model_name, max_tokens)
+    resp = http_requests.post(url, json=payload, timeout=180.0)
 
     if resp.status_code != 200:
         body = resp.text[:600]
-        logger.error("Analyse HTTP %s: %s", resp.status_code, body)
-        raise RuntimeError(f"AI API error (HTTP {resp.status_code}): {body}")
+        logger.error("Gemini Analyse HTTP %s: %s", resp.status_code, body)
+        raise RuntimeError(f"Gemini API error (HTTP {resp.status_code}): {body}")
 
     data = resp.json()
-    choices = data.get("choices", [])
-    if not choices:
-        raise RuntimeError("AI provider returned no choices.")
+    candidates = data.get("candidates", [])
+    if not candidates:
+        raise RuntimeError("Gemini returned no candidates.")
 
-    return _extract_openai_content(choices[0].get("message", {}))
+    content_parts = candidates[0].get("content", {}).get("parts", [])
+    text_parts = [p["text"] for p in content_parts if "text" in p]
+    return "\n".join(text_parts)
 
 
 def _coerce_float(value, default: float = 0.0) -> float:
@@ -1296,10 +1299,14 @@ class ChatCompletionView(APIView):
             pdf_images = _extract_pdf_pages_as_images(user_pdf_data, max_pages=5)
             vision_images.extend(pdf_images)
 
+        image_url = None
+        matched_preset = None
+        final_image_prompt = None
         floor_plan_results = None
         analyse_results = None
+        draw_error = None
 
-        if not vision_images and project and _is_analyse_request(user_query):
+        if not vision_images and project and (_is_scan_request(user_query) or _is_analyse_request(user_query)):
             vision_images = _get_project_vision_images(project)
 
         if _is_analyse_request(user_query):
@@ -1322,12 +1329,25 @@ class ChatCompletionView(APIView):
             search_terms = _extract_search_terms(user_query)
             if not search_terms and project:
                 search_terms = f"{project.preferred_style or ''} {project.building_type or ''} {project.bedrooms or ''} bedroom".strip()
-
+            
             floor_plan_results = _search_floor_plans(search_terms, limit=6)
 
+        elif _is_drawing_request(user_query):
+            image_url, final_image_prompt, matched_preset, draw_error = self._handle_draw(user_query, project)
 
-
-
+        elif _is_scan_request(user_query):
+            logger.info("[Scan] Command detected. user_image_data present: %s, vision_images count: %d",
+                        bool(user_image_data), len(vision_images))
+            if not vision_images:
+                draw_error = (
+                    "⚠️ The /scan command requires an attached image of a hand-drawn plan. "
+                    "Please attach an image using the 📎 button and try again."
+                )
+            else:
+                scan_desc = _extract_scan_description(user_query)
+                image_url, final_image_prompt, draw_error = self._handle_scan(
+                    vision_images, scan_desc
+                )
 
         context_text = ""
         try:
@@ -1373,6 +1393,21 @@ class ChatCompletionView(APIView):
                 f"the information is not available in the provided documents.\n"
                 f"{context_text}"
             )
+        if image_url:
+            system_content += (
+                "\n\nYou have just generated an architectural drawing/image for the user. "
+                "The image is displayed alongside your message. Provide a brief description "
+                "of what was generated, and any relevant architectural notes or suggestions."
+            )
+        elif draw_error:
+            system_content += (
+                f"\n\nIMPORTANT: The user requested a /draw image generation but it FAILED. "
+                f"Error: {draw_error}\n"
+                f"Do NOT try to draw or generate ASCII art or text diagrams as a substitute. "
+                f"Instead, inform the user about the error and suggest they try again. "
+                f"You may still describe what the architectural plan WOULD look like in words, "
+                f"but do NOT attempt any visual representation."
+            )
         if floor_plan_results is not None:
             if floor_plan_results:
                 plans_summary = "\n".join(
@@ -1391,7 +1426,7 @@ class ChatCompletionView(APIView):
                 system_content += (
                     "\n\nThe user searched for floor plans but no matching plans were found in the database. "
                     "Let them know no results were found and suggest they try different search terms, "
-                    "or they can try different search terms."
+                    "or they can use the /draw command to generate a custom floor plan image."
                 )
 
         if analyse_results is not None:
@@ -1402,12 +1437,27 @@ class ChatCompletionView(APIView):
                 "and recommend next steps. Do NOT repeat the entire table in your text — it is shown automatically."
             )
 
-
-
+        if _is_scan_request(user_query) and image_url:
+            system_content += (
+                "\n\nYou have just scanned a hand-drawn plan and generated a professional architectural "
+                "drawing from it. The generated image is displayed alongside your message. "
+                "Describe what you interpreted from the hand-drawn plan, what the generated drawing shows, "
+                "and provide architectural notes, suggested improvements, or compliance observations (SI-56). "
+                "Mention any assumptions you made about dimensions or layout."
+            )
+        elif _is_scan_request(user_query) and draw_error:
+            system_content += (
+                f"\n\nIMPORTANT: The user used the /scan command to convert a hand-drawn plan "
+                f"into a professional drawing, but it FAILED. Error: {draw_error}\n"
+                f"Inform the user about the error and suggest they try again with a clearer image. "
+                f"Do NOT attempt any visual representation as a substitute."
+            )
 
         try:
             llm_messages = [{"role": msg['role'], "content": msg['content']} for msg in messages]
-            final_images = vision_images if vision_images else None
+            final_images = None if _is_scan_request(user_query) else (
+                vision_images if vision_images else None
+            )
 
             response_content = _call_gemini_with_tools(
                 messages=llm_messages,
@@ -1415,26 +1465,31 @@ class ChatCompletionView(APIView):
                 images=final_images,
             )
 
-            # Prepare the response dictionary
-            response_data = {
+            result = {
                 'message': response_content,
                 'role': 'assistant',
-                'session_id': session.id,
             }
-
+            if image_url:
+                result['image_url'] = image_url
+            if final_image_prompt:
+                result['image_prompt'] = final_image_prompt
+            if matched_preset:
+                result['preset_id'] = matched_preset.id
+                result['preset_name'] = matched_preset.name
             if floor_plan_results is not None:
-                response_data['floor_plans'] = floor_plan_results
+                result['floor_plans'] = floor_plan_results
             if analyse_results is not None:
-                response_data['analyse'] = analyse_results
+                result['analyse'] = analyse_results
 
             ChatMessage.objects.create(
                 session=session,
                 role='assistant',
-                content=response_data['message'],
-                image_url=None,
+                content=result['message'],
+                image_url=image_url,
             )
+            result['session_id'] = session.id
 
-            return Response(response_data)
+            return Response(result)
 
         except Exception as e:
             logger.exception("ChatCompletionView error")
@@ -1471,9 +1526,391 @@ class ChatCompletionView(APIView):
                 'role': 'assistant',
             }, status=http_status)
 
+    # ── /draw handler ────────────────────────────────────────────────
+    def _handle_draw(self, user_query: str, project=None):
+        """
+        Prompt engineering via Gemini → image generation via Gemini.
+        Returns (image_url, final_prompt, matched_preset).
+        """
+        matched_preset = _match_style_preset(user_query)
+        if not matched_preset and project:
+            matched_preset = _match_style_preset(project.preferred_style or "")
+        
+        top_prompts = _get_top_rated_prompts(matched_preset, limit=3)
 
+        if matched_preset:
+            category_name = matched_preset.get_category_display()
+            template_hint = matched_preset.prompt_template.replace(
+                '{user_request}', user_query
+            ).replace('{category}', category_name)
+            style_hint = matched_preset.style_tokens
+        else:
+            category_name = "architectural drawing"
+            template_hint = ""
+            style_hint = "architectural blueprint, technical drawing, clean lines, professional CAD"
 
+        examples_block = ""
+        if top_prompts:
+            examples_block = (
+                "\n\nHere are examples of highly-rated prompts for this drawing type. "
+                "Use them as style and quality references:\n"
+            )
+            for i, p in enumerate(top_prompts, 1):
+                examples_block += f"Example {i}: {p}\n"
 
+        # ── Build complete JSON prompt from project form data ────────────
+        import json as _json
+
+        is_commercial = False
+        floor_count = 1
+        b_type = "Residential"
+        u_case = "single_family"
+
+        if project:
+            b_type = (project.building_type or 'Residential').upper()
+            u_case = (project.use_case or 'Unspecified').lower()
+            is_commercial = b_type not in ('RESIDENTIAL', 'MIXED_USE')
+
+            try:
+                if project.floors:
+                    floor_count = int(float(str(project.floors)))
+            except (ValueError, TypeError):
+                pass
+
+        # ── Build rooms array with dimensions in meters ──────────────────
+        rooms = []
+        if project:
+            bedrooms_count = 0
+            bathrooms_count = 0
+            try:
+                bedrooms_count = int(float(str(project.bedrooms or 0)))
+            except (ValueError, TypeError):
+                pass
+            try:
+                bathrooms_count = int(float(str(project.bathrooms or 0)))
+            except (ValueError, TypeError):
+                pass
+
+            if is_commercial:
+                for i in range(1, bedrooms_count + 1):
+                    rooms.append({"name": f"Office {i}", "width_m": 4.5, "length_m": 4.0, "label": True})
+                for i in range(1, bathrooms_count + 1):
+                    rooms.append({"name": f"Restroom {i}", "width_m": 2.5, "length_m": 2.0, "label": True})
+                rooms.append({"name": "Reception/Lobby", "width_m": 6.0, "length_m": 4.5, "label": True})
+                rooms.append({"name": "Conference Room", "width_m": 5.0, "length_m": 4.0, "label": True})
+                rooms.append({"name": "Corridor", "width_m": 1.5, "length_m": "full-length", "label": True})
+                if project.special_spaces and project.special_spaces.lower() != 'none':
+                    for space in project.special_spaces.split(','):
+                        s = space.strip()
+                        if s:
+                            rooms.append({"name": s, "width_m": 4.0, "length_m": 3.5, "label": True})
+            else:
+                rooms.append({"name": "Living Room", "width_m": 5.0, "length_m": 4.5, "label": True})
+                rooms.append({"name": "Kitchen", "width_m": 4.0, "length_m": 3.5, "label": True})
+                rooms.append({"name": "Dining Area", "width_m": 3.5, "length_m": 3.0, "label": True})
+                for i in range(1, bedrooms_count + 1):
+                    if i == 1:
+                        rooms.append({"name": "Master Bedroom", "width_m": 4.5, "length_m": 4.0, "label": True})
+                    else:
+                        rooms.append({"name": f"Bedroom {i}", "width_m": 3.5, "length_m": 3.0, "label": True})
+                for i in range(1, bathrooms_count + 1):
+                    if i == 1:
+                        rooms.append({"name": "En-suite Bathroom", "width_m": 2.5, "length_m": 2.0, "label": True})
+                    else:
+                        rooms.append({"name": f"Bathroom {i}", "width_m": 2.5, "length_m": 2.0, "label": True})
+                rooms.append({"name": "Hallway", "width_m": 1.2, "length_m": "full-length", "label": True})
+                if project.has_garage:
+                    try:
+                        parking = int(str(project.parking_spaces or 1))
+                    except (ValueError, TypeError):
+                        parking = 1
+                    rooms.append({"name": "Garage", "width_m": 3.0 * parking, "length_m": 6.0, "label": True})
+                if project.special_spaces and project.special_spaces.lower() != 'none':
+                    for space in project.special_spaces.split(','):
+                        s = space.strip()
+                        if s:
+                            rooms.append({"name": s, "width_m": 3.5, "length_m": 3.0, "label": True})
+
+        # ── Build forbidden list based on floor count ────────────────────
+        forbidden = [
+            "3d", "perspective", "isometric", "shading", "realistic",
+            "photorealistic", "furniture photo"
+        ]
+        if floor_count == 1:
+            forbidden.extend(["stairs", "staircase", "stairwell", "elevator", "escalator", "second floor", "upper level"])
+
+        # ── Assemble the complete JSON prompt specification ──────────────
+        json_prompt = {
+            "instruction": "Generate a 2D top-down architectural floor plan image",
+            "building": {
+                "type": b_type,
+                "use_case": u_case.replace('_', ' '),
+                "style": (project.preferred_style or 'Modern').lower() if project else "modern",
+                "floors": floor_count,
+                "storey_shown": "ground floor",
+                "footprint": (project.footprint or None) if project else None,
+                "lot_size": (project.lot_size or None) if project else None,
+                "has_garage": bool(project.has_garage) if project else False,
+                "parking_spaces": (project.parking_spaces or 0) if project else 0,
+                "roof_type": (project.roof_type or "gable") if project else "gable",
+            },
+            "rooms": rooms,
+            "rendering": {
+                "view": "strictly 2D top-down orthographic",
+                "background": "white",
+                "lines": "clean black, precise wall thicknesses",
+                "symbols": "door swing arcs, window parallel lines",
+                "labels": "every room must show its name inside the room",
+                "dimensions": "every room must show width x length in meters (m), e.g. 4.2m x 5.1m",
+                "dimension_unit": "meters (m)",
+                "detail_level": "construction drawing sheet",
+                "dimensioning_standard": "overall dimensions + room dimensions + opening dimensions",
+                "annotation_requirements": [
+                    "structural grid bubbles and grid lines",
+                    "north arrow",
+                    "scale notation (e.g., 1:100)",
+                    "wall type notation (external/internal with thickness)",
+                    "door and window tags (e.g., D1, W1, W2)",
+                    "room names and area or size labels",
+                    "clear circulation labels for corridors/passages"
+                ],
+                "sheet_requirements": {
+                    "include_border_frame": True,
+                    "include_title_block": True,
+                    "include_legend": True,
+                    "include_notes_block": True,
+                    "include_area_schedule": True
+                },
+                "lineweight_guidance": "thick cut lines for walls, medium for openings, thin for dimensions/annotation",
+                "style": style_hint,
+            },
+            "forbidden": forbidden
+        }
+
+        # ── Optional: Modify JSON based on specific user edit requests ──
+        # Extract everything after "/draw"
+        query_text = ""
+        user_query_lower = user_query.lower()
+        if user_query_lower.startswith("/draw"):
+            query_text = user_query[5:].strip()
+            
+        if query_text:
+            try:
+                edit_system_prompt = (
+                    "You are an expert AI architect. You receive a JSON specification "
+                    "for a 2D floor plan generation and a user's instruction to modify it. "
+                    "Modify the JSON specification according to the user's instruction and "
+                    "return ONLY the valid updated JSON object. Do NOT wrap it in markdown block quotes. "
+                    "Preserve the overall structure and format. Ensure it remains a valid 2D top-down floor plan."
+                )
+                original_json_str = _json.dumps(json_prompt, indent=2)
+                edit_user_prompt = f"User Instruction: {query_text}\n\nOriginal JSON:\n{original_json_str}"
+                
+                edited_json_str = _call_gemini(
+                    messages=[{"role": "user", "content": edit_user_prompt}],
+                    system=edit_system_prompt,
+                    max_tokens=2048
+                )
+                
+                # Clean up potential markdown formatting
+                clean_json = edited_json_str.strip()
+                if clean_json.startswith("```json"):
+                    clean_json = clean_json[7:]
+                if clean_json.startswith("```"):
+                    clean_json = clean_json[3:]
+                if clean_json.endswith("```"):
+                    clean_json = clean_json[:-3]
+                    
+                edited_json = _json.loads(clean_json.strip())
+                json_prompt = edited_json
+                logger.info("[AI Image] Successfully modified floor plan JSON based on user text.")
+            except Exception as e:
+                logger.error("[AI Image] Failed to modify JSON with user text: %s. Falling back to base JSON.", e)
+
+        # Serialize the JSON prompt as the text content for the image model
+        image_prompt = _json.dumps(json_prompt, indent=2)
+
+        final_image_prompt = image_prompt
+        logger.info("[AI Image] JSON prompt: %s", image_prompt[:300])
+
+        # Negative prompt string for the model
+        negative = ", ".join(forbidden)
+        if matched_preset and matched_preset.negative_prompt:
+            negative = matched_preset.negative_prompt + ", " + negative
+
+        image_url, gen_error = _generate_image_from_gemini(
+            prompt=image_prompt,
+            negative_prompt=negative,
+            guidance_scale=14.0,
+        )
+        return image_url, final_image_prompt, matched_preset, gen_error
+
+    # ── /scan handler ────────────────────────────────────────────────
+    def _handle_scan(self, vision_images: list, user_description: str = ""):
+        """
+        Scan a hand-drawn plan using Gemini vision, then generate a professional
+        architectural drawing from the analysis.
+        Returns (image_url, final_prompt, error_message).
+        """
+        api_key = settings.GEMINI_API_KEY
+        vision_model = 'gemini-2.5-flash'  # Use flash for fast vision analysis
+        vision_url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/{vision_model}"
+            f":generateContent?key={api_key}"
+        )
+
+        img_data = vision_images[0]
+        if img_data.startswith('data:'):
+            media_type = img_data.split(';')[0].split(':')[1]
+            b64 = img_data.split(',', 1)[1]
+        else:
+            media_type = 'image/png'
+            b64 = img_data
+
+        analysis_prompt = (
+            "You are an expert architectural analyst. This is a HAND-DRAWN floor plan or "
+            "architectural sketch. Analyse it in great detail and describe:\n\n"
+            "1. **Overall layout**: Number of rooms, storeys, general shape (L-shape, rectangular, etc.)\n"
+            "2. **Room identification**: Name each room you can identify (bedrooms, kitchen, bathroom, "
+            "living room, garage, corridor, etc.) and estimate dimensions if any are written "
+            "(MUST specify all dimensions in millimeters / mm)\n"
+            "3. **Doors and windows**: Note their positions\n"
+            "4. **Special features**: Verandah, patio, staircase, built-in wardrobes, en-suite, etc.\n"
+            "5. **Orientation**: If any compass direction or front/back is indicated\n"
+            "6. **Construction style**: If you can infer the style (modern, traditional, colonial, etc.)\n\n"
+            "Be as detailed and specific as possible. This description will be used to generate "
+            "a professional CAD-quality floor plan drawing."
+        )
+        if user_description:
+            analysis_prompt += f"\n\nAdditional context from the user: {user_description}"
+
+        vision_payload = {
+            "contents": [{
+                "parts": [
+                    {"text": analysis_prompt},
+                    {"inlineData": {"mimeType": media_type, "data": b64}},
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.3,
+                "maxOutputTokens": 2048,
+            },
+        }
+
+        try:
+            logger.info("[Scan] Step 1: Analysing hand-drawn plan with Gemini vision...")
+            vision_response = http_requests.post(vision_url, json=vision_payload, timeout=60.0)
+
+            if vision_response.status_code != 200:
+                body = vision_response.text[:500]
+                logger.error("Scan vision API HTTP %s: %s", vision_response.status_code, body)
+                return None, None, (
+                    f"⚠️ Failed to analyse the hand-drawn plan (HTTP {vision_response.status_code}). "
+                    "Please try again with a clearer image."
+                )
+
+            vision_data = vision_response.json()
+            candidates = vision_data.get("candidates", [])
+            if not candidates:
+                return None, None, "⚠️ Could not analyse the hand-drawn plan. Please try a clearer image."
+
+            parts = candidates[0].get("content", {}).get("parts", [])
+            plan_analysis = " ".join(p.get("text", "") for p in parts if "text" in p)
+
+            if not plan_analysis.strip():
+                return None, None, "⚠️ The hand-drawn plan could not be interpreted. Please try a clearer image."
+
+            logger.info("[Scan] Step 1 complete. Analysis: %.200s...", plan_analysis)
+
+        except http_requests.exceptions.Timeout:
+            return None, None, "⚠️ Plan analysis timed out. Please try a simpler or clearer image."
+        except Exception as e:
+            logger.error("Scan vision error: %s", e)
+            return None, None, f"⚠️ Failed to analyse the hand-drawn plan: {e}"
+
+        project_context = ""
+        if project:
+            import json as _json
+            scan_spec = {
+                "building_type": project.building_type or 'Residential',
+                "bedrooms": project.bedrooms or 'Unspecified',
+                "bathrooms": project.bathrooms or 'Unspecified',
+                "floors": project.floors or 1,
+                "preferred_style": project.preferred_style or 'Modern',
+                "lot_size": project.lot_size or 'Unspecified',
+                "footprint": project.footprint or 'Unspecified',
+            }
+            project_context = f"\nPROJECT SPECIFICATION (REDRAW MUST MATCH):\n{_json.dumps(scan_spec, indent=2)}\n"
+
+        prompt_system = (
+            "You are an expert architectural prompt engineer. You have just received a detailed "
+            "description of a hand-drawn floor plan. Your job is to convert this description into "
+            "a concise, vivid text-to-image prompt (max 260 words) that will generate a "
+            "STRICTLY 2D professional architectural construction drawing sheet.\n"
+            f"{project_context}\n"
+            "REQUIREMENTS:\n"
+            "- Strictly 2D TOP-DOWN flat orthographic view. NO 3D, perspective, or realistic shading.\n"
+            "- ROOM LABELS: Every room MUST have its name printed INSIDE the room.\n"
+            "- DIMENSIONS: Every room MUST show width × length in METERS (m), e.g. '4.2m × 5.1m'.\n"
+            "- SHEET CONTENT: Include dimension chains, structural grid bubbles, north arrow, scale notation, legend, notes, and title block.\n"
+            "- Include wall thickness callouts, door/window tags, and area schedule when possible.\n"
+            "- Style: clean black CAD lines on plain white background, architectural blueprint style.\n"
+            "- Details: Wall thicknesses, door swings, window symbols, opening sizes, and circulation labels.\n"
+            "\nOutput ONLY the prompt text, nothing else."
+        )
+
+        user_context = f"Hand-drawn plan analysis:\n{plan_analysis}"
+        if user_description:
+            user_context += f"\n\nUser's additional notes: {user_description}"
+
+        try:
+            logger.info("[Scan] Step 2: Crafting image prompt via Gemini...")
+            image_prompt = _call_gemini(
+                messages=[{"role": "user", "content": user_context}],
+                system=prompt_system,
+                max_tokens=500,
+                temperature=0.5,
+            )
+        except Exception as e:
+            logger.error("Gemini prompt generation error for /scan: %s", e)
+            # Fallback: use the raw analysis as prompt
+            image_prompt = (
+                f"Professional 2D architectural floor plan, CAD blueprint style, "
+                f"clean black lines on white, room labels, dimensions in meters, "
+                f"scale bar: {plan_analysis[:500]}"
+            )
+
+        # Force-append critical rendering directives
+        image_prompt += (
+            ". STRICTLY 2D top-down floor plan only. "
+            "Every room labeled with name and dimensions in meters. "
+            "Clean black lines on white background. "
+            "Include construction-sheet details: dimension chains, grid bubbles, north arrow, scale label, legend, notes, and title block."
+        )
+
+        final_prompt = image_prompt
+        logger.info("[Scan] Step 2 complete. Prompt: %.200s...", final_prompt)
+
+        # Build negative prompt, conditionally adding stairs exclusion
+        neg_scan = (
+            "3d, perspective, isometric, shaded, render, blurry, messy, "
+            "photorealistic, watercolor, painterly, cartoon, decorative textures"
+        )
+        if ("single story" in plan_analysis.lower() or "single-story" in plan_analysis.lower()
+                or "one story" in plan_analysis.lower() or "one-story" in plan_analysis.lower()):
+            neg_scan += ", stairs, staircase, elevator, stairwell"
+
+        logger.info("[Scan] Step 3: Generating professional drawing via Gemini...")
+        image_url, gen_error = _generate_image_from_gemini(
+            prompt=image_prompt,
+            negative_prompt=neg_scan,
+            guidance_scale=14.0,
+        )
+
+        if gen_error:
+            return None, final_prompt, gen_error
+
+        return image_url, final_prompt, None
 
     # ── /analyse handler ─────────────────────────────────────────────
     def _handle_analyse(self, user_query: str, vision_images: list, project=None) -> dict:
@@ -1593,6 +2030,29 @@ class ChatCompletionView(APIView):
             }
 
 
+class ImageGenerationView(APIView):
+    """Standalone endpoint for direct image generation requests via Gemini."""
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'ai_generate'
+
+    def post(self, request):
+        prompt = request.data.get('prompt', '')
+        if not prompt:
+            return Response({'error': 'No prompt provided'}, status=400)
+
+        preset = _match_style_preset(prompt)
+        negative = preset.negative_prompt if preset else ""
+        guidance = preset.guidance_scale if preset else 7.5
+
+        image_url, gen_error = _generate_image_from_gemini(prompt, negative, guidance)
+        if image_url:
+            return Response({'image_url': image_url, 'prompt': prompt})
+        else:
+            return Response(
+                {'error': gen_error or 'Failed to generate image. The model may be loading — try again in a moment.'},
+                status=503
+            )
 
 
 # ── PDF vision helper ────────────────────────────────────────────────
@@ -1624,13 +2084,13 @@ def _extract_pdf_pages_as_images(pdf_base64: str, max_pages: int = 5) -> list[st
 
 # ── Streaming SSE endpoint ───────────────────────────────────────────
 
-# ── Chat Stream ───────────────────────────────────────────────────
+from apps.authentication.permissions import IsApproved
 
 class ChatStreamView(APIView):
     """
     SSE streaming chat endpoint.
     Streams Gemini's response token-by-token, with tool-use support.
-    Falls back to non-streaming endpoints for /plans, /analyse.
+    Falls back to non-streaming endpoints for /draw, /plans, /analyse.
     
     POST /ai/chat/stream/
     Same payload as /ai/chat/ — returns text/event-stream.
@@ -1660,8 +2120,8 @@ class ChatStreamView(APIView):
 
         user_query = messages[-1]['content'] if messages else ""
 
-        if (_is_floor_plan_search(user_query)
-                or _is_analyse_request(user_query)):
+        if (_is_drawing_request(user_query) or _is_floor_plan_search(user_query)
+                or _is_analyse_request(user_query) or _is_scan_request(user_query)):
             view = ChatCompletionView()
             view.request = request
             return view.post(request)
@@ -2013,10 +2473,120 @@ class ChatSessionDetailView(APIView):
 
 # ── Image Feedback ───────────────────────────────────────────────────
 
+class ImageFeedbackView(APIView):
+    """Submit or update feedback on an AI-generated image."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        message_id = request.data.get('message_id')
+        rating = request.data.get('rating')
+        original_prompt = request.data.get('original_prompt', '')
+        preset_id = request.data.get('preset_id')
+        feedback_text = request.data.get('feedback_text', '')
+
+        if not message_id or rating is None:
+            return Response({'error': 'message_id and rating are required.'}, status=400)
+
+        try:
+            message = ChatMessage.objects.get(pk=message_id)
+        except ChatMessage.DoesNotExist:
+            return Response({'error': 'Message not found.'}, status=404)
+
+        preset = None
+        if preset_id:
+            try:
+                preset = DrawingStylePreset.objects.get(pk=preset_id)
+            except DrawingStylePreset.DoesNotExist:
+                pass
+
+        feedback, created = ImageFeedback.objects.update_or_create(
+            message=message,
+            user=request.user,
+            defaults={
+                'rating': int(rating),
+                'original_prompt': original_prompt,
+                'preset_used': preset,
+                'feedback_text': feedback_text,
+            }
+        )
+
+        return Response({
+            'success': True,
+            'created': created,
+            'rating': feedback.rating,
+        })
 
 
 # ── Drawing Style Presets (Admin CRUD) ───────────────────────────────
 
+class DrawingStylePresetView(APIView):
+    """Admin-only CRUD for drawing style presets."""
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if getattr(request.user, 'profile', None) and request.user.profile.role != 'ADMIN':
+            if not request.user.is_staff:
+                self.permission_denied(request, message="Admin access required.")
+
+    def get(self, request):
+        presets = DrawingStylePreset.objects.all()
+        data = [{
+            'id': p.id,
+            'name': p.name,
+            'category': p.category,
+            'category_display': p.get_category_display(),
+            'keywords': p.keywords,
+            'prompt_template': p.prompt_template,
+            'negative_prompt': p.negative_prompt,
+            'style_tokens': p.style_tokens,
+            'guidance_scale': p.guidance_scale,
+            'is_active': p.is_active,
+            'priority': p.priority,
+            'avg_rating': ImageFeedback.objects.filter(
+                preset_used=p, rating__gte=1
+            ).aggregate(avg=Avg('rating'))['avg'],
+        } for p in presets]
+        return Response(data)
+
+    def post(self, request):
+        preset = DrawingStylePreset.objects.create(
+            name=request.data.get('name', 'New Preset'),
+            category=request.data.get('category', 'OTHER'),
+            keywords=request.data.get('keywords', ''),
+            prompt_template=request.data.get('prompt_template', ''),
+            negative_prompt=request.data.get('negative_prompt', ''),
+            style_tokens=request.data.get('style_tokens', ''),
+            guidance_scale=float(request.data.get('guidance_scale', 7.5)),
+            is_active=request.data.get('is_active', True),
+            priority=int(request.data.get('priority', 0)),
+        )
+        return Response({'success': True, 'id': preset.id})
+
+    def patch(self, request, pk=None):
+        if not pk:
+            return Response({'error': 'Preset ID required'}, status=400)
+        try:
+            preset = DrawingStylePreset.objects.get(pk=pk)
+            for field in ['name', 'category', 'keywords', 'prompt_template',
+                          'negative_prompt', 'style_tokens', 'is_active', 'priority']:
+                if field in request.data:
+                    setattr(preset, field, request.data[field])
+            if 'guidance_scale' in request.data:
+                preset.guidance_scale = float(request.data['guidance_scale'])
+            preset.save()
+            return Response({'success': True})
+        except DrawingStylePreset.DoesNotExist:
+            return Response({'error': 'Preset not found'}, status=404)
+
+    def delete(self, request, pk=None):
+        if not pk:
+            return Response({'error': 'Preset ID required'}, status=400)
+        try:
+            DrawingStylePreset.objects.get(pk=pk).delete()
+            return Response({'success': True})
+        except DrawingStylePreset.DoesNotExist:
+            return Response({'error': 'Preset not found'}, status=404)
 
 
 # ── BOQ Template CRUD (Admin) ────────────────────────────────────────
@@ -2307,153 +2877,4 @@ class SiteIntelView(APIView):
             'raw_response': intel.raw_response,
             'created_at': intel.created_at.isoformat(),
         }, status=201)
-
-
-# ── Draw Agent ───────────────────────────────────────────────────────
-
-class DrawAgentView(APIView):
-    """AI agent that generates drawing commands from natural language."""
-    permission_classes = [IsAuthenticated, IsApproved]
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = 'ai_generate'
-
-    def post(self, request):
-        prompt = request.data.get('prompt', '').strip()
-        if not prompt:
-            return Response({'error': 'prompt is required'}, status=400)
-
-        current_elements = request.data.get('current_elements', [])
-
-        api_key = _get_ai_api_key()
-        if not api_key or len(api_key) < 10:
-            return Response({'error': 'AI_API_KEY not configured'}, status=500)
-
-        # Extract compact context from current elements to avoid token-limit errors
-        context_str = f"Drawing has {len(current_elements)} elements.\n"
-        if current_elements:
-            try:
-                min_x = min((e.get('x', 0) for e in current_elements if 'x' in e), default=0)
-                max_x = max((max(e.get('x', 0), e.get('x2', 0), e.get('x', 0) + e.get('width', 0)) for e in current_elements), default=0)
-                min_y = min((e.get('y', 0) for e in current_elements if 'y' in e), default=0)
-                max_y = max((max(e.get('y', 0), e.get('y2', 0), e.get('y', 0) + e.get('height', 0)) for e in current_elements), default=0)
-                context_str += f"Current Bounds: X({min_x} to {max_x}), Y({min_y} to {max_y})\n"
-                
-                existing_rooms = [e.get('text').split('\n')[0] for e in current_elements if e.get('type') == 'text' and 'm²' in e.get('text', '')]
-                if existing_rooms:
-                    context_str += f"Existing Rooms: {', '.join(existing_rooms[:8])}\n"
-
-                # Prioritize wall elements so AI understands the layout
-                def _compact(e):
-                    return {
-                        "type": e.get("type"),
-                        "x": e.get("x"),
-                        "y": e.get("y"),
-                        "x2": e.get("x2"),
-                        "y2": e.get("y2"),
-                        "width": e.get("width"),
-                        "height": e.get("height"),
-                        "text": (e.get("text") or "")[:60],
-                    }
-
-                MAX_SAMPLE = 40
-                walls = [e for e in current_elements if e.get("layer") == "Walls"]
-                others = [e for e in current_elements if e.get("layer") != "Walls"]
-                sample_elements = [_compact(e) for e in walls[:MAX_SAMPLE]]
-                remaining = MAX_SAMPLE - len(sample_elements)
-                if remaining > 0:
-                    sample_elements.extend(_compact(e) for e in others[:remaining])
-                if sample_elements:
-                    context_str += f"Element sample ({len(sample_elements)} of {len(current_elements)}): {json.dumps(sample_elements, ensure_ascii=False)}\n"
-            except Exception as e:
-                logger.warning(f"Failed to parse context bounds: {e}")
-
-        user_text = f"{context_str}\nAction Requested: {prompt[:900]}"
-        user_text = user_text[:4000]
-
-        def _is_token_limit_error(exc_text: str) -> bool:
-            lowered = (exc_text or "").lower()
-            return any(term in lowered for term in [
-                "request too large",
-                "rate_limit_exceeded",
-                "tokens per minute",
-                "413",
-                "token",
-            ])
-
-        try:
-            text = _call_draw_agent(
-                messages=[{"role": "user", "content": user_text}],
-                system=DRAW_AGENT_SYSTEM,
-                max_tokens=16384,
-            ).strip()
-        except Exception as e:
-            if not _is_token_limit_error(str(e)):
-                logger.error("[DrawAgent] Request failed: %s", e)
-                return Response({'error': f'AI service timeout: {e}'}, status=502)
-
-            logger.warning("[DrawAgent] Token overflow; retrying with minimal context")
-            minimal_text = f"Action Requested: {prompt[:450]}\nDrawing element count: {len(current_elements)}"
-            try:
-                text = _call_draw_agent(
-                    messages=[{"role": "user", "content": minimal_text}],
-                    system=DRAW_AGENT_SYSTEM,
-                    max_tokens=4096,
-                ).strip()
-                user_text = minimal_text
-            except Exception as retry_exc:
-                logger.error("[DrawAgent] Retry also failed: %s", retry_exc)
-                return Response(
-                    {'error': 'AI service is busy. Please try a simpler request.'},
-                    status=502,
-                )
-
-        # Strip markdown fences if present
-        if text.startswith('```'):
-            text = text.split('\n', 1)[1] if '\n' in text else text[3:]
-            if text.endswith('```'):
-                text = text[:-3]
-            text = text.strip()
-
-        try:
-            result = json.loads(text)
-        except json.JSONDecodeError:
-            # Try to salvage truncated JSON by extracting complete command objects
-            import re
-            logger.warning("[DrawAgent] Truncated JSON, attempting to salvage commands")
-            pattern = r'\{\s*"type"\s*:\s*"[A-Z]+"\s*,\s*"params"\s*:\s*\{[^}]+\}\s*\}'
-            matches = re.findall(pattern, text)
-            salvaged = []
-            for m in matches:
-                try:
-                    salvaged.append(json.loads(m))
-                except json.JSONDecodeError:
-                    continue
-            if salvaged:
-                result = {"commands": salvaged, "summary": f"Partial: {len(salvaged)} commands recovered"}
-            else:
-                logger.error("[DrawAgent] Could not salvage any commands from: %s", text[:500])
-                return Response({
-                    'error': 'AI returned invalid drawing data',
-                    'raw': text[:1000],
-                }, status=502)
-
-        summary = result.get('summary')
-        if not summary:
-            if 'walls' in result:
-                summary = f"Parametric layout generated: {len(result.get('walls', []))} walls"
-            elif 'commands' in result:
-                summary = f"{len(result.get('commands', []))} drawing commands generated"
-            else:
-                summary = "Generated elements"
-            result['summary'] = summary
-
-        TokenUsage.objects.create(
-            user=request.user,
-            endpoint='draw',
-            input_tokens=len(user_text) // 4,
-            output_tokens=len(text) // 4,
-            total_tokens=(len(user_text) + len(text)) // 4,
-        )
-
-        return Response(result)
 

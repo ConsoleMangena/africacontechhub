@@ -176,6 +176,10 @@ class Invoice(models.Model):
     # Payment provider info
     stripe_invoice_id = models.CharField(max_length=255, blank=True, null=True)
     invoice_pdf_url = models.URLField(blank=True, null=True)
+
+    # Customer display fields (optional)
+    customer_name = models.CharField(max_length=255, blank=True, default='')
+    company_name = models.CharField(max_length=255, blank=True, default='')
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -185,3 +189,65 @@ class Invoice(models.Model):
     
     class Meta:
         ordering = ['-invoice_date']
+
+
+# ── Accounting (COA + Journal) ────────────────────────────────────────────────
+
+class ChartOfAccount(models.Model):
+    ACCOUNT_TYPES = [
+        ('ASSET', 'Asset'),
+        ('LIABILITY', 'Liability'),
+        ('EQUITY', 'Equity'),
+        ('REVENUE', 'Revenue'),
+        ('EXPENSE', 'Expense'),
+    ]
+
+    code = models.CharField(max_length=20, unique=True, help_text="e.g. 1000")
+    name = models.CharField(max_length=255, help_text="e.g. Cash")
+    account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES)
+    description = models.TextField(blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['code']
+
+    def __str__(self):
+        return f"{self.code} — {self.name}"
+
+
+class JournalEntry(models.Model):
+    STATUS_CHOICES = [
+        ('DRAFT', 'Draft'),
+        ('POSTED', 'Posted'),
+        ('VOID', 'Void'),
+    ]
+
+    reference = models.CharField(max_length=100, blank=True, default='', help_text="External reference (invoice, procurement id, etc.)")
+    memo = models.CharField(max_length=255, blank=True, default='')
+    entry_date = models.DateTimeField(default=timezone.now)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='journal_entries_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-entry_date', '-created_at']
+
+    def __str__(self):
+        return f"JE#{self.id} {self.entry_date.date()} ({self.status})"
+
+
+class JournalLine(models.Model):
+    entry = models.ForeignKey(JournalEntry, on_delete=models.CASCADE, related_name='lines')
+    account = models.ForeignKey(ChartOfAccount, on_delete=models.PROTECT, related_name='journal_lines')
+    description = models.CharField(max_length=255, blank=True, default='')
+    debit = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    credit = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.account.code} {self.debit}/{self.credit}"

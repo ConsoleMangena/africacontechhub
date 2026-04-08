@@ -174,12 +174,39 @@ function SidebarMenuCollapsedDropdown({
 }
 
 function checkIsActive(href: string, item: NavItem, mainNav = false) {
+  const normalize = (u?: string) => {
+    if (!u) return { path: '', qs: '' }
+    const [path, qs = ''] = u.split('?')
+    const params = new URLSearchParams(qs)
+    const sorted = Array.from(params.entries()).sort(([a], [b]) => a.localeCompare(b))
+    const normalizedQs = sorted.length
+      ? sorted.map(([k, v]) => `${k}=${v}`).join('&')
+      : ''
+    return { path, qs: normalizedQs }
+  }
+
+  const h = normalize(href)
+  const i = normalize(item.url)
+
+  const exactMatch = h.path === i.path && h.qs === i.qs
+  const pathMatch = h.path === i.path
+
+  const childActive = !!item?.items?.some((c) => {
+    const cu = normalize((c as { url?: string }).url)
+    return cu.path === h.path && cu.qs === h.qs
+  })
+
+  // If this nav item uses query params, require full match (path + query).
+  if ((item.url || '').includes('?')) {
+    return exactMatch || childActive
+  }
+
   return (
-    href === item.url || // /endpint?search=param
-    href.split('?')[0] === item.url || // endpoint
-    !!item?.items?.filter((i) => i.url === href).length || // if child nav is active
+    exactMatch ||
+    (pathMatch && !href.includes('?')) || // only mark parent active when no query in current URL
+    childActive ||
     (mainNav &&
       href.split('/')[1] !== '' &&
-      href.split('/')[1] === item?.url?.split('/')[1])
+      href.split('/')[1] === (item?.url || '').split('/')[1])
   )
 }

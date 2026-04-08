@@ -35,10 +35,11 @@
 }
 
 @theme inline {
+  /* Single-font system: keep everything on Inter */
   --font-sans: "Inter", sans-serif;
-  --font-display: "Manrope", sans-serif;
+  --font-display: "Inter", sans-serif;
   --font-inter: "Inter", sans-serif;
-  --font-manrope: "Manrope", sans-serif;
+  --font-manrope: "Inter", sans-serif;
 
   --breakpoint-xs: 480px;
 

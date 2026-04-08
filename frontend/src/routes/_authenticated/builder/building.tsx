@@ -301,7 +301,7 @@ function RouteComponent() {
         </div>
       </Header>
       <Main className="bg-slate-50/80 min-h-[calc(100vh-theme(spacing.16))]">
-        <div className="max-w-7xl mx-auto px-3 py-4 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6">
+        <div className="w-full px-3 py-4 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6">
 
           {/* ── Hero Header ── */}
           <div className="rounded-xl sm:rounded-2xl bg-white p-4 sm:p-5 md:p-6 text-slate-900 relative border border-slate-200 shadow-sm">

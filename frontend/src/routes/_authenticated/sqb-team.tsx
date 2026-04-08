@@ -105,7 +105,7 @@ function RouteComponent() {
         </div>
       </Header>
       <Main className="bg-slate-50 min-h-[calc(100vh-theme(spacing.16))]">
-        <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
+        <div className="w-full p-4 md:p-8 space-y-6">
 
           {/* ── Header ── */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">

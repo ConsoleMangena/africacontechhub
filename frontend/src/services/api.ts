@@ -533,6 +533,7 @@ export const aiApi = {
 export const adminApi = {
     getMetrics: () => api.get('/admin/metrics/'),
     getUsers: () => api.get<any[]>('/admin/users/'),
+    getUser: (id: number) => api.get<any>(`/admin/users/${id}/`),
     createUser: (data: any) => api.post('/admin/users/', data),
     updateUser: (id: number, data: any) => api.patch(`/admin/users/${id}/`, data),
     deleteUser: (id: number) => api.delete(`/admin/users/${id}/`),
@@ -578,13 +579,37 @@ export const adminApi = {
     deleteFloorPlan: (id: number) => api.delete(`/admin/floor-plans/${id}/`),
     // Projects Overview
     getProjects: (params?: { search?: string; status?: string }) => api.get<any>('/admin/projects/', { params }),
+    getProject: (id: number) => api.get<any>(`/admin/projects/${id}/`),
     // Billing
     getBilling: () => api.get<any>('/admin/billing/'),
+    createInvoice: (data: { user_email: string; customer_name?: string; company_name?: string; subtotal: number; tax?: number; status?: string; due_date?: string }) =>
+        api.post('/admin/billing/', data),
+    // Finance (Accounting)
+    getChartOfAccounts: (params?: { q?: string; type?: string }) =>
+        api.get<any[]>('/admin/finance/accounts/', { params }),
+    createAccount: (data: { code: string; name: string; account_type: string; description?: string }) =>
+        api.post('/admin/finance/accounts/', data),
+    getAccountLedger: (id: number, params?: { limit?: number; include_drafts?: boolean }) =>
+        api.get<any>(`/admin/finance/accounts/${id}/ledger/`, { params }),
+    getJournalEntries: (params?: { status?: string; limit?: number }) =>
+        api.get<any[]>('/admin/finance/journal-entries/', { params }),
+    createJournalEntry: (data: { entry_date?: string; memo?: string; reference?: string; lines: Array<{ account_id: number; debit?: number; credit?: number; description?: string }> }) =>
+        api.post('/admin/finance/journal-entries/', data),
+    postJournalEntry: (id: number) =>
+        api.post(`/admin/finance/journal-entries/${id}/post/`),
+    getFinanceReports: () =>
+        api.get<any>('/admin/finance/reports/'),
     // Platform Settings
     getSettings: () => api.get<any>('/admin/settings/'),
     updateSettings: (data: any) => api.patch('/admin/settings/', data),
     // Activity Log
     getActivityLog: (params?: { limit?: number; action?: string }) => api.get<any[]>('/admin/activity-log/', { params }),
+    // Audit Log (user activity summary)
+    getAuditLog: (params?: { limit?: number; search?: string; role?: string; include_empty?: boolean }) =>
+        api.get<{ summary: any; results: any[] }>('/admin/audit-log/', { params }),
+    // User activity timeline
+    getUserActivity: (id: number, params?: { limit?: number; event_type?: string }) =>
+        api.get<any[]>(`/admin/users/${id}/activity/`, { params }),
     // Procurement Oversight
     getProcurementRequests: (params?: { status?: string; category?: string; project?: number }) =>
         api.get<any>('/admin/procurement/', { params }),
@@ -608,6 +633,11 @@ export const architecturalStudioApi = {
         headers: { 'Content-Type': 'multipart/form-data' },
     }),
     deleteItem: (id: number) => api.delete(`/architectural-studio/items/${id}/`),
+};
+
+export const activityApi = {
+    logEvent: (data: { event_type?: string; path?: string; title?: string; referrer?: string; metadata?: any }) =>
+        api.post('/admin/activity/', data),
 };
 
 export const contractorApi = {

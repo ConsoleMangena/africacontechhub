@@ -140,7 +140,7 @@ function MaterialsPage() {
                 </div>
             </Header>
             <Main>
-                <div className="w-full max-w-5xl mx-auto space-y-5">
+                <div className="w-full space-y-5">
                     {/* Header */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">

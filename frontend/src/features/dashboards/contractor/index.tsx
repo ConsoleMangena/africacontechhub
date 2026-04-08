@@ -104,7 +104,7 @@ export default function ContractorDashboard() {
                         <p className="mt-3 text-sm text-muted-foreground font-medium">Loading your dashboard...</p>
                     </div>
                 ) : (
-                    <div className="w-full max-w-7xl mx-auto space-y-6">
+                    <div className="w-full space-y-6">
                         {/* Hero Section */}
                         <div className="relative overflow-hidden rounded-xl bg-white px-6 py-5 border border-slate-200 flex items-center justify-between gap-4 shadow-sm">
                             <div className="relative z-10">

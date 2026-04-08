@@ -73,7 +73,7 @@ export default function BuilderDashboard() {
                 {isLoading ? (
                     <Loading fullPage text="Building your fortress..." />
                 ) : (
-                    <div className="w-full max-w-7xl mx-auto space-y-5 pb-12">
+                    <div className="w-full space-y-5 pb-12">
                         {/* Top Stats - Multi-Currency Wallet */}
                         <WalletRates totalBudget={totalBudget} />
 
