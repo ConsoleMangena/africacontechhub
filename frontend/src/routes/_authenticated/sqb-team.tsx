@@ -11,7 +11,27 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
-import { builderApi } from '@/services/api'
+import { builderApi, adminApi } from '@/services/api'
+import { useAuthStore } from '@/stores/auth-store'
+import { Label } from '@/components/ui/label'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import type { ProfessionalProfile } from '@/types/api'
 
 export const Route = createFileRoute('/_authenticated/sqb-team')({
@@ -71,6 +91,13 @@ function RouteComponent() {
   const [professionals, setProfessionals] = useState<ProfessionalProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [totalCount, setTotalCount] = useState(0)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [editTarget, setEditTarget] = useState<ProfessionalProfile | null>(null)
+  const [editForm, setEditForm] = useState({ role: '', company_name: '', location: '', availability: '' })
+  const [deleteTarget, setDeleteTarget] = useState<ProfessionalProfile | null>(null)
+
+  const currentUser = useAuthStore((state) => state.auth.user)
+  const isAdmin = currentUser?.profile?.role === 'ADMIN'
 
   const ITEMS_PER_PAGE = 12
 
@@ -95,6 +122,47 @@ function RouteComponent() {
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
 
   const getRoleLabel = (role: string) => PROFESSIONAL_ROLES.find(r => r.value === role)?.label || role
+
+  const openEdit = (pro: ProfessionalProfile) => {
+    setEditForm({
+      role: pro.role || '',
+      company_name: pro.company_name || '',
+      location: pro.location || '',
+      availability: pro.availability || 'available',
+    })
+    setEditTarget(pro)
+  }
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editTarget) return
+    setActionLoading(`edit-${editTarget.id}`)
+    try {
+      await adminApi.updateAdminProfessional(editTarget.id, editForm)
+      toast.success('Professional updated')
+      setEditTarget(null)
+      await fetchProfessionals()
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to update')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setActionLoading(`delete-${deleteTarget.id}`)
+    try {
+      await adminApi.deleteAdminProfessional(deleteTarget.id)
+      toast.success('Professional removed')
+      setDeleteTarget(null)
+      await fetchProfessionals()
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to delete')
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   return (
     <>
@@ -231,15 +299,39 @@ function RouteComponent() {
                         <Badge className={`${avail.badge} text-[10px] px-2 py-0 border-none`}>{pro.availability}</Badge>
                       </div>
 
-                      {/* Action */}
-                      <Button
-                        size="sm"
-                        className="w-full mt-4 bg-green-700 hover:bg-green-800 text-white h-9"
-                        onClick={() => { setSelectedProfessional(pro); setShowContactModal(true) }}
-                      >
-                        <Icon name="call" size={16} className="mr-1.5" />
-                        Contact
-                      </Button>
+                      {/* Actions */}
+                      <div className="flex gap-2 w-full mt-4">
+                        <Button
+                          size="sm"
+                          className="flex-1 bg-green-700 hover:bg-green-800 text-white h-9"
+                          onClick={() => { setSelectedProfessional(pro); setShowContactModal(true) }}
+                        >
+                          <Icon name="call" size={16} className="mr-1.5" />
+                          Contact
+                        </Button>
+                        {isAdmin && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-9 w-9 p-0 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                              onClick={() => openEdit(pro)}
+                              disabled={!!actionLoading}
+                            >
+                              <Icon name="edit" size={16} />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-9 w-9 p-0 text-red-600 border-red-200 hover:bg-red-50"
+                              onClick={() => setDeleteTarget(pro)}
+                              disabled={!!actionLoading}
+                            >
+                              <Icon name="delete" size={16} />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
@@ -329,6 +421,88 @@ function RouteComponent() {
               </Card>
             </div>
           )}
+
+          {/* ── Admin Edit Dialog ── */}
+          <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null) }}>
+            <DialogContent className="sm:max-w-[425px]">
+              <form onSubmit={handleEdit}>
+                <DialogHeader>
+                  <DialogTitle>Edit Professional</DialogTitle>
+                  <DialogDescription>
+                    Update details for <strong>{editTarget?.user_details?.full_name}</strong>.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-6">
+                  <div className="grid gap-2">
+                    <Label className="text-xs font-bold">Professional Role</Label>
+                    <Select value={editForm.role} onValueChange={val => setEditForm({ ...editForm, role: val })}>
+                      <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent className="max-h-[200px]">
+                        {PROFESSIONAL_ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label className="text-xs font-bold">Company Name</Label>
+                      <Input
+                        placeholder="e.g. Acme Arch"
+                        value={editForm.company_name}
+                        onChange={e => setEditForm({ ...editForm, company_name: e.target.value })}
+                        className="h-10 text-sm"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="text-xs font-bold">Location</Label>
+                      <Input
+                        placeholder="e.g. Harare, ZW"
+                        value={editForm.location}
+                        onChange={e => setEditForm({ ...editForm, location: e.target.value })}
+                        className="h-10 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className="text-xs font-bold">Availability</Label>
+                    <Select value={editForm.availability} onValueChange={val => setEditForm({ ...editForm, availability: val })}>
+                      <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="available">Available</SelectItem>
+                        <SelectItem value="busy">Busy</SelectItem>
+                        <SelectItem value="unavailable">Unavailable</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter className="gap-2">
+                  <Button type="button" variant="ghost" onClick={() => setEditTarget(null)}>Cancel</Button>
+                  <Button type="submit" className="bg-green-700 hover:bg-green-800 text-white" disabled={actionLoading === `edit-${editTarget?.id}`}>
+                    {actionLoading === `edit-${editTarget?.id}` ? <Icon name="progress_activity" size={14} className="animate-spin mr-1.5" /> : null}
+                    Save Changes
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Admin Delete Dialog ── */}
+          <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+            <AlertDialogContent className="sm:max-w-[400px]">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove Professional?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove <strong>{deleteTarget?.user_details?.full_name}</strong> from the SQB Building Team. Their user account will not be deleted.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700 text-white">
+                  {actionLoading?.startsWith('delete-') ? <Icon name="progress_activity" size={14} className="animate-spin mr-1.5" /> : null}
+                  Remove
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
         </div>
       </Main>

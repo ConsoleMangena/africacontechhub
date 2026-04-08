@@ -67,17 +67,6 @@ export function AdminBilling() {
 
     return (
         <div className="w-full space-y-6">
-            {/* Page Header */}
-            <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm">
-                    <Icon name="payments" className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold font-display tracking-tight">Billing & Subscriptions</h1>
-                    <p className="text-sm text-muted-foreground">Manage subscription plans, view active subscriptions, and track invoices.</p>
-                </div>
-            </div>
-
             {/* Summary Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard title="Active Subs" value={summary.active_subscriptions ?? 0} icon="credit_card" />

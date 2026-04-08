@@ -26,23 +26,6 @@ export function AdminUsers() {
 
     return (
         <div className="w-full space-y-6">
-            {/* Page Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200 shadow-sm">
-                        <Icon name="group" className="h-5 w-5 text-slate-600" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold font-display tracking-tight text-foreground">
-                            Users & Permissions
-                        </h1>
-                        <p className="text-[13px] text-muted-foreground font-medium">
-                            Manage platform access, roles, and review pending registrations.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
             {/* Quick Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
                 <div className="col-span-2 lg:col-span-2 rounded-xl border border-slate-200 bg-white shadow-sm p-4">

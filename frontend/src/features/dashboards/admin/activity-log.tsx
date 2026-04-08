@@ -51,17 +51,6 @@ export function AdminActivityLog() {
 
     return (
         <div className="w-full space-y-6">
-            {/* Page Header */}
-            <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm">
-                    <Icon name="history" className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold font-display tracking-tight">Activity Log</h1>
-                    <p className="text-sm text-muted-foreground">Audit trail of all admin actions on the platform.</p>
-                </div>
-            </div>
-
             {/* Filter */}
             <Card className="border-border/60 shadow-sm">
                 <CardHeader className="pb-3">

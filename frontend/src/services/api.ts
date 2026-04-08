@@ -537,26 +537,9 @@ export const adminApi = {
     createUser: (data: any) => api.post('/admin/users/', data),
     updateUser: (id: number, data: any) => api.patch(`/admin/users/${id}/`, data),
     deleteUser: (id: number) => api.delete(`/admin/users/${id}/`),
-    getDocuments: () => api.get<any[]>('/ai/knowledge/'),
-    getDocumentDetail: (id: number) => api.get<{ id: number, content: string, title: string }>(`/ai/knowledge/${id}/`),
-    uploadDocument: (data: FormData) => api.post<{ success: boolean, id: number }>('/ai/knowledge/', data, {
-        headers: {
-            'Content-Type': 'multipart/form-data',
-        },
-    }),
-    deleteDocument: (id: number) => api.delete(`/ai/knowledge/${id}/`),
-    getInstructions: () => api.get<{ instruction_text: string }>('/ai/instructions/'),
-    updateInstructions: (instruction_text: string) => api.post<{ success: boolean, instruction_text: string }>('/ai/instructions/', { instruction_text }),
     getRequests: () => api.get<any[]>('/admin/requests/'),
     reviewRequest: (id: number, action: 'approve' | 'reject', notes?: string) =>
         api.patch(`/admin/requests/${id}/`, { action, notes }),
-    // Style presets
-    getStylePresets: () => api.get<any[]>('/ai/style-presets/'),
-    createStylePreset: (data: any) => api.post<{ success: boolean, id: number }>('/ai/style-presets/', data),
-    updateStylePreset: (id: number, data: any) => api.patch(`/ai/style-presets/${id}/`, data),
-    deleteStylePreset: (id: number) => api.delete(`/ai/style-presets/${id}/`),
-    // AI Analytics
-    getAIAnalytics: () => api.get('/admin/ai-analytics/'),
     // BOQ Templates CRUD
     getBOQTemplates: () => api.get<any[]>('/ai/boq-templates/'),
     getBOQTemplate: (id: number) => api.get<any>(`/ai/boq-templates/${id}/`),

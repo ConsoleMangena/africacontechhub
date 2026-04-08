@@ -110,19 +110,6 @@ export function AdminFloorPlans() {
 
     return (
         <div className="w-full space-y-6">
-            {/* Page Header */}
-            <div>
-                <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2.5">
-                    <div className="h-9 w-9 rounded-lg bg-violet-100 flex items-center justify-center">
-                        <Icon name="layout_grid" className="h-5 w-5 text-violet-600" />
-                    </div>
-                    Floor Plan Datasets
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1.5 ml-[46px]">
-                    Upload and organize 2D floor plans for the Builder discovery library.
-                </p>
-            </div>
-
             {/* Upload + Categories Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Upload Form */}

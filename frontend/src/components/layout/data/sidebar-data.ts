@@ -33,19 +33,9 @@ export const sidebarData: SidebarData = {
           icon: 'monitoring',
         },
         {
-          title: 'Overview',
-          url: '/admin',
-          icon: 'security',
-        },
-        {
           title: 'Projects',
           url: '/admin/projects',
           icon: 'business_center',
-        },
-        {
-          title: 'AI Command Center',
-          url: '/admin/ai-command-center',
-          icon: 'smart_toy',
         },
         {
           title: 'User Management',
@@ -61,16 +51,6 @@ export const sidebarData: SidebarData = {
           title: 'Procurement',
           url: '/admin/procurement',
           icon: 'inventory_2',
-        },
-        {
-          title: 'Knowledge Base',
-          url: '/admin/knowledge-base',
-          icon: 'menu_book',
-        },
-        {
-          title: 'Floor Plans',
-          url: '/admin/floor-plans',
-          icon: 'image',
         },
         {
           title: 'Platform Billing',

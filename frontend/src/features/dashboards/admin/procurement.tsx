@@ -14,22 +14,6 @@ export function AdminProcurement() {
 
     return (
         <div className="w-full space-y-6">
-            {/* Page Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm shrink-0">
-                        <Icon name="inventory_2" className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-                            Procurement Control
-                        </h1>
-                        <p className="text-[11px] sm:text-xs text-slate-500 mt-1 font-medium">
-                            Monitor material requests, costs, and fulfillment across all projects.
-                        </p>
-                    </div>
-            </div>
-
-
             {/* Main Content */}
             <Card className="border-border/60 bg-card shadow-sm">
                 <CardHeader className="pb-3 px-6">

@@ -71,6 +71,15 @@ export function ProfessionalManagement() {
         is_verified: true,
     })
 
+    // Edit Mode
+    const [editTarget, setEditTarget] = useState<any>(null)
+    const [editForm, setEditForm] = useState({
+        role: '',
+        company_name: '',
+        location: '',
+        availability: '',
+    })
+
     // Delete Mode
     const [deleteTarget, setDeleteTarget] = useState<any>(null)
 
@@ -149,6 +158,33 @@ export function ProfessionalManagement() {
             await fetchData()
         } catch (error: any) {
             const msg = error.response?.data?.error || 'Failed to create profile'
+            toast.error(msg)
+        } finally {
+            setActionLoading(null)
+        }
+    }
+
+    const openEdit = (prof: any) => {
+        setEditForm({
+            role: prof.role || '',
+            company_name: prof.company_name || '',
+            location: prof.location || '',
+            availability: prof.availability || 'available',
+        })
+        setEditTarget(prof)
+    }
+
+    const handleEdit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!editTarget) return
+        setActionLoading(`edit-${editTarget.id}`)
+        try {
+            await adminApi.updateAdminProfessional(editTarget.id, editForm)
+            toast.success(`Updated ${editTarget.full_name}'s profile`)
+            setEditTarget(null)
+            await fetchData()
+        } catch (error: any) {
+            const msg = error.response?.data?.error || 'Failed to update profile'
             toast.error(msg)
         } finally {
             setActionLoading(null)
@@ -434,15 +470,26 @@ export function ProfessionalManagement() {
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-muted-foreground/30 hover:text-slate-900 hover:bg-slate-50 disabled:opacity-30 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                onClick={() => setDeleteTarget(prof)}
-                                                disabled={!!actionLoading}
-                                            >
-                                                <Icon name="delete" className="h-4 w-4" />
-                                            </Button>
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-muted-foreground/50 hover:text-indigo-600 hover:bg-indigo-50"
+                                                    onClick={() => openEdit(prof)}
+                                                    disabled={!!actionLoading}
+                                                >
+                                                    <Icon name="edit" className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-muted-foreground/30 hover:text-red-600 hover:bg-red-50"
+                                                    onClick={() => setDeleteTarget(prof)}
+                                                    disabled={!!actionLoading}
+                                                >
+                                                    <Icon name="delete" className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))
@@ -451,6 +498,87 @@ export function ProfessionalManagement() {
                     </Table>
                 </div>
             </div>
+
+            {/* Edit Dialog */}
+            <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null) }}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <form onSubmit={handleEdit}>
+                        <DialogHeader>
+                            <DialogTitle>Edit Professional</DialogTitle>
+                            <DialogDescription>
+                                Update details for <strong>{editTarget?.full_name}</strong>.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-6">
+                            <div className="grid gap-2">
+                                <Label className="text-xs font-bold">Professional Role</Label>
+                                <Select
+                                    value={editForm.role}
+                                    onValueChange={val => setEditForm({ ...editForm, role: val })}
+                                >
+                                    <SelectTrigger className="h-10 text-sm border-border/50">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-[200px]">
+                                        {Object.entries(ROLE_LABELS).map(([v, l]) => (
+                                            <SelectItem key={v} value={v}>{l}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="grid gap-2">
+                                    <Label className="text-xs font-bold">Company Name</Label>
+                                    <Input
+                                        placeholder="e.g. Acme Arch"
+                                        value={editForm.company_name}
+                                        onChange={e => setEditForm({ ...editForm, company_name: e.target.value })}
+                                        className="h-10 text-sm border-border/50"
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label className="text-xs font-bold">Location</Label>
+                                    <Input
+                                        placeholder="e.g. Harare, ZW"
+                                        value={editForm.location}
+                                        onChange={e => setEditForm({ ...editForm, location: e.target.value })}
+                                        className="h-10 text-sm border-border/50"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label className="text-xs font-bold">Availability</Label>
+                                <Select
+                                    value={editForm.availability}
+                                    onValueChange={val => setEditForm({ ...editForm, availability: val })}
+                                >
+                                    <SelectTrigger className="h-10 text-sm border-border/50">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="available">Available</SelectItem>
+                                        <SelectItem value="busy">Busy</SelectItem>
+                                        <SelectItem value="unavailable">Unavailable</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <DialogFooter className="gap-2">
+                            <Button type="button" variant="ghost" onClick={() => setEditTarget(null)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                className="bg-indigo-600 hover:bg-indigo-700 font-bold text-white px-6 shadow-none"
+                                disabled={actionLoading === `edit-${editTarget?.id}`}
+                            >
+                                {actionLoading === `edit-${editTarget?.id}` ? <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                                Save Changes
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* Delete Dialog */}
             <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

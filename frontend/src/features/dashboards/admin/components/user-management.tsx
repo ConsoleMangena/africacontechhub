@@ -19,6 +19,14 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog'
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useNavigate } from '@tanstack/react-router'
 
@@ -66,6 +74,14 @@ export function UserManagement() {
     const [page, setPage] = useState(1)
     const [pageSize, setPageSize] = useState<'10' | '25' | '50'>('25')
     const [isCreateOpen, setIsCreateOpen] = useState(false)
+    const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null)
+    const [editTarget, setEditTarget] = useState<any>(null)
+    const [editForm, setEditForm] = useState({
+        first_name: '',
+        last_name: '',
+        email: '',
+        role: 'BUILDER',
+    })
     const [newUser, setNewUser] = useState({
         email: '',
         first_name: '',
@@ -162,6 +178,54 @@ export function UserManagement() {
         } catch (error) {
             console.error("Failed to update status", error)
             toast.error('Failed to update status')
+        } finally {
+            setActionLoading(null)
+        }
+    }
+
+    const openEditUser = (user: any) => {
+        setEditForm({
+            first_name: user.first_name || '',
+            last_name: user.last_name || '',
+            email: user.email || '',
+            role: user.role || 'BUILDER',
+        })
+        setEditTarget(user)
+    }
+
+    const handleEditUser = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!editTarget) return
+        if (!editForm.email) {
+            toast.error('Email is required')
+            return
+        }
+        setActionLoading(`edit-${editTarget.id}`)
+        try {
+            await adminApi.updateUser(editTarget.id, editForm)
+            toast.success('User updated successfully')
+            setEditTarget(null)
+            await fetchUsers()
+        } catch (error: any) {
+            const msg = error.response?.data?.error || 'Failed to update user'
+            toast.error(msg)
+        } finally {
+            setActionLoading(null)
+        }
+    }
+
+    const handleDeleteUser = async () => {
+        if (!deleteTarget) return
+        setActionLoading(`delete-${deleteTarget.id}`)
+        try {
+            await adminApi.deleteUser(deleteTarget.id)
+            toast.success(`User "${deleteTarget.name}" deleted successfully`)
+            setDeleteTarget(null)
+            await fetchUsers()
+        } catch (error: any) {
+            console.error('Failed to delete user', error)
+            const msg = error.response?.data?.error || 'Failed to delete user'
+            toast.error(msg)
         } finally {
             setActionLoading(null)
         }
@@ -477,6 +541,35 @@ export function UserManagement() {
                                                 >
                                                     View
                                                 </Button>
+                                                {!isSelf(user.id) && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-7 px-2 text-[11px] font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                                                        onClick={() => openEditUser(user)}
+                                                    >
+                                                        <Icon name="edit" className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                )}
+                                                {!isSelf(user.id) && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-7 px-2 text-[11px] font-bold text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                                                        disabled={actionLoading === `delete-${user.id}`}
+                                                        onClick={() => setDeleteTarget({
+                                                            id: user.id,
+                                                            name: user.first_name || user.last_name
+                                                                ? `${user.first_name} ${user.last_name}`.trim()
+                                                                : user.email,
+                                                        })}
+                                                    >
+                                                        {actionLoading === `delete-${user.id}`
+                                                            ? <Icon name="progress_activity" className="h-3 w-3 animate-spin" />
+                                                            : <Icon name="delete" className="h-3.5 w-3.5" />
+                                                        }
+                                                    </Button>
+                                                )}
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -551,6 +644,102 @@ export function UserManagement() {
                 </div>
             )}
 
+            {/* Edit User Dialog */}
+            <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null) }}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <form onSubmit={handleEditUser}>
+                        <DialogHeader>
+                            <DialogTitle>Edit User</DialogTitle>
+                            <DialogDescription>
+                                Update account details for this user.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="edit_first_name" className="text-xs">First Name</Label>
+                                    <Input
+                                        id="edit_first_name"
+                                        placeholder="John"
+                                        value={editForm.first_name}
+                                        onChange={e => setEditForm({ ...editForm, first_name: e.target.value })}
+                                        className="h-9 text-sm"
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="edit_last_name" className="text-xs">Last Name</Label>
+                                    <Input
+                                        id="edit_last_name"
+                                        placeholder="Doe"
+                                        value={editForm.last_name}
+                                        onChange={e => setEditForm({ ...editForm, last_name: e.target.value })}
+                                        className="h-9 text-sm"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit_email" className="text-xs">Email Address</Label>
+                                <Input
+                                    id="edit_email"
+                                    type="email"
+                                    placeholder="user@example.com"
+                                    value={editForm.email}
+                                    onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                                    className="h-9 text-sm"
+                                    required
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit_role" className="text-xs">Role</Label>
+                                <Select
+                                    value={editForm.role}
+                                    onValueChange={val => setEditForm({ ...editForm, role: val })}
+                                >
+                                    <SelectTrigger className="h-9 text-sm">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="BUILDER">Builder</SelectItem>
+                                        <SelectItem value="CONTRACTOR">Contractor</SelectItem>
+                                        <SelectItem value="SUPPLIER">Supplier</SelectItem>
+                                        <SelectItem value="ADMIN">Administrator</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" size="sm" onClick={() => setEditTarget(null)}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" size="sm" className="bg-indigo-600 hover:bg-indigo-700" disabled={actionLoading === `edit-${editTarget?.id}`}>
+                                {actionLoading === `edit-${editTarget?.id}` ? <Icon name="progress_activity" className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                                Save Changes
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete User</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to permanently delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone. All associated data will be removed.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={handleDeleteUser}
+                        >
+                            Delete User
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

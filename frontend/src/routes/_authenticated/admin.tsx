@@ -14,13 +14,10 @@ export const Route = createFileRoute('/_authenticated/admin')({
 
 const adminNavigation = [
   { name: 'Dashboard Analytics', href: '/admin/dashboard-analytics', icon: 'monitoring', badge: false },
-  { name: 'Overview', href: '/admin', icon: 'space_dashboard', badge: false },
   { name: 'Users & Requests', href: '/admin/users', icon: 'group', badge: true },
   { name: 'Projects', href: '/admin/projects', icon: 'business', badge: false },
   { name: 'Billing', href: '/admin/billing', icon: 'payments', badge: false },
-  { name: 'Knowledge Base', href: '/admin/knowledge-base', icon: 'menu_book', badge: false },
   { name: 'Floor Plans', href: '/admin/floor-plans', icon: 'image', badge: false },
-  { name: 'AI Command Center', href: '/admin/ai-command-center', icon: 'psychology', badge: false },
   { name: 'Settings', href: '/admin/settings', icon: 'settings', badge: false },
 ]
 
