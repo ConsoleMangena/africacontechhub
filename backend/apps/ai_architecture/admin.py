@@ -1,20 +1,9 @@
 from django.contrib import admin
 from .models import (
-    KnowledgeDocument, AIInstruction, ChatSession, ChatMessage,
+    ChatSession, ChatMessage,
     MaterialPrice, TokenUsage,
     BOQTemplate,
 )
-
-
-@admin.register(KnowledgeDocument)
-class KnowledgeDocumentAdmin(admin.ModelAdmin):
-    list_display = ('title', 'is_embedded', 'content_hash', 'uploaded_by', 'created_at')
-    list_filter = ('is_embedded',)
-    search_fields = ('title',)
-
-@admin.register(AIInstruction)
-class AIInstructionAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'is_active', 'updated_at')
 
 class ChatMessageInline(admin.TabularInline):
     model = ChatMessage

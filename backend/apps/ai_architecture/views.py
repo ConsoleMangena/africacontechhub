@@ -18,7 +18,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from .models import (
-    KnowledgeDocument, AIInstruction, ChatSession, ChatMessage,
+    AIInstruction, ChatSession, ChatMessage,
     DrawingStylePreset, ImageFeedback, MaterialPrice, TokenUsage,
     BOQTemplate, SiteIntel,
 )
@@ -1349,23 +1349,6 @@ class ChatCompletionView(APIView):
                     vision_images, scan_desc
                 )
 
-        context_text = ""
-        try:
-            from langchain_huggingface import HuggingFaceEmbeddings
-            from langchain_chroma import Chroma
-
-            chroma_dir = os.path.join(settings.BASE_DIR, 'chroma_db')
-            if os.path.exists(chroma_dir) and user_query:
-                embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-                vectorstore = Chroma(persist_directory=chroma_dir, embedding_function=embeddings)
-                docs = vectorstore.similarity_search(user_query, k=3)
-                if docs:
-                    context_text = "\n\nRelevant Custom Knowledge Base Data:\n"
-                    for d in docs:
-                        context_text += f"---\n{d.page_content}\n"
-        except Exception as e:
-            logger.error("RAG Retrieval error: %s", e)
-
         instruction_obj = AIInstruction.objects.filter(is_active=True).first()
         base_instruction = instruction_obj.instruction_text if instruction_obj else (
             "You are the DzeNhare Architecture AI, a helpful, professional AI assistant "
@@ -1385,14 +1368,6 @@ class ChatCompletionView(APIView):
                 f"\n\nProject Brief/Notes: Brief={project.ai_brief or ''}; Site notes={project.site_notes or ''}; Constraints={project.constraints or ''}."
             )
 
-        if context_text:
-            system_content += (
-                f"\n\nCRITICAL KNOWLEDGE BASE INSTRUCTION: You must base your response STRICTLY and ENTIRELY on the following "
-                f"extracted custom Knowledge Base Data. Do not extrapolate, summarize, or invent outside information that "
-                f"is not explicitly supported by this text. If the answer is not contained in this data, clearly state that "
-                f"the information is not available in the provided documents.\n"
-                f"{context_text}"
-            )
         if image_url:
             system_content += (
                 "\n\nYou have just generated an architectural drawing/image for the user. "
@@ -2155,22 +2130,6 @@ class ChatStreamView(APIView):
             pdf_images = _extract_pdf_pages_as_images(user_pdf_data, max_pages=5)
             vision_images.extend(pdf_images)
 
-        context_text = ""
-        try:
-            from langchain_huggingface import HuggingFaceEmbeddings
-            from langchain_chroma import Chroma
-            chroma_dir = os.path.join(settings.BASE_DIR, 'chroma_db')
-            if os.path.exists(chroma_dir) and user_query:
-                embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-                vectorstore = Chroma(persist_directory=chroma_dir, embedding_function=embeddings)
-                docs = vectorstore.similarity_search(user_query, k=3)
-                if docs:
-                    context_text = "\n\nRelevant Custom Knowledge Base Data:\n"
-                    for d in docs:
-                        context_text += f"---\n{d.page_content}\n"
-        except Exception as e:
-            logger.error("RAG Retrieval error: %s", e)
-
         # ── System prompt ──
         instruction_obj = AIInstruction.objects.filter(is_active=True).first()
         base_instruction = instruction_obj.instruction_text if instruction_obj else (
@@ -2185,15 +2144,6 @@ class ChatStreamView(APIView):
             system_content += f"\n\nDETAILED PROJECT DATA (SURVEY):\n{_get_project_context(project)}"
             system_content += (
                 f"\n\nProject Brief/Notes: Brief={project.ai_brief or ''}; Site notes={project.site_notes or ''}; Constraints={project.constraints or ''}."
-            )
-
-        if context_text:
-            system_content += (
-                f"\n\nCRITICAL KNOWLEDGE BASE INSTRUCTION: You must base your response STRICTLY and ENTIRELY on the following "
-                f"extracted custom Knowledge Base Data. Do not extrapolate, summarize, or invent outside information that "
-                f"is not explicitly supported by this text. If the answer is not contained in this data, clearly state that "
-                f"the information is not available in the provided documents.\n"
-                f"{context_text}"
             )
 
         llm_messages = [{"role": msg['role'], "content": msg['content']} for msg in messages]
@@ -2240,188 +2190,6 @@ class ChatStreamView(APIView):
         response['X-Accel-Buffering'] = 'no'
         return response
 
-
-# ── Knowledge Base / Instructions ────────────────────────────────────
-
-class KnowledgeDocumentView(APIView):
-    permission_classes = [IsAuthenticated]
-    parser_classes = (MultiPartParser, FormParser)
-
-    def check_permissions(self, request):
-        super().check_permissions(request)
-        if getattr(request.user, 'profile', None) and request.user.profile.role != 'ADMIN':
-            if not request.user.is_staff:
-                self.permission_denied(request, message="Admin access required.")
-
-    def get(self, request, pk=None):
-        if pk:
-            try:
-                doc = KnowledgeDocument.objects.get(pk=pk)
-                content = self._extract_text(doc)
-                return Response({
-                    'id': doc.id,
-                    'title': doc.title,
-                    'file': doc.file.url if doc.file else None,
-                    'is_embedded': doc.is_embedded,
-                    'created_at': doc.created_at,
-                    'content': content,
-                })
-            except KnowledgeDocument.DoesNotExist:
-                return Response({'error': 'Document not found'}, status=404)
-
-        docs = KnowledgeDocument.objects.all()
-        return Response([{
-            'id': d.id,
-            'title': d.title,
-            'file': d.file.url if d.file else None,
-            'is_embedded': d.is_embedded,
-            'created_at': d.created_at
-        } for d in docs])
-
-    def _extract_text(self, doc):
-        """Extract readable text content from a knowledge document."""
-        try:
-            file_path = doc.file.path
-            if file_path.endswith('.pdf'):
-                try:
-                    from langchain_community.document_loaders import PyPDFLoader
-                    loader = PyPDFLoader(file_path)
-                    pages = loader.load()
-                    return '\n\n'.join(page.page_content for page in pages)
-                except Exception:
-                    return "[Could not extract PDF content]"
-            else:
-                with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-                    return f.read()
-        except Exception as e:
-            return f"[Error reading file: {e}]"
-
-    def post(self, request):
-        import hashlib
-
-        file_obj = request.FILES.get('file')
-        if not file_obj:
-            return Response({'error': 'No file provided'}, status=400)
-
-        # ── Compute content hash for deduplication ──
-        file_bytes = file_obj.read()
-        content_hash = hashlib.sha256(file_bytes).hexdigest()
-        file_obj.seek(0)  # reset for saving
-
-        existing = KnowledgeDocument.objects.filter(content_hash=content_hash).first()
-        if existing:
-            return Response({
-                'error': f'Duplicate document — already uploaded as "{existing.title}".',
-                'existing_id': existing.id,
-            }, status=409)
-
-        title = request.data.get('title', file_obj.name)
-
-        doc = KnowledgeDocument.objects.create(
-            title=title,
-            file=file_obj,
-            content_hash=content_hash,
-            uploaded_by=request.user
-        )
-
-        # Process embedding synchronously for demonstration
-        success = self.embed_document(doc)
-        doc.is_embedded = success
-        doc.save()
-
-        return Response({'success': success, 'id': doc.id})
-
-    def embed_document(self, doc):
-        try:
-            from langchain_community.document_loaders import PyPDFLoader, TextLoader
-            from langchain_text_splitters import RecursiveCharacterTextSplitter
-            from langchain_huggingface import HuggingFaceEmbeddings
-            from langchain_chroma import Chroma
-
-            file_path = doc.file.path
-
-            if file_path.endswith('.pdf'):
-                loader = PyPDFLoader(file_path)
-            else:
-                loader = TextLoader(file_path)
-
-            documents = loader.load()
-
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-            chunks = text_splitter.split_documents(documents)
-
-            embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-
-            chroma_dir = os.path.join(settings.BASE_DIR, 'chroma_db')
-            os.makedirs(chroma_dir, exist_ok=True)
-
-            Chroma.from_documents(
-                documents=chunks,
-                embedding=embeddings,
-                persist_directory=chroma_dir
-            )
-            return True
-        except Exception as e:
-            logger.error("Error embedding document %s: %s", doc.title, e, exc_info=True)
-            return False
-
-    def delete(self, request, pk=None):
-        if not pk:
-            return Response({'error': 'No document ID provided'}, status=400)
-
-        try:
-            doc = KnowledgeDocument.objects.get(pk=pk)
-            try:
-                from langchain_huggingface import HuggingFaceEmbeddings
-                from langchain_chroma import Chroma
-
-                chroma_dir = os.path.join(settings.BASE_DIR, 'chroma_db')
-                if os.path.exists(chroma_dir):
-                    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-                    vectorstore = Chroma(persist_directory=chroma_dir, embedding_function=embeddings)
-                    collection = vectorstore._collection
-                    results = collection.get(where={"source": doc.file.path})
-                    if results and results['ids']:
-                        collection.delete(ids=results['ids'])
-            except Exception as e:
-                logger.warning("Could not clean ChromaDB vectors for %s: %s", doc.title, e)
-
-            doc.delete()
-            return Response({'success': True})
-        except KnowledgeDocument.DoesNotExist:
-            return Response({'error': 'Document not found'}, status=404)
-
-
-class AIInstructionView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def check_permissions(self, request):
-        super().check_permissions(request)
-        if getattr(request.user, 'profile', None) and request.user.profile.role != 'ADMIN':
-            if not request.user.is_staff:
-                self.permission_denied(request, message="Admin access required.")
-
-    def get(self, request):
-        obj = AIInstruction.objects.filter(is_active=True).first()
-        if not obj:
-            obj = AIInstruction.objects.create()
-        return Response({
-            'instruction_text': obj.instruction_text
-        })
-
-    def post(self, request):
-        text = request.data.get('instruction_text')
-        if not text:
-            return Response({'error': 'Instruction text is required.'}, status=400)
-
-        obj = AIInstruction.objects.filter(is_active=True).first()
-        if not obj:
-            obj = AIInstruction.objects.create(instruction_text=text)
-        else:
-            obj.instruction_text = text
-            obj.save()
-
-        return Response({'success': True, 'instruction_text': obj.instruction_text})
 
 
 # ── TOOL MAP ─────────────────────────────────────────────────────────
@@ -2515,78 +2283,6 @@ class ImageFeedbackView(APIView):
             'created': created,
             'rating': feedback.rating,
         })
-
-
-# ── Drawing Style Presets (Admin CRUD) ───────────────────────────────
-
-class DrawingStylePresetView(APIView):
-    """Admin-only CRUD for drawing style presets."""
-    permission_classes = [IsAuthenticated]
-
-    def check_permissions(self, request):
-        super().check_permissions(request)
-        if getattr(request.user, 'profile', None) and request.user.profile.role != 'ADMIN':
-            if not request.user.is_staff:
-                self.permission_denied(request, message="Admin access required.")
-
-    def get(self, request):
-        presets = DrawingStylePreset.objects.all()
-        data = [{
-            'id': p.id,
-            'name': p.name,
-            'category': p.category,
-            'category_display': p.get_category_display(),
-            'keywords': p.keywords,
-            'prompt_template': p.prompt_template,
-            'negative_prompt': p.negative_prompt,
-            'style_tokens': p.style_tokens,
-            'guidance_scale': p.guidance_scale,
-            'is_active': p.is_active,
-            'priority': p.priority,
-            'avg_rating': ImageFeedback.objects.filter(
-                preset_used=p, rating__gte=1
-            ).aggregate(avg=Avg('rating'))['avg'],
-        } for p in presets]
-        return Response(data)
-
-    def post(self, request):
-        preset = DrawingStylePreset.objects.create(
-            name=request.data.get('name', 'New Preset'),
-            category=request.data.get('category', 'OTHER'),
-            keywords=request.data.get('keywords', ''),
-            prompt_template=request.data.get('prompt_template', ''),
-            negative_prompt=request.data.get('negative_prompt', ''),
-            style_tokens=request.data.get('style_tokens', ''),
-            guidance_scale=float(request.data.get('guidance_scale', 7.5)),
-            is_active=request.data.get('is_active', True),
-            priority=int(request.data.get('priority', 0)),
-        )
-        return Response({'success': True, 'id': preset.id})
-
-    def patch(self, request, pk=None):
-        if not pk:
-            return Response({'error': 'Preset ID required'}, status=400)
-        try:
-            preset = DrawingStylePreset.objects.get(pk=pk)
-            for field in ['name', 'category', 'keywords', 'prompt_template',
-                          'negative_prompt', 'style_tokens', 'is_active', 'priority']:
-                if field in request.data:
-                    setattr(preset, field, request.data[field])
-            if 'guidance_scale' in request.data:
-                preset.guidance_scale = float(request.data['guidance_scale'])
-            preset.save()
-            return Response({'success': True})
-        except DrawingStylePreset.DoesNotExist:
-            return Response({'error': 'Preset not found'}, status=404)
-
-    def delete(self, request, pk=None):
-        if not pk:
-            return Response({'error': 'Preset ID required'}, status=400)
-        try:
-            DrawingStylePreset.objects.get(pk=pk).delete()
-            return Response({'success': True})
-        except DrawingStylePreset.DoesNotExist:
-            return Response({'error': 'Preset not found'}, status=404)
 
 
 # ── BOQ Template CRUD (Admin) ────────────────────────────────────────

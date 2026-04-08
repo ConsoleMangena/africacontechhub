@@ -139,6 +139,22 @@ class AdminUserManagementView(APIView):
             role = request.data.get('role')
             is_active = request.data.get('is_active')
             is_approved = request.data.get('is_approved')
+            first_name = request.data.get('first_name')
+            last_name = request.data.get('last_name')
+            email = request.data.get('email')
+
+            user_changed = False
+            if first_name is not None:
+                user.first_name = first_name
+                user_changed = True
+            if last_name is not None:
+                user.last_name = last_name
+                user_changed = True
+            if email is not None and email != user.email:
+                if User.objects.filter(email=email).exclude(pk=pk).exists():
+                    return Response({'error': 'A user with this email already exists'}, status=400)
+                user.email = email
+                user_changed = True
 
             if role or is_approved is not None:
                 profile, _ = Profile.objects.get_or_create(user=user)
@@ -147,14 +163,28 @@ class AdminUserManagementView(APIView):
                     profile.role = role
                 if is_approved is not None:
                     profile.is_approved = is_approved
+                if first_name is not None:
+                    profile.first_name = first_name
+                if last_name is not None:
+                    profile.last_name = last_name
                 profile.save()
                 if role and role != old_role:
                     log_admin_action(request, 'USER_ROLE_CHANGED', 'User', user.id, user.email, f'{old_role} → {role}')
+            elif first_name is not None or last_name is not None:
+                profile, _ = Profile.objects.get_or_create(user=user)
+                if first_name is not None:
+                    profile.first_name = first_name
+                if last_name is not None:
+                    profile.last_name = last_name
+                profile.save()
 
             if is_active is not None:
                 user.is_active = is_active
-                user.save()
+                user_changed = True
                 log_admin_action(request, 'USER_TOGGLED', 'User', user.id, user.email, f"{'Activated' if is_active else 'Deactivated'}")
+
+            if user_changed:
+                user.save()
 
             return Response({'success': True})
         except User.DoesNotExist:
@@ -415,7 +445,7 @@ class AIAnalyticsView(APIView):
         from datetime import timedelta
         from apps.ai_architecture.models import (
             ChatMessage, ChatSession, TokenUsage, ImageFeedback,
-            BOQTemplate, MaterialPrice, KnowledgeDocument,
+            BOQTemplate, MaterialPrice,
         )
 
         now = timezone.now()
@@ -501,8 +531,6 @@ class AIAnalyticsView(APIView):
 
         # ── Training data summary ──
         training_data = {
-            'knowledge_documents': KnowledgeDocument.objects.count(),
-            'embedded_documents': KnowledgeDocument.objects.filter(is_embedded=True).count(),
             'material_prices': MaterialPrice.objects.count(),
             'material_regions': list(
                 MaterialPrice.objects.values_list('region', flat=True).distinct()[:10]

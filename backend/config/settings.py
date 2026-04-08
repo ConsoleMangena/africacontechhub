@@ -34,17 +34,17 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'corsheaders',
+    'django_filters',
     'apps.core',
-    'apps.builder_dashboard',
-    'apps.contractor_dashboard',
-    'apps.supplier_dashboard',
     'apps.authentication',
-    'apps.billing',
     'apps.admin_dashboard',
     'apps.ai_architecture',
     'apps.architectural_studio',
-    'corsheaders',
-    'django_filters',
+    'apps.billing',
+    'apps.builder_dashboard',
+    'apps.contractor_dashboard',
+    'apps.supplier_dashboard',
 ]
 
 MIDDLEWARE = [

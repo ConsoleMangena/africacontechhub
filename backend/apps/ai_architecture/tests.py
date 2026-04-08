@@ -15,7 +15,7 @@ from .views import (
     BOQItem,
     BOQAnalysis,
 )
-from .models import MaterialPrice, TokenUsage, KnowledgeDocument, ChatSession
+from .models import MaterialPrice, TokenUsage, ChatSession
 
 
 # ── Tool function tests ──────────────────────────────────────────────
@@ -138,13 +138,6 @@ class TokenUsageModelTest(TestCase):
         t = TokenUsage.objects.create(user=self.user, endpoint="stream")
         self.assertEqual(t.total_tokens, 0)
 
-
-class KnowledgeDocumentDeduplicationTest(TestCase):
-    """Tests for content_hash deduplication."""
-
-    def test_content_hash_field_exists(self):
-        doc = KnowledgeDocument(title="Test", content_hash="abc123")
-        self.assertEqual(doc.content_hash, "abc123")
 
 
 class MaterialPriceModelTest(TestCase):
