@@ -30,7 +30,7 @@ export function NotificationBell() {
   const { data: notifications = [] } = useQuery<Notification[]>({
     queryKey: ['notifications'],
     queryFn: async () => {
-      const res = await apiClient.get('/api/v1/builder/notifications/')
+      const res = await apiClient.get('/api/v1/notifications/')
       return res.data
     },
     refetchInterval: 30000,
@@ -38,7 +38,7 @@ export function NotificationBell() {
 
   const markRead = useMutation({
     mutationFn: async (id: number) => {
-      await apiClient.post(`/api/v1/builder/notifications/${id}/mark_read/`)
+      await apiClient.post(`/api/v1/notifications/${id}/mark_read/`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
@@ -47,7 +47,7 @@ export function NotificationBell() {
 
   const markAllRead = useMutation({
     mutationFn: async () => {
-      await apiClient.post('/api/v1/builder/notifications/mark_all_read/')
+      await apiClient.post('/api/v1/notifications/mark_all_read/')
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
