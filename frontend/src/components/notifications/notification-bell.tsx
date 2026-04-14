@@ -22,12 +22,17 @@ interface Notification {
   created_at: string
 }
 
+interface PaginatedResponse<T> {
+  results: T[]
+  count: number
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
 
   // Polling every 30 seconds for real-time feel
-  const { data: notifications = [] } = useQuery<Notification[]>({
+  const { data: pagination } = useQuery<PaginatedResponse<Notification>>({
     queryKey: ['notifications'],
     queryFn: async () => {
       const res = await apiClient.get('/api/v1/notifications/')
@@ -35,6 +40,8 @@ export function NotificationBell() {
     },
     refetchInterval: 30000,
   })
+
+  const notifications = pagination?.results || []
 
   const markRead = useMutation({
     mutationFn: async (id: number) => {
