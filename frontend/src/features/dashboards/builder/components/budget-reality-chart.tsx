@@ -123,7 +123,7 @@ export function BudgetRealityChart() {
         </div>
 
         <div className="h-[350px] w-full p-4 pl-0 sm:pr-6 pt-6 relative z-10 bg-white">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <LineChart data={evmData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
               {/* Distinct Forex-style grid - light dotted */}
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={true} horizontal={true} opacity={0.8} />

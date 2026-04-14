@@ -434,7 +434,7 @@ export default function BOQMeasurements({ initialProjectId = null, onSelectProje
                         </div>
                     </div>
                     <div className="md:col-span-1 h-[200px] sm:h-[240px] flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <PieChart>
                                 <Pie
                                     data={chartData}

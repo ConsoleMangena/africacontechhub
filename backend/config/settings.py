@@ -110,12 +110,12 @@ AI_API_KEY = os.getenv('GEMINI_API_KEY', os.getenv('AI_API_KEY', ''))
 GEMINI_API_KEY = AI_API_KEY
 AI_BASE_URL = os.getenv('AI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai')
 AI_API_VERSION = os.getenv('AI_API_VERSION', 'v1beta')
-AI_CHAT_MODEL = os.getenv('AI_CHAT_MODEL', 'gemini-3.1-pro-preview')
-AI_DRAW_MODEL = os.getenv('AI_DRAW_MODEL', 'gemini-3.1-pro-preview')
-AI_ANALYSE_MODEL = os.getenv('AI_ANALYSE_MODEL', os.getenv('AI_CHAT_MODEL', 'gemini-3.1-pro-preview'))
+AI_CHAT_MODEL = os.getenv('AI_CHAT_MODEL', 'gemini-1.5-pro')
+AI_DRAW_MODEL = os.getenv('AI_DRAW_MODEL', 'gemini-1.5-flash')
+AI_ANALYSE_MODEL = os.getenv('AI_ANALYSE_MODEL', os.getenv('AI_CHAT_MODEL', 'gemini-1.5-pro'))
 APIFY_API_TOKEN = os.getenv('APIFY_API_TOKEN', '')
 GEMINI_CHAT_MODEL = AI_CHAT_MODEL
-GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL', 'gemini-3-pro-image-preview')
+GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL', 'gemini-1.5-flash')
 
 # ── Model Context Protocol (MCP) Configuration ───────────────────────
 # List of URLs for remote MCP servers (SSE transport)
