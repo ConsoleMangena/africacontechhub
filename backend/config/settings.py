@@ -115,6 +115,7 @@ AI_DRAW_MODEL = os.getenv('AI_DRAW_MODEL', 'gemini-3.1-pro-preview')
 AI_ANALYSE_MODEL = os.getenv('AI_ANALYSE_MODEL', os.getenv('AI_CHAT_MODEL', 'gemini-3.1-pro-preview'))
 APIFY_API_TOKEN = os.getenv('APIFY_API_TOKEN', '')
 GEMINI_CHAT_MODEL = AI_CHAT_MODEL
+GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL', 'gemini-3-pro-image-preview')
 
 # ── Model Context Protocol (MCP) Configuration ───────────────────────
 # List of URLs for remote MCP servers (SSE transport)

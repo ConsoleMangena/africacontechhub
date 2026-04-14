@@ -150,6 +150,12 @@ function RouteComponent() {
   const [isSavingBOQ, setIsSavingBOQ] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+  // Scan Plan — image upload state
+  const scanFileRef = useRef<HTMLInputElement>(null);
+  const [scanImageBase64, setScanImageBase64] = useState<string | null>(null);
+  const [scanImagePreview, setScanImagePreview] = useState<string | null>(null);
+  const [showScanUpload, setShowScanUpload] = useState(false);
+
   // --- History State ---
   interface HistoryEntry {
     id: number;
@@ -316,12 +322,34 @@ function RouteComponent() {
     }
   };
 
+  /* ── Scan Plan — file selection handler ── */
+  const handleScanFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file (PNG, JPG, WEBP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setScanImageBase64(base64);
+      setScanImagePreview(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
   /* ── Run /scan ── */
   const runScan = async () => {
     if (!selectedProject || runningTool) return;
+    if (!scanImageBase64) {
+      toast.error('Please upload a sketch or plan image first.');
+      return;
+    }
     setRunningTool('scan');
     setDrawLog([]);
     setDrawStep('idle');
+    setShowScanUpload(false);
 
     const chatHistory = [{ role: 'user' as const, content: '/scan' }];
 
@@ -340,7 +368,12 @@ function RouteComponent() {
         }, delay));
       }
 
-      const response = await aiApi.sendMessage(chatHistory, sessionId, undefined, undefined, selectedProject);
+      // Send the user-uploaded image with the /scan command
+      const imageData = scanImageBase64.startsWith('data:')
+        ? scanImageBase64
+        : `data:image/png;base64,${scanImageBase64}`;
+
+      const response = await aiApi.sendMessage(chatHistory, sessionId, imageData, undefined, selectedProject);
 
       timers.forEach(clearTimeout);
       setDrawStep('done');
@@ -367,6 +400,8 @@ function RouteComponent() {
       setRunningTool(null);
       setDrawStep('idle');
       setDrawLog([]);
+      setScanImageBase64(null);
+      setScanImagePreview(null);
     }
   };
 
@@ -613,11 +648,11 @@ function RouteComponent() {
                 </div>
               </button>
               <button
-                onClick={runScan}
+                onClick={() => setShowScanUpload(prev => !prev)}
                 disabled={isBusy}
                 className={cn(
                   'flex flex-col items-center gap-3 rounded-xl border-2 p-5 text-center transition-all',
-                  runningTool === 'scan'
+                  showScanUpload || runningTool === 'scan'
                     ? 'border-cyan-300 bg-cyan-50 text-cyan-700 scale-[0.98]'
                     : 'border-slate-100 bg-white text-slate-600 hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-700 hover:shadow-md',
                   isBusy && runningTool !== 'scan' && 'opacity-40 cursor-not-allowed border-slate-100 bg-slate-50',
@@ -626,9 +661,17 @@ function RouteComponent() {
                 <Icon name="document_scanner" size={36} className={runningTool === 'scan' ? 'animate-pulse' : ''} />
                 <div>
                   <span className="block text-sm font-bold uppercase tracking-widest text-slate-900 mb-1">Scan Plan</span>
-                  <span className="block text-[11px] text-slate-500 font-medium">Redraw sketches into clean architectural plans</span>
+                  <span className="block text-[11px] text-slate-500 font-medium">Upload a sketch to trace into clean plans</span>
                 </div>
               </button>
+              {/* Hidden file input for scan */}
+              <input
+                ref={scanFileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/jpg"
+                className="hidden"
+                onChange={handleScanFileChange}
+              />
               <button
                 onClick={runPlansSearch}
                 disabled={isBusy}
@@ -659,6 +702,78 @@ function RouteComponent() {
               </div>
             )}
           </div>
+
+          {/* Scan Plan Upload Panel */}
+          {showScanUpload && !runningTool && (
+            <div className="rounded-xl border-2 border-cyan-200 bg-gradient-to-br from-cyan-50/80 to-white p-5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Icon name="document_scanner" size={20} className="text-cyan-600" />
+                  <span className="text-sm font-bold text-cyan-800">Upload Sketch to Trace</span>
+                </div>
+                <button
+                  onClick={() => { setShowScanUpload(false); setScanImageBase64(null); setScanImagePreview(null); }}
+                  className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-cyan-100 transition-colors text-cyan-500"
+                >
+                  <Icon name="close" size={16} />
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mb-4">
+                Upload a photo or scan of your hand-drawn floor plan or sketch. The AI will analyze it and generate a professional architectural drawing.
+              </p>
+
+              {!scanImagePreview ? (
+                <button
+                  onClick={() => scanFileRef.current?.click()}
+                  className="w-full border-2 border-dashed border-cyan-300 rounded-xl p-8 flex flex-col items-center gap-3 hover:border-cyan-400 hover:bg-cyan-50/50 transition-all cursor-pointer group"
+                >
+                  <div className="w-14 h-14 rounded-2xl bg-cyan-100 flex items-center justify-center group-hover:bg-cyan-200 transition-colors">
+                    <Icon name="cloud_upload" size={28} className="text-cyan-600" />
+                  </div>
+                  <div className="text-center">
+                    <span className="block text-sm font-bold text-slate-700 mb-0.5">Click to upload image</span>
+                    <span className="block text-[11px] text-slate-400">PNG, JPG, or WEBP — max 10MB</span>
+                  </div>
+                </button>
+              ) : (
+                <div className="space-y-4">
+                  <div className="relative rounded-xl overflow-hidden border border-cyan-200 bg-white">
+                    <img
+                      src={scanImagePreview}
+                      alt="Uploaded sketch"
+                      className="w-full max-h-[300px] object-contain bg-slate-50"
+                    />
+                    <button
+                      onClick={() => {
+                        setScanImageBase64(null);
+                        setScanImagePreview(null);
+                        if (scanFileRef.current) scanFileRef.current.value = '';
+                      }}
+                      className="absolute top-2 right-2 h-8 w-8 rounded-lg bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors"
+                    >
+                      <Icon name="close" size={16} />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => scanFileRef.current?.click()}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 bg-white text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors"
+                    >
+                      <Icon name="swap_horiz" size={16} />
+                      Change Image
+                    </button>
+                    <button
+                      onClick={runScan}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 transition-colors shadow-sm hover:shadow-md"
+                    >
+                      <Icon name="auto_fix_high" size={18} />
+                      Trace &amp; Redraw
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Analysis History Panel */}
           {(history.length > 0 || loadingHistory) && (

@@ -1748,17 +1748,26 @@ class ChatCompletionView(APIView):
     # ── /scan handler ────────────────────────────────────────────────
     def _handle_scan(self, vision_images: list, user_description: str = ""):
         """
-        Scan a hand-drawn plan using Gemini vision, then generate a professional
-        architectural drawing from the analysis.
+        Scan an uploaded sketch/plan image and generate a professional 2D floor plan
+        using gemini-3-pro-image-preview in a single pass (image-to-image).
         Returns (image_url, final_prompt, error_message).
         """
+        from PIL import Image as PILImage
+
         api_key = settings.GEMINI_API_KEY
-        vision_model = 'gemini-2.5-flash'  # Use flash for fast vision analysis
-        vision_url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/{vision_model}"
+        if not api_key or len(api_key) < 10:
+            return None, None, (
+                "⚠️ Image generation is not configured. The Gemini API key is missing. "
+                "Please ask the admin to set a valid GEMINI_API_KEY."
+            )
+
+        scan_model = settings.GEMINI_IMAGE_MODEL  # gemini-3-pro-image-preview
+        scan_url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/{scan_model}"
             f":generateContent?key={api_key}"
         )
 
+        # Decode the uploaded image
         img_data = vision_images[0]
         if img_data.startswith('data:'):
             media_type = img_data.split(';')[0].split(':')[1]
@@ -1767,150 +1776,115 @@ class ChatCompletionView(APIView):
             media_type = 'image/png'
             b64 = img_data
 
-        analysis_prompt = (
-            "You are an expert architectural analyst. This is a HAND-DRAWN floor plan or "
-            "architectural sketch. Analyse it in great detail and describe:\n\n"
-            "1. **Overall layout**: Number of rooms, storeys, general shape (L-shape, rectangular, etc.)\n"
-            "2. **Room identification**: Name each room you can identify (bedrooms, kitchen, bathroom, "
-            "living room, garage, corridor, etc.) and estimate dimensions if any are written "
-            "(MUST specify all dimensions in millimeters / mm)\n"
-            "3. **Doors and windows**: Note their positions\n"
-            "4. **Special features**: Verandah, patio, staircase, built-in wardrobes, en-suite, etc.\n"
-            "5. **Orientation**: If any compass direction or front/back is indicated\n"
-            "6. **Construction style**: If you can infer the style (modern, traditional, colonial, etc.)\n\n"
-            "Be as detailed and specific as possible. This description will be used to generate "
-            "a professional CAD-quality floor plan drawing."
+        # Build the scan prompt — instruct the model to generate a 2D floor plan from the image
+        scan_prompt = (
+            "You are an expert architectural draftsman. Study the attached image carefully — "
+            "it is a hand-drawn sketch, photo of a plan, or rough floor plan layout.\n\n"
+            "YOUR TASK: Generate a CLEAN, PROFESSIONAL 2D architectural floor plan based on "
+            "this image. The output MUST be a proper 2D top-down floor plan image.\n\n"
+            "STRICT REQUIREMENTS:\n"
+            "1. STRICTLY 2D top-down orthographic view — NO 3D, NO perspective, NO isometric.\n"
+            "2. Clean black lines on a plain white background (CAD/blueprint style).\n"
+            "3. EVERY room must be labeled with its name INSIDE the room (e.g. 'Master Bedroom', "
+            "'Kitchen', 'Living Room', 'Bathroom').\n"
+            "4. EVERY room must show dimensions in meters (e.g. '4.2m × 5.1m').\n"
+            "5. Show wall thickness (double lines for walls).\n"
+            "6. Show door swings as quarter-circle arcs and window symbols as parallel lines.\n"
+            "7. Include: dimension chains along exterior walls, a north arrow, scale notation "
+            "(e.g. 'Scale 1:100'), and a title block in the bottom-right corner.\n"
+            "8. Preserve the layout, room arrangement, and proportions from the original image.\n"
+            "9. If the image shows text labels or dimensions, incorporate them accurately.\n"
+            "10. Use standard architectural drawing conventions throughout.\n\n"
+            "Generate ONLY the floor plan image. Make it detailed, accurate, and professional."
         )
         if user_description:
-            analysis_prompt += f"\n\nAdditional context from the user: {user_description}"
+            scan_prompt += f"\n\nAdditional notes from the user: {user_description}"
 
-        vision_payload = {
+        final_prompt = scan_prompt
+
+        payload = {
             "contents": [{
                 "parts": [
-                    {"text": analysis_prompt},
+                    {"text": scan_prompt},
                     {"inlineData": {"mimeType": media_type, "data": b64}},
                 ]
             }],
             "generationConfig": {
-                "temperature": 0.3,
-                "maxOutputTokens": 2048,
+                "responseModalities": ["Text", "Image"],
+                "temperature": 1.0,
+                "topP": 0.95,
+                "topK": 40,
             },
         }
 
         try:
-            logger.info("[Scan] Step 1: Analysing hand-drawn plan with Gemini vision...")
-            vision_response = http_requests.post(vision_url, json=vision_payload, timeout=60.0)
+            logger.info("[Scan] Generating 2D floor plan with %s...", scan_model)
+            response = http_requests.post(scan_url, json=payload, timeout=120.0)
 
-            if vision_response.status_code != 200:
-                body = vision_response.text[:500]
-                logger.error("Scan vision API HTTP %s: %s", vision_response.status_code, body)
-                return None, None, (
-                    f"⚠️ Failed to analyse the hand-drawn plan (HTTP {vision_response.status_code}). "
+            if response.status_code != 200:
+                body = response.text[:500]
+                logger.error("Scan API HTTP %s: %s", response.status_code, body)
+                return None, final_prompt, (
+                    f"⚠️ Floor plan generation failed (HTTP {response.status_code}). "
                     "Please try again with a clearer image."
                 )
 
-            vision_data = vision_response.json()
-            candidates = vision_data.get("candidates", [])
+            data = response.json()
+
+            if data.get("promptFeedback", {}).get("blockReason"):
+                reason = data["promptFeedback"]["blockReason"]
+                logger.warning("Scan blocked: %s", reason)
+                return None, final_prompt, (
+                    f"⚠️ Generation was blocked by safety filters ({reason}). "
+                    "Please try with a different image."
+                )
+
+            candidates = data.get("candidates", [])
             if not candidates:
-                return None, None, "⚠️ Could not analyse the hand-drawn plan. Please try a clearer image."
+                return None, final_prompt, "⚠️ No result returned. Please try a clearer image."
 
             parts = candidates[0].get("content", {}).get("parts", [])
-            plan_analysis = " ".join(p.get("text", "") for p in parts if "text" in p)
 
-            if not plan_analysis.strip():
-                return None, None, "⚠️ The hand-drawn plan could not be interpreted. Please try a clearer image."
+            # Extract the generated image from the response
+            b64_result = None
+            result_mime = "image/png"
+            for part in parts:
+                inline_data = part.get("inlineData", {})
+                if inline_data.get("data"):
+                    b64_result = inline_data["data"]
+                    result_mime = inline_data.get("mimeType", "image/png")
+                    break
 
-            logger.info("[Scan] Step 1 complete. Analysis: %.200s...", plan_analysis)
+            if not b64_result:
+                text_content = " ".join(p.get("text", "") for p in parts if "text" in p)
+                logger.warning("Scan returned text-only (no image). Text: %.200s", text_content)
+                return None, final_prompt, (
+                    "⚠️ The model did not generate a floor plan image. "
+                    "Please try with a clearer sketch or photo."
+                )
+
+            # Save the generated image
+            img_bytes = base64.b64decode(b64_result)
+            image = PILImage.open(io.BytesIO(img_bytes))
+
+            media_dir = os.path.join(settings.MEDIA_ROOT, 'ai_generated')
+            os.makedirs(media_dir, exist_ok=True)
+            ext = "png" if "png" in result_mime else "jpeg"
+            filename = f"scan_{uuid.uuid4().hex}.{ext}"
+            filepath = os.path.join(media_dir, filename)
+            image.save(filepath, format=ext.upper())
+
+            image_url = f"{settings.MEDIA_URL}ai_generated/{filename}"
+            logger.info("[Scan] 2D floor plan saved: %s", filepath)
+
+            return image_url, final_prompt, None
 
         except http_requests.exceptions.Timeout:
-            return None, None, "⚠️ Plan analysis timed out. Please try a simpler or clearer image."
+            logger.error("Scan API timed out after 120s")
+            return None, final_prompt, "⚠️ Floor plan generation timed out. Please try a simpler image."
         except Exception as e:
-            logger.error("Scan vision error: %s", e)
-            return None, None, f"⚠️ Failed to analyse the hand-drawn plan: {e}"
-
-        project_context = ""
-        if project:
-            import json as _json
-            scan_spec = {
-                "building_type": project.building_type or 'Residential',
-                "bedrooms": project.bedrooms or 'Unspecified',
-                "bathrooms": project.bathrooms or 'Unspecified',
-                "floors": project.floors or 1,
-                "preferred_style": project.preferred_style or 'Modern',
-                "lot_size": project.lot_size or 'Unspecified',
-                "footprint": project.footprint or 'Unspecified',
-            }
-            project_context = f"\nPROJECT SPECIFICATION (REDRAW MUST MATCH):\n{_json.dumps(scan_spec, indent=2)}\n"
-
-        prompt_system = (
-            "You are an expert architectural prompt engineer. You have just received a detailed "
-            "description of a hand-drawn floor plan. Your job is to convert this description into "
-            "a concise, vivid text-to-image prompt (max 260 words) that will generate a "
-            "STRICTLY 2D professional architectural construction drawing sheet.\n"
-            f"{project_context}\n"
-            "REQUIREMENTS:\n"
-            "- Strictly 2D TOP-DOWN flat orthographic view. NO 3D, perspective, or realistic shading.\n"
-            "- ROOM LABELS: Every room MUST have its name printed INSIDE the room.\n"
-            "- DIMENSIONS: Every room MUST show width × length in METERS (m), e.g. '4.2m × 5.1m'.\n"
-            "- SHEET CONTENT: Include dimension chains, structural grid bubbles, north arrow, scale notation, legend, notes, and title block.\n"
-            "- Include wall thickness callouts, door/window tags, and area schedule when possible.\n"
-            "- Style: clean black CAD lines on plain white background, architectural blueprint style.\n"
-            "- Details: Wall thicknesses, door swings, window symbols, opening sizes, and circulation labels.\n"
-            "\nOutput ONLY the prompt text, nothing else."
-        )
-
-        user_context = f"Hand-drawn plan analysis:\n{plan_analysis}"
-        if user_description:
-            user_context += f"\n\nUser's additional notes: {user_description}"
-
-        try:
-            logger.info("[Scan] Step 2: Crafting image prompt via Gemini...")
-            image_prompt = _call_gemini(
-                messages=[{"role": "user", "content": user_context}],
-                system=prompt_system,
-                max_tokens=500,
-                temperature=0.5,
-            )
-        except Exception as e:
-            logger.error("Gemini prompt generation error for /scan: %s", e)
-            # Fallback: use the raw analysis as prompt
-            image_prompt = (
-                f"Professional 2D architectural floor plan, CAD blueprint style, "
-                f"clean black lines on white, room labels, dimensions in meters, "
-                f"scale bar: {plan_analysis[:500]}"
-            )
-
-        # Force-append critical rendering directives
-        image_prompt += (
-            ". STRICTLY 2D top-down floor plan only. "
-            "Every room labeled with name and dimensions in meters. "
-            "Clean black lines on white background. "
-            "Include construction-sheet details: dimension chains, grid bubbles, north arrow, scale label, legend, notes, and title block."
-        )
-
-        final_prompt = image_prompt
-        logger.info("[Scan] Step 2 complete. Prompt: %.200s...", final_prompt)
-
-        # Build negative prompt, conditionally adding stairs exclusion
-        neg_scan = (
-            "3d, perspective, isometric, shaded, render, blurry, messy, "
-            "photorealistic, watercolor, painterly, cartoon, decorative textures"
-        )
-        if ("single story" in plan_analysis.lower() or "single-story" in plan_analysis.lower()
-                or "one story" in plan_analysis.lower() or "one-story" in plan_analysis.lower()):
-            neg_scan += ", stairs, staircase, elevator, stairwell"
-
-        logger.info("[Scan] Step 3: Generating professional drawing via Gemini...")
-        image_url, gen_error = _generate_image_from_gemini(
-            prompt=image_prompt,
-            negative_prompt=neg_scan,
-            guidance_scale=14.0,
-        )
-
-        if gen_error:
-            return None, final_prompt, gen_error
-
-        return image_url, final_prompt, None
+            logger.error("Scan generation error: %s", e)
+            return None, final_prompt, f"⚠️ Floor plan generation failed: {e}"
 
     # ── /analyse handler ─────────────────────────────────────────────
     def _handle_analyse(self, user_query: str, vision_images: list, project=None) -> dict:
