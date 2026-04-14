@@ -15,6 +15,8 @@ from .models import (
     MaterialRequest, DrawingRequest, DrawingFile, ProjectTeam,
     BOQCorrection, ScheduleOfMaterial, ProjectBudgetVersion,
     ProjectMilestone, ProjectActivity, UserNotification, ProjectDocument,
+    ArchitecturalDrawing, BudgetAnalysisHistory,
+    MaterialPool, MaterialPoolCommitment,
 )
 from .budget_utils import (
     get_or_create_preliminary_version,
@@ -31,7 +33,9 @@ from .serializers import (
     MaterialRequestSerializer, DrawingRequestSerializer, DrawingFileSerializer,
     ProjectTeamSerializer, BOQCorrectionSerializer, ScheduleOfMaterialSerializer,
     ProjectMilestoneSerializer, ProjectActivitySerializer, UserNotificationSerializer,
-    ProjectDocumentSerializer,
+    ProjectDocumentSerializer, ArchitecturalDrawingSerializer,
+    BudgetAnalysisHistorySerializer,
+    MaterialPoolSerializer, MaterialPoolCommitmentSerializer,
 )
 from apps.authentication.models import Profile
 from apps.authentication.permissions import IsBuilder, IsAdmin
@@ -892,3 +896,144 @@ class ProjectDocumentViewSet(viewsets.ModelViewSet):
             action='Document Uploaded',
             description=f"Document '{serializer.instance.name}' uploaded"
         )
+
+
+class ArchitecturalDrawingView(views.APIView):
+    """
+    GET  /projects/<project_id>/drawing/  — load drawing state (empty {} if none)
+    PUT  /projects/<project_id>/drawing/  — upsert drawing state
+    """
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def _get_project(self, request, project_id):
+        return get_object_or_404(Project, id=project_id, owner=request.user)
+
+    def get(self, request, project_id):
+        project = self._get_project(request, project_id)
+        try:
+            drawing = project.architectural_drawing
+        except ArchitecturalDrawing.DoesNotExist:
+            return Response({'id': None, 'project': project.id, 'data': {}})
+        return Response(ArchitecturalDrawingSerializer(drawing).data)
+
+    def put(self, request, project_id):
+        project = self._get_project(request, project_id)
+        drawing, _created = ArchitecturalDrawing.objects.get_or_create(
+            project=project,
+            defaults={'data': request.data.get('data', {})},
+        )
+        if not _created:
+            drawing.data = request.data.get('data', {})
+            drawing.save(update_fields=['data', 'updated_at'])
+        return Response(ArchitecturalDrawingSerializer(drawing).data)
+
+
+class BudgetAnalysisHistoryViewSet(viewsets.ModelViewSet):
+    """CRUD for Budget Engineer analysis history entries."""
+    serializer_class = BudgetAnalysisHistorySerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        qs = BudgetAnalysisHistory.objects.filter(project__owner=self.request.user)
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs.select_related('user', 'project')
+
+    def perform_create(self, serializer):
+        project_id = self.request.data.get('project')
+        project = get_object_or_404(Project, id=project_id, owner=self.request.user)
+        serializer.save(project=project, user=self.request.user)
+
+class MaterialPoolViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Exposes active bulk supply chain pools. Builder reads these and links commitments.
+    """
+    serializer_class = MaterialPoolSerializer
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def get_queryset(self):
+        # Admin might see all, Builders see OPEN or LOCKED for joining/viewing
+        return MaterialPool.objects.all()
+
+    @action(detail=True, methods=['post'])
+    def join(self, request, pk=None):
+        pool = self.get_object()
+        project_id = request.data.get('projectId')
+        qty = request.data.get('quantity')
+        
+        if not project_id or not qty:
+            return Response({"detail": "project_id and quantity are required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            qty = float(qty)
+        except ValueError:
+            return Response({"detail": "quantity must be a valid number"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        project = get_object_or_404(Project, id=project_id, owner=request.user)
+        
+        deposit_amount = qty * 5.00 # Simulated $5/unit deposit lock
+        
+        commitment = MaterialPoolCommitment.objects.create(
+            pool=pool,
+            project=project,
+            quantity=qty,
+            deposit_paid=deposit_amount,
+            status='LOCKED'
+        )
+        
+        pool.current_volume += qty
+        if pool.current_volume >= pool.moq:
+            pool.status = 'LOCKED'
+        pool.save()
+        
+        # Calculate savings logic
+        savings_per_unit = float(pool.tier_2_discount) if pool.tier_2_discount else 0.0
+        total_savings = qty * savings_per_unit
+        
+        # Log deduction to budget history if total_savings > 0
+        if total_savings > 0:
+            BOQCorrection.objects.create(
+                project=project,
+                user=request.user,
+                action='CREATE',
+                was_ai_generated=False,
+                new_data={
+                    "item": f"Material Pool Wholesale Deduction: {pool.name}",
+                    "amount": -total_savings,
+                    "pool_id": pool.id,
+                    "quantity": qty
+                }
+            )
+        
+        return Response(MaterialPoolCommitmentSerializer(commitment).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'])
+    def commitments(self, request):
+        project_id = request.query_params.get('project_id')
+        qs = MaterialPoolCommitment.objects.filter(project__owner=request.user)
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+            
+        return Response(MaterialPoolCommitmentSerializer(qs, many=True).data)
+
+    @action(detail=False, methods=['post'])
+    def cancel_commitment(self, request):
+        commitment_id = request.data.get('commitmentId')
+        commitment = get_object_or_404(MaterialPoolCommitment, id=commitment_id, project__owner=request.user)
+        
+        if commitment.status != 'LOCKED':
+            return Response({"detail": "Only locked commitments can be cancelled"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        pool = commitment.pool
+        pool.current_volume -= commitment.quantity
+        if pool.current_volume < pool.moq and pool.status == 'LOCKED':
+            pool.status = 'OPEN'
+        pool.save()
+        
+        commitment.status = 'CANCELLED'
+        commitment.save()
+        
+        return Response({"detail": "Successfully cancelled commitment"})
+

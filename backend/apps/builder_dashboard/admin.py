@@ -81,3 +81,14 @@ class ProjectDocumentAdmin(admin.ModelAdmin):
     search_fields = ('name', 'project__title', 'uploaded_by__username')
     date_hierarchy = 'created_at'
     readonly_fields = ('file_size', 'created_at', 'updated_at')
+
+
+from .models import BudgetAnalysisHistory
+
+@admin.register(BudgetAnalysisHistory)
+class BudgetAnalysisHistoryAdmin(admin.ModelAdmin):
+    list_display = ('project', 'user', 'file_name', 'total_items', 'total_cost', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('project__title', 'file_name', 'summary')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_at', 'updated_at')

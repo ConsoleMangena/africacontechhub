@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="shrubG" cx="40%" cy="40%">
+      <stop offset="0%" stop-color="#66bb6a" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#2e7d32" stop-opacity="0.3"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="53" cy="54" rx="42" ry="36" fill="#000" opacity="0.06"/>
+  <!-- Outer shape -->
+  <ellipse cx="50" cy="50" rx="44" ry="38" fill="url(#shrubG)" stroke="#2e7d32" stroke-width="1.5"/>
+  <!-- Foliage clusters -->
+  <circle cx="32" cy="40" r="16" fill="#43a047" fill-opacity="0.2" stroke="#388e3c" stroke-width="0.8"/>
+  <circle cx="56" cy="36" r="18" fill="#66bb6a" fill-opacity="0.18" stroke="#388e3c" stroke-width="0.8"/>
+  <circle cx="68" cy="52" r="14" fill="#43a047" fill-opacity="0.2" stroke="#388e3c" stroke-width="0.8"/>
+  <circle cx="44" cy="60" r="15" fill="#66bb6a" fill-opacity="0.18" stroke="#388e3c" stroke-width="0.8"/>
+  <circle cx="26" cy="56" r="12" fill="#43a047" fill-opacity="0.15" stroke="#388e3c" stroke-width="0.7"/>
+  <!-- Small highlight dots -->
+  <circle cx="38" cy="44" r="2" fill="#81c784" opacity="0.5"/>
+  <circle cx="58" cy="42" r="2.5" fill="#81c784" opacity="0.4"/>
+  <circle cx="50" cy="56" r="2" fill="#81c784" opacity="0.45"/>
+</svg>

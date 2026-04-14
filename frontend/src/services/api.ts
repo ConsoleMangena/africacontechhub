@@ -28,6 +28,26 @@ import { supabase } from '../lib/supabase';
 
 /** Cached Supabase access token (JWT for Django `Authorization: Bearer …`). */
 let cachedSession: string | null = null;
+let cachedSessionExpiresAtMs = 0;
+const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000;
+
+function syncAuthorizationDefaults(token: string | null) {
+    if (token) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+        delete api.defaults.headers.common['Authorization'];
+    }
+}
+
+function updateCachedSession(session: { access_token?: string | null; expires_at?: number | null } | null | undefined) {
+    cachedSession = session?.access_token || null;
+    cachedSessionExpiresAtMs = session?.expires_at ? session.expires_at * 1000 : 0;
+    syncAuthorizationDefaults(cachedSession);
+}
+
+function isFreshToken(expiresAtMs: number) {
+    return !expiresAtMs || expiresAtMs - Date.now() > ACCESS_TOKEN_REFRESH_SKEW_MS;
+}
 
 function setAuthorizationHeader(config: InternalAxiosRequestConfig, token: string) {
     const h = config.headers;
@@ -43,16 +63,28 @@ function setAuthorizationHeader(config: InternalAxiosRequestConfig, token: strin
 let sessionReadPromise: Promise<string | null> | null = null;
 
 async function getAccessToken(): Promise<string | null> {
-    if (cachedSession) return cachedSession;
+    if (cachedSession && isFreshToken(cachedSessionExpiresAtMs)) return cachedSession;
     if (sessionReadPromise) return sessionReadPromise;
     sessionReadPromise = (async () => {
         try {
             const { data: { session }, error } = await supabase.auth.getSession();
-            if (error) { cachedSession = null; return null; }
-            cachedSession = session?.access_token ?? null;
+            if (error) {
+                updateCachedSession(null);
+                return null;
+            }
+            if (session?.access_token && isFreshToken((session.expires_at ?? 0) * 1000)) {
+                updateCachedSession(session);
+                return cachedSession;
+            }
+            const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+            if (!refreshError && refreshed.session?.access_token) {
+                updateCachedSession(refreshed.session);
+                return cachedSession;
+            }
+            updateCachedSession(session);
             return cachedSession;
         } catch {
-            cachedSession = null;
+            updateCachedSession(null);
             return null;
         } finally {
             sessionReadPromise = null;
@@ -63,24 +95,16 @@ async function getAccessToken(): Promise<string | null> {
 
 // Update cached session when auth state changes
 supabase.auth.onAuthStateChange((_event, session) => {
-    cachedSession = session?.access_token || null;
-    if (cachedSession) {
-        api.defaults.headers.common['Authorization'] = `Bearer ${cachedSession}`;
-    } else {
-        delete api.defaults.headers.common['Authorization'];
-    }
+    updateCachedSession(session);
 });
 
 // Initialize cached session (ignore errors so app loads without backend/Supabase)
 supabase.auth.getSession().then(
     ({ data: { session } }) => {
-        cachedSession = session?.access_token || null;
-        if (cachedSession) {
-            api.defaults.headers.common['Authorization'] = `Bearer ${cachedSession}`;
-        }
+        updateCachedSession(session);
     },
     () => {
-        cachedSession = null;
+        updateCachedSession(null);
     }
 );
 
@@ -106,16 +130,16 @@ function refreshAccessToken(): Promise<string | null> {
         try {
             const { data, error: err } = await supabase.auth.refreshSession();
             if (!err && data.session?.access_token) {
-                cachedSession = data.session.access_token;
+                updateCachedSession(data.session);
                 return cachedSession;
             }
         } catch { /* fall through */ }
         try {
             const { data: { session } } = await supabase.auth.getSession();
-            cachedSession = session?.access_token ?? null;
+            updateCachedSession(session);
             return cachedSession;
         } catch { /* ignore */ }
-        cachedSession = null;
+        updateCachedSession(null);
         return null;
     })().finally(() => { refreshPromise = null; });
     return refreshPromise;
@@ -424,6 +448,13 @@ export const builderApi = {
     getProjectActivities: (projectId: number) => api.get<PaginatedResponse<ProjectActivity>>(`/project-activities/?project=${projectId}`),
     createActivity: (data: Partial<ProjectActivity>) => api.post<ProjectActivity>('/project-activities/', data),
 
+    // Supply Chain Aggregator (Material Pools)
+    getMaterialPools: () => api.get<PaginatedResponse<any>>('/material-pools/'),
+    getPoolCommitments: (projectId?: number) => api.get<any[]>('/material-pools/commitments/', { params: projectId ? { project_id: projectId } : {} }),
+    joinPool: (poolId: number, data: { projectId: number, quantity: string }) => api.post(`/material-pools/${poolId}/join/`, data),
+    cancelCommitment: (commitmentId: number) => api.post('/material-pools/cancel_commitment/', { commitmentId }),
+
+
     // Notifications
     getNotifications: () => api.get<PaginatedResponse<UserNotification>>('/notifications/'),
     markNotificationRead: (id: number) => api.post(`/notifications/${id}/mark_read/`),
@@ -441,6 +472,29 @@ export const builderApi = {
     // Floor Plans (served from admin endpoints)
     getFloorPlanCategories: () => api.get<any>('/admin/floor-plan-categories/'),
     getFloorPlans: () => api.get<any>('/admin/floor-plans/'),
+
+    // Architectural Drawing (studio state per project)
+    getProjectDrawing: (projectId: number) => api.get<{ id: number | null; project: number; data: Record<string, any>; created_at?: string; updated_at?: string }>(`/projects/${projectId}/drawing/`),
+    saveProjectDrawing: (projectId: number, data: Record<string, any>) => api.put<{ id: number; project: number; data: Record<string, any>; created_at: string; updated_at: string }>(`/projects/${projectId}/drawing/`, { data }),
+
+    // Terrain / Elevation
+    getElevationGrid: (lat: number, lng: number, radius: number, gridSize = 20) =>
+        api.get<{ grid_size: number; radius_m: number; center: { lat: number; lng: number }; elevations: number[][]; min: number; max: number }>(
+            '/architectural-studio/elevation-grid/', { params: { lat, lng, radius, grid_size: gridSize } }
+        ),
+
+    // Budget Analysis History
+    getAnalysisHistory: (projectId: number) =>
+        api.get<any[]>(`/budget-analysis-history/`, { params: { project: projectId } }),
+    createAnalysisHistory: (data: {
+        project: number;
+        file_name: string;
+        summary: string;
+        data: any;
+        total_items: number;
+        total_cost: number;
+    }) => api.post<any>('/budget-analysis-history/', data),
+    deleteAnalysisHistory: (id: number) => api.delete(`/budget-analysis-history/${id}/`),
 };
 
 export const aiApi = {

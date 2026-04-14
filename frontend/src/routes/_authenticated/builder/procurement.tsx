@@ -1,6 +1,7 @@
 import { Icon } from '@/components/ui/material-icon'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useBuilderStore } from '@/stores/builder-store'
 import { builderApi } from '@/services/api'
 import type {
   Project, MaterialRequest,
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { ProjectModeBadge } from '@/components/project-mode-badge'
+import { ProjectWorkspacePicker } from '@/features/dashboards/builder/components/project-workspace-picker'
 
 type ProcurementCategory = 'MATERIAL' | 'LABOUR' | 'PLANT' | 'PROFESSIONAL' | 'ADMIN'
 
@@ -183,6 +185,7 @@ function buildBulkPayloads(
 
 function ProcurementPage() {
   const navigate = Route.useNavigate()
+  const builderStore = useBuilderStore()
   const { projectId, category: searchCategory, prefill, bulkPrefill, boqId: searchBoqId } = Route.useSearch() as {
     projectId?: number
     category?: ProcurementCategory
@@ -190,9 +193,10 @@ function ProcurementPage() {
     bulkPrefill?: boolean
     boqId?: number
   }
+  const resolvedProjectId = projectId || builderStore.selectedProjectId || null
   const [projects, setProjects] = useState<Project[]>([])
   const [loadingProjects, setLoadingProjects] = useState(true)
-  const [selectedProject, setSelectedProject] = useState<number | null>(projectId || null)
+  const [selectedProject, setSelectedProject] = useState<number | null>(resolvedProjectId)
   const [activeCategory, setActiveCategory] = useState<ProcurementCategory>(
     searchCategory && PROC_CATS.includes(searchCategory) ? searchCategory : 'MATERIAL',
   )
@@ -237,9 +241,54 @@ function ProcurementPage() {
 
   // DIFY mode check
   const isDIFY = projectMeta?.engagement_tier === 'DIFY'
+  const currentProject = projectMeta ?? projects.find((project) => project.id === selectedProject) ?? null
+
+  const selectProject = useCallback((nextProjectId: number) => {
+    setSelectedProject(nextProjectId)
+    builderStore.selectProject(nextProjectId)
+    navigate({
+      to: '/builder/procurement',
+      search: {
+        projectId: nextProjectId,
+        category: activeCategory,
+        prefill: undefined,
+        bulkPrefill: undefined,
+        boqId: undefined,
+      },
+      replace: true,
+    })
+  }, [activeCategory, navigate, builderStore])
+
+  const exitProject = useCallback(() => {
+    setSelectedProject(null)
+    setProjectMeta(null)
+    setRequests([])
+    setShowForm(false)
+    setLoadingRequests(false)
+    setRefetching(false)
+    setBulkCreating(false)
+    setBulkProgress({ done: 0, total: 0 })
+    setForm({ boq_ref: '', material_name: '', quantity_requested: '1', unit: '', procurement_method: 'SELF', price_at_request: '0', transport_cost: '0', group_buy_deduction: '0', notes: '' })
+    builderStore.exitProject()
+    navigate({
+      to: '/builder/procurement',
+      search: {
+        projectId: undefined,
+        category: activeCategory,
+        prefill: undefined,
+        bulkPrefill: undefined,
+        boqId: undefined,
+      },
+      replace: true,
+    })
+  }, [activeCategory, navigate, builderStore])
 
   // Load projects
   // Reset prefill consumption when the incoming category changes so navigation from Budget re-applies correctly
+  useEffect(() => {
+    setSelectedProject(projectId || builderStore.selectedProjectId || null)
+  }, [projectId, builderStore.selectedProjectId])
+
   useEffect(() => {
     prefillConsumedRef.current = false
     bulkConsumedRef.current = false
@@ -250,15 +299,16 @@ function ProcurementPage() {
       .then(res => {
         const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
         setProjects(data)
-        if (projectId) {
-          setSelectedProject(projectId)
-        } else if (data.length > 0) {
-          setSelectedProject(prev => (prev != null ? prev : data[0].id))
-        }
       })
       .catch(() => toast.error('Failed to load projects'))
       .finally(() => setLoadingProjects(false))
   }, [projectId])
+
+  useEffect(() => {
+    if (loadingProjects || !selectedProject) return
+    if (projects.some((project) => project.id === selectedProject)) return
+    exitProject()
+  }, [exitProject, loadingProjects, projects, selectedProject])
 
   // Always refresh selected project so is_budget_signed matches DB (e.g. after signing on Budget page)
   useEffect(() => {
@@ -311,11 +361,7 @@ function ProcurementPage() {
     }
   }, [searchCategory])
 
-  const canProcure = Boolean(projectMeta?.is_budget_signed)
-
-  useEffect(() => {
-    if (!canProcure) setShowForm(false)
-  }, [canProcure])
+  const canProcure = true
 
   // Load final-budget BOQ lines whenever a project is selected.
   // No canProcure gate — backend returns [] when no final budget exists.
@@ -361,7 +407,12 @@ function ProcurementPage() {
 
 
   const fetchRequests = useCallback(async () => {
-    if (!selectedProject) return
+    if (!selectedProject) {
+      setRequests([])
+      setLoadingRequests(false)
+      setRefetching(false)
+      return
+    }
     const cached = requestsCacheRef.current.get(selectedProject)
     if (cached) { setRequests(cached); setRefetching(true) }
     else setLoadingRequests(true)
@@ -604,10 +655,6 @@ function ProcurementPage() {
   }
 
   const handleSubmit = async () => {
-    if (!canProcure) {
-      toast.error('Sign the final construction budget before creating procurement requests.')
-      return
-    }
     if (!form.material_name || !form.quantity_requested || !selectedProject) {
       toast.error('Fill in all required fields')
       return
@@ -641,10 +688,54 @@ function ProcurementPage() {
 
   if (loadingProjects) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[40vh]">
-        <Icon name="progress_activity" size={40} className="animate-spin text-primary mb-3" />
-        <p className="text-slate-500 text-sm">Loading...</p>
-      </div>
+      <>
+        <Header>
+          <div className="ms-auto flex items-center space-x-4">
+            <ProfileDropdown />
+          </div>
+        </Header>
+
+        <Main>
+          <div className="w-full px-3 py-4 sm:p-4 md:p-8">
+            <ProjectWorkspacePicker
+              title="Choose a procurement workspace"
+              description="Select a project tile before loading procurement requests, signed-budget checks, and BOQ sourcing. Only the chosen project's procurement data will be opened."
+              projects={[]}
+              loading
+              onSelectProject={selectProject}
+              onPrimaryAction={() => navigate({ to: '/builder' })}
+              primaryActionLabel="Open Portfolio"
+            />
+          </div>
+        </Main>
+      </>
+    )
+  }
+
+  if (!selectedProject || !currentProject) {
+    return (
+      <>
+        <Header>
+          <div className="ms-auto flex items-center space-x-4">
+            <ProfileDropdown />
+          </div>
+        </Header>
+
+        <Main>
+          <div className="w-full px-3 py-4 sm:p-4 md:p-8">
+            <ProjectWorkspacePicker
+              title="Choose a procurement workspace"
+              description="Pick a project tile to manage material, labour, plant, and service requests. Until you choose one, this page stays clear of project-specific procurement data."
+              projects={projects}
+              onSelectProject={selectProject}
+              onPrimaryAction={() => navigate({ to: '/builder' })}
+              primaryActionLabel="Open Portfolio"
+              emptyTitle="No procurement workspaces yet"
+              emptyDescription="Create a project from your builder portfolio first, then return here to raise and track procurement requests for that site."
+            />
+          </div>
+        </Main>
+      </>
     )
   }
 
@@ -658,56 +749,52 @@ function ProcurementPage() {
 
       <Main>
         <div className="w-full px-3 py-4 sm:p-4 md:p-8 space-y-4 sm:space-y-6">
-          {/* Page Header */}
-          <div className="flex flex-col gap-3 sm:gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Procurement</h1>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">Raise requests for materials, labour, plant, and services</p>
+          {/* Page Header Command Center Style */}
+          <div className="rounded-2xl bg-white p-5 sm:p-6 md:p-8 text-slate-900 relative shadow-sm border border-slate-200 overflow-hidden">
+            {/* Very subtle ambient gradients on white */}
+            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-slate-100/50 rounded-full blur-[100px] pointer-events-none -translate-y-1/2 translate-x-1/3" />
+            
+            <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 z-10">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                    <Icon name="inventory_2" size={24} className="text-slate-700" />
+                  </div>
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 font-display">Logistics & Procurement</h1>
+                </div>
+                {currentProject && (
+                  <p className="text-sm font-semibold text-slate-500 flex items-center gap-2 ml-12">
+                    <span className="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200 text-slate-600">
+                      <Icon name="location_on" size={14} className="text-slate-400" />
+                      {currentProject.location}
+                    </span>
+                    <span className="text-slate-300 font-black">•</span>
+                    <span className="text-slate-500">{currentProject.title}</span>
+                  </p>
+                )}
               </div>
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                <select
-                  value={selectedProject || ''}
-                  onChange={e => setSelectedProject(Number(e.target.value))}
-                  className="h-9 sm:h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none flex-1 sm:flex-none sm:w-60 min-w-0"
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <ProjectModeBadge engagementTier={currentProject.engagement_tier} size="sm" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={exitProject}
+                  className="h-10 rounded-xl border-slate-200 bg-white hover:bg-slate-50 px-4 text-xs font-bold uppercase tracking-widest text-slate-600 transition-all shadow-sm"
                 >
-                  {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-                </select>
-                {projectMeta && <ProjectModeBadge engagementTier={projectMeta.engagement_tier} size="sm" />}
+                  <Icon name="logout" size={14} className="mr-1.5" />
+                  Switch Project
+                </Button>
                 <Button
                   onClick={() => setShowForm(true)}
-                  disabled={!selectedProject || !canProcure}
-                  title={
-                    !canProcure && selectedProject
-                      ? 'Sign the final budget under Construction Budget first'
-                      : undefined
-                  }
-                  className="bg-slate-900 border-slate-900 hover:bg-slate-800 text-white h-9 sm:h-10 text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-none"
+                  disabled={!selectedProject}
+                  className="bg-slate-900 border-slate-900 hover:bg-slate-800 text-white h-10 px-4 rounded-xl text-xs font-bold uppercase tracking-widest shadow-sm transition-all"
                 >
                   <Icon name="add" size={14} className="mr-1.5" />
-                  <span className="hidden xs:inline">New </span>Request
+                  New Request
                 </Button>
               </div>
             </div>
           </div>
-
-          {selectedProject && !loadingProjectMeta && !canProcure && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-              <strong className="font-semibold">Signed final budget required.</strong>{' '}
-              Promote to final and sign under{' '}
-              <Link to="/builder/measurements" className="underline font-medium">
-                Construction Budget
-              </Link>
-              . Procurement pulls BOQ lines from that signed budget.
-            </div>
-          )}
-
-          {selectedProject && loadingProjectMeta && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 flex items-center gap-2">
-              <Icon name="progress_activity" size={18} className="animate-spin text-emerald-600" />
-              Syncing project and signed budget…
-            </div>
-          )}
 
           {bulkCreating && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 space-y-2">
@@ -1036,7 +1123,7 @@ function ProcurementPage() {
                     })
                   )}
                   <div className="pt-2 mt-1 border-t border-slate-100">
-                    <Link to="/builder/measurements" className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1">
+                    <Link to="/builder/projectbudget" search={{ projectId: selectedProject }} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1">
                       <Icon name="open_in_new" size={12} />
                       Edit Budget Sheets
                     </Link>

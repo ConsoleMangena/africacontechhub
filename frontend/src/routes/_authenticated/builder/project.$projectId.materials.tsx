@@ -144,8 +144,8 @@ function MaterialsPage() {
                     {/* Header */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <Link to={`/builder/project/${projectId}`} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                                <Icon name="arrow_left" size={18} className="text-slate-500" />
+                            <Link to="/builder/project/$projectId" params={{ projectId }} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                                <Icon name="arrow_back" size={24} className="text-slate-600" />
                             </Link>
                             <div>
                                 <h1 className="text-xl font-bold font-display text-slate-900 flex items-center gap-2">

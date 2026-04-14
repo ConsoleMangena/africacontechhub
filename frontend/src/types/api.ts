@@ -458,3 +458,30 @@ export interface FloorPlanDataset {
     created_at: string;
     updated_at: string;
 }
+
+export interface MaterialPool {
+    id: number;
+    name: string;
+    supplier: string;
+    source_location: string;
+    moq: number;
+    current_volume: string;
+    base_price: string;
+    tier_2_discount: string;
+    dispatch_date: string;
+    status: 'OPEN' | 'LOCKED' | 'DISPATCHED' | 'CLEARED';
+    created_at: string;
+    updated_at: string;
+}
+
+export interface MaterialPoolCommitment {
+    id: number;
+    pool: number;
+    project: number;
+    quantity: string;
+    deposit_paid: string;
+    status: 'LOCKED' | 'CANCELLED' | 'CLEARED';
+    pool_details?: MaterialPool;
+    created_at: string;
+    updated_at: string;
+}

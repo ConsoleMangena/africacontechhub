@@ -23,6 +23,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { WalletStats, WalletRates } from './components/wallet-stats'
+import { BudgetRealityChart } from './components/budget-reality-chart'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 export default function BuilderDashboard() {
@@ -106,6 +107,11 @@ export default function BuilderDashboard() {
                         {/* Dashboard Stats - Compact */}
                         <div id="tour-metrics">
                             <WalletStats totalBudget={totalBudget} />
+                        </div>
+
+                        {/* EVM Chart */}
+                        <div className="mt-6 mb-2">
+                            <BudgetRealityChart />
                         </div>
 
 

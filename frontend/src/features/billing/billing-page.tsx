@@ -164,30 +164,39 @@ export default function BillingPage() {
             </Header>
 
             <Main>
-                <div className='space-y-6 w-full p-6 md:p-8 min-h-screen bg-gray-50'>
-                    {/* Header */}
-                    <div>
-                        <h1 className='text-2xl font-bold font-display tracking-tight text-foreground'>Billing</h1>
-                        <p className='text-sm text-muted-foreground mt-1'>
-                            Manage your payment methods and billing information
-                        </p>
+                <div className='space-y-4 sm:space-y-6 w-full p-3 sm:p-4 md:p-8 min-h-screen bg-slate-50'>
+                    {/* Page Header Command Center Style */}
+                    <div className="rounded-2xl bg-white p-5 sm:p-6 md:p-8 text-slate-900 relative shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-slate-100/50 rounded-full blur-[100px] pointer-events-none -translate-y-1/2 translate-x-1/3" />
+                        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 z-10">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                                        <Icon name="payments" size={24} className="text-slate-700" />
+                                    </div>
+                                    <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 font-display">Billing & Payments</h1>
+                                </div>
+                                <p className="text-sm font-medium text-slate-500 ml-13">
+                                    Manage your payment methods and billing addresses across your builder portfolio.
+                                </p>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Payment Methods — takes up 2 columns */}
                         <div className="lg:col-span-2">
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <Card className="rounded-2xl border-slate-200 shadow-sm bg-white overflow-hidden">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-slate-100 bg-slate-50/50">
                                     <div>
-                                        <CardTitle>Payment Methods</CardTitle>
-                                        <CardDescription>Manage your cards</CardDescription>
+                                        <CardTitle className="text-base font-bold text-slate-900">Payment Methods</CardTitle>
+                                        <CardDescription className="text-xs">Manage your trusted cards</CardDescription>
                                     </div>
                                     <Button 
                                         onClick={() => setPaymentDialogOpen(true)}
-                                        size="sm"
-                                        className="h-8 px-3 rounded-md font-semibold flex items-center"
+                                        className="bg-slate-900 hover:bg-slate-800 text-white h-9 px-4 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm transition-all"
                                     >
-                                        <Icon name="add" className='mr-1.5 h-4 w-4 -ml-0.5' />
+                                        <Icon name="add" size={14} className="mr-1.5" />
                                         Add Card
                                     </Button>
                                 </CardHeader>
@@ -204,15 +213,17 @@ export default function BillingPage() {
                                             {paymentMethods.map((method) => (
                                                 <div
                                                     key={method.id}
-                                                    className="flex items-center justify-between p-3 rounded-lg border"
+                                                    className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-white shadow-sm mb-2 hover:border-slate-300 transition-colors"
                                                 >
                                                     <div className='flex items-center gap-3'>
-                                                        <Icon name="credit_card" className='h-5 w-5 text-muted-foreground' />
+                                                        <div className="h-10 w-10 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-lg">
+                                                            <Icon name="credit_card" className='h-5 w-5 text-slate-600' />
+                                                        </div>
                                                         <div>
                                                             <div className="flex items-center gap-2">
-                                                                <p className='font-medium'>{method.card_brand} •••• {method.last_four}</p>
+                                                                <p className='font-bold text-sm text-slate-900'>{method.card_brand} •••• {method.last_four}</p>
                                                                 {method.is_default && (
-                                                                    <Badge variant="secondary">Default</Badge>
+                                                                    <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">Default</Badge>
                                                                 )}
                                                             </div>
                                                             <p className='text-xs text-muted-foreground'>
@@ -223,9 +234,8 @@ export default function BillingPage() {
                                                     <div className="flex items-center gap-2">
                                                         {!method.is_default && (
                                                             <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-8 px-3 text-xs font-medium hover:bg-slate-100"
+                                                                variant="outline"
+                                                                className="h-8 rounded-lg px-3 text-[10px] font-bold uppercase tracking-widest text-slate-600 border-slate-200 hover:bg-slate-50 transition-all"
                                                                 onClick={() => handleSetDefault(method.id)}
                                                                 disabled={setDefaultMutation.isPending}
                                                             >
@@ -237,12 +247,12 @@ export default function BillingPage() {
                                                             size="icon"
                                                             onClick={() => handleDelete(method.id)}
                                                             disabled={deletingId === method.id}
-                                                            className="h-8 w-8 text-destructive hover:bg-red-50 hover:text-destructive flex items-center justify-center shrink-0"
+                                                            className="h-8 w-8 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 flex items-center justify-center shrink-0 transition-all"
                                                         >
                                                             {deletingId === method.id ? (
                                                                 <Loading size={14} text="" />
                                                             ) : (
-                                                                <Icon name="delete" className='h-4 w-4' />
+                                                                <Icon name="delete" size={16} />
                                                             )}
                                                         </Button>
                                                     </div>
@@ -269,18 +279,19 @@ export default function BillingPage() {
 
                         {/* Sidebar — Billing Address */}
                         <div className="space-y-6">
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <Card className="rounded-2xl border-slate-200 shadow-sm bg-white overflow-hidden">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-slate-100 bg-slate-50/50">
                                     <div>
-                                        <CardTitle>Billing Address</CardTitle>
-                                        <CardDescription>Your address</CardDescription>
+                                        <CardTitle className="text-base font-bold text-slate-900">Billing Address</CardTitle>
+                                        <CardDescription className="text-xs">Your primary location</CardDescription>
                                     </div>
                                     <Button
-                                        variant="ghost"
+                                        variant="outline"
                                         size="icon"
+                                        className="h-8 w-8 rounded-lg border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all text-slate-500"
                                         onClick={() => setAddressDialogOpen(true)}
                                     >
-                                        <Icon name="edit" className="h-4 w-4" />
+                                        <Icon name="edit" size={14} />
                                     </Button>
                                 </CardHeader>
                                 <CardContent>

@@ -620,6 +620,26 @@ class UserNotification(TimeStampedModel):
         return f"{self.user.username} - {self.title}"
 
 
+class ArchitecturalDrawing(TimeStampedModel):
+    """Stores the full architectural studio state (pages, layers, etc.) per project as JSON."""
+    project = models.OneToOneField(
+        Project,
+        on_delete=models.CASCADE,
+        related_name='architectural_drawing',
+    )
+    data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Full studio state: pages, activePageId, layers, activeLayer",
+    )
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"Drawing for {self.project.title}"
+
+
 class ProjectDocument(TimeStampedModel):
     """Project documents storage"""
     TYPE_CHOICES = [
@@ -643,3 +663,83 @@ class ProjectDocument(TimeStampedModel):
     
     def __str__(self):
         return f"{self.project.title} - {self.name}"
+
+
+class BudgetAnalysisHistory(TimeStampedModel):
+    """Stores each Budget Engineer AI analysis run for a project."""
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name='analysis_history'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='budget_analyses',
+    )
+    file_name = models.CharField(
+        max_length=255, blank=True, default='',
+        help_text="Name of the drawing file that was analysed",
+    )
+    summary = models.TextField(blank=True, default='', help_text="AI summary text")
+    data = models.JSONField(
+        default=dict, blank=True,
+        help_text="Full 8-sheet AnalyseResult JSON",
+    )
+    total_items = models.PositiveIntegerField(default=0)
+    total_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Budget Analysis History'
+        verbose_name_plural = 'Budget Analysis Histories'
+
+    def __str__(self):
+        return f"Analysis for {self.project.title} — {self.file_name or 'unknown'} ({self.created_at})"
+
+
+class MaterialPool(TimeStampedModel):
+    """Represents a wholesale aggregated material pool open for builder purchasing."""
+    STATUS_CHOICES = [
+        ('OPEN', 'Open for Joining'),
+        ('LOCKED', 'Threshold Met & Locked'),
+        ('DISPATCHED', 'In Transit'),
+        ('CLEARED', 'Reconciled & Closed'),
+    ]
+
+    name = models.CharField(max_length=255, help_text="e.g. Cement (PPC)")
+    supplier = models.CharField(max_length=255, help_text="e.g. Sino-Zim")
+    source_location = models.CharField(max_length=255, help_text="e.g. Harare")
+    moq = models.PositiveIntegerField(help_text="Minimum Aggregate Qty for Tier 2 pricing (e.g. 600)")
+    current_volume = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    base_price = models.DecimalField(max_digits=12, decimal_places=2, help_text="Current retail base price")
+    tier_2_discount = models.DecimalField(max_digits=12, decimal_places=2, help_text="Discount applied when MOQ is reached")
+    dispatch_date = models.DateField(help_text="Expected logistics send date")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='OPEN')
+
+    class Meta:
+        ordering = ['dispatch_date', 'name']
+
+    def __str__(self):
+        return f"{self.name} - {self.supplier} ({self.status})"
+
+class MaterialPoolCommitment(TimeStampedModel):
+    """Tracks a user/project commitment joining a MaterialPool."""
+    STATUS_CHOICES = [
+        ('LOCKED', 'Locked & Deposit Held'),
+        ('CANCELLED', 'Cancelled'),
+        ('CLEARED', 'Fulfilled'),
+    ]
+
+    pool = models.ForeignKey(MaterialPool, on_delete=models.CASCADE, related_name='commitments')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='pool_commitments')
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    deposit_paid = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='LOCKED')
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Commitment {self.quantity} of {self.pool.name} by {self.project.title}"
+

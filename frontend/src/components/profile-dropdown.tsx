@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SignOutDialog } from '@/components/sign-out-dialog'
 import { useAuthStore } from '@/stores/auth-store'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 
 export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
@@ -35,7 +36,8 @@ export function ProfileDropdown() {
   }
 
   return (
-    <>
+    <div className="flex items-center gap-3">
+      <NotificationBell />
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button variant='ghost' className='relative h-8 w-8 rounded-full'>
@@ -87,6 +89,6 @@ export function ProfileDropdown() {
       </DropdownMenu>
 
       <SignOutDialog open={!!open} onOpenChange={setOpen} />
-    </>
+    </div>
   )
 }

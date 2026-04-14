@@ -577,7 +577,8 @@ def _get_gemini_chat_model() -> str:
 
 
 def _call_gemini(messages: list, system: str = "", max_tokens: int = 8192,
-                 temperature: float = 0.7, images: list | None = None) -> str:
+                 temperature: float = 0.7, images: list | None = None,
+                 timeout: float = 120.0) -> str:
     """Call Gemini for chat/text completion. Returns assistant text."""
     api_key = settings.GEMINI_API_KEY
     if not api_key or len(api_key) < 10:
@@ -622,7 +623,14 @@ def _call_gemini(messages: list, system: str = "", max_tokens: int = 8192,
     }
 
     logger.info("[Gemini Chat] Calling %s", model_name)
-    resp = http_requests.post(url, json=payload, timeout=120.0)
+    try:
+        resp = http_requests.post(url, json=payload, timeout=timeout)
+    except http_requests.exceptions.Timeout:
+        logger.error("Gemini Chat API timed out after %s seconds", timeout)
+        raise RuntimeError("The AI request timed out. Please try a simpler request or try again later.")
+    except http_requests.exceptions.RequestException as e:
+        logger.error("Gemini Chat API connection error: %s", e)
+        raise RuntimeError(f"Could not connect to AI service: {e}")
 
     if resp.status_code != 200:
         body = resp.text[:600]
@@ -680,7 +688,8 @@ def _sanitize_schema_for_gemini(schema: dict) -> dict:
 
 
 def _call_gemini_with_tools(messages: list, system: str = "", max_tokens: int = 8192,
-                            temperature: float = 0.7, images: list | None = None) -> str:
+                            temperature: float = 0.7, images: list | None = None,
+                            timeout: float = 120.0) -> str:
     """Call Gemini with function-calling. Loops until a final text response."""
     api_key = settings.GEMINI_API_KEY
     if not api_key or len(api_key) < 10:
@@ -742,7 +751,15 @@ def _call_gemini_with_tools(messages: list, system: str = "", max_tokens: int = 
         if tool_config:
             payload["tools"] = [tool_config]
 
-        resp = http_requests.post(url, json=payload, timeout=120.0)
+        try:
+            resp = http_requests.post(url, json=payload, timeout=timeout)
+        except http_requests.exceptions.Timeout:
+            logger.error("Gemini Chat tools API timed out after %s seconds", timeout)
+            raise RuntimeError("The AI request timed out. Please try a simpler request or try again later.")
+        except http_requests.exceptions.RequestException as e:
+            logger.error("Gemini Chat tools API connection error: %s", e)
+            raise RuntimeError(f"Could not connect to AI service: {e}")
+
         if resp.status_code != 200:
             body = resp.text[:600]
             raise RuntimeError(f"Gemini API error (HTTP {resp.status_code}): {body}")
@@ -794,7 +811,8 @@ def _get_analyse_model_name() -> str:
 
 
 def _call_gemini_analyse(system: str, user_content: str, images: list | None = None,
-                         max_tokens: int = 16384, temperature: float = 0.3) -> str:
+                         max_tokens: int = 16384, temperature: float = 0.3,
+                         timeout: float = 180.0) -> str:
     """Call Gemini vision for /analyse. Returns raw text."""
     api_key = settings.GEMINI_API_KEY
     if not api_key or len(api_key) < 10:
@@ -828,7 +846,14 @@ def _call_gemini_analyse(system: str, user_content: str, images: list | None = N
     }
 
     logger.info("[Analyse] Calling Gemini %s (max_tokens=%d)", model_name, max_tokens)
-    resp = http_requests.post(url, json=payload, timeout=180.0)
+    try:
+        resp = http_requests.post(url, json=payload, timeout=timeout)
+    except http_requests.exceptions.Timeout:
+        logger.error("Gemini Analyse API timed out after %s seconds", timeout)
+        raise RuntimeError("The AI analysis timed out. The file might be too complex or large.")
+    except http_requests.exceptions.RequestException as e:
+        logger.error("Gemini Analyse API connection error: %s", e)
+        raise RuntimeError(f"Could not connect to AI service: {e}")
 
     if resp.status_code != 200:
         body = resp.text[:600]
@@ -2573,4 +2598,74 @@ class SiteIntelView(APIView):
             'raw_response': intel.raw_response,
             'created_at': intel.created_at.isoformat(),
         }, status=201)
+
+
+# ── Draw Agent (Architectural Studio AI) ─────────────────────────────
+
+from .prompts import DRAW_AGENT_SYSTEM as _DRAW_AGENT_SYSTEM
+
+
+class DrawAgentView(APIView):
+    """AI drawing agent: converts natural language to parametric floor-plan JSON."""
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'ai_chat'
+
+    def post(self, request):
+        prompt = (request.data.get('prompt') or '').strip()
+        current_elements = request.data.get('current_elements', [])
+
+        if not prompt:
+            return Response({'error': 'prompt is required'}, status=400)
+
+        # Build context about what's already on canvas
+        context = ""
+        if current_elements and len(current_elements) > 0:
+            wall_count = sum(1 for e in current_elements if e.get('layer') == 'Walls')
+            door_count = sum(1 for e in current_elements if e.get('layer') == 'Doors')
+            window_count = sum(1 for e in current_elements if e.get('layer') == 'Windows')
+            context = (
+                f"\n\nThe canvas currently has {len(current_elements)} elements "
+                f"({wall_count} walls, {door_count} doors, {window_count} windows). "
+                f"The user wants to ADD to or MODIFY the existing drawing. "
+                f"Return ONLY the NEW elements to add, not the existing ones."
+            )
+
+        user_message = f"{prompt}{context}"
+
+        try:
+            raw = _call_gemini(
+                messages=[{"role": "user", "content": user_message}],
+                system=_DRAW_AGENT_SYSTEM,
+                max_tokens=16384,
+                temperature=0.4,
+                timeout=180.0,
+            )
+
+            # Strip markdown fences if present
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                first_nl = cleaned.index("\n")
+                cleaned = cleaned[first_nl + 1:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+
+            try:
+                plan = json.loads(cleaned)
+            except json.JSONDecodeError:
+                plan = _repair_truncated_json(cleaned)
+
+            # Ensure summary exists
+            if 'summary' not in plan:
+                plan['summary'] = f"Generated from: {prompt[:100]}"
+
+            return Response(plan)
+
+        except Exception as e:
+            logger.error("DrawAgent error: %s", e, exc_info=True)
+            return Response(
+                {'error': f'AI generation failed: {str(e)}'},
+                status=502,
+            )
 

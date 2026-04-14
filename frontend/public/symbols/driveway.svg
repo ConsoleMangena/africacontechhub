@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Driveway surface -->
+  <rect x="12" y="2" width="76" height="96" rx="2" fill="#78909c" fill-opacity="0.2" stroke="#546e7a" stroke-width="1.8"/>
+  <!-- Concrete edge strips -->
+  <rect x="12" y="2" width="6" height="96" fill="#cfd8dc" fill-opacity="0.25" stroke="none"/>
+  <rect x="82" y="2" width="6" height="96" fill="#cfd8dc" fill-opacity="0.25" stroke="none"/>
+  <!-- Center line -->
+  <line x1="50" y1="6" x2="50" y2="96" stroke="#ffb74d" stroke-width="1.2" stroke-dasharray="8 5" opacity="0.5"/>
+  <!-- Tire marks (subtle) -->
+  <line x1="34" y1="4" x2="34" y2="98" stroke="#455a64" stroke-width="1.5" opacity="0.08"/>
+  <line x1="66" y1="4" x2="66" y2="98" stroke="#455a64" stroke-width="1.5" opacity="0.08"/>
+  <!-- Expansion joints -->
+  <line x1="14" y1="25" x2="86" y2="25" stroke="#90a4ae" stroke-width="0.6" opacity="0.35"/>
+  <line x1="14" y1="50" x2="86" y2="50" stroke="#90a4ae" stroke-width="0.6" opacity="0.35"/>
+  <line x1="14" y1="75" x2="86" y2="75" stroke="#90a4ae" stroke-width="0.6" opacity="0.35"/>
+  <!-- Edge markings -->
+  <line x1="12" y1="2" x2="12" y2="98" stroke="#546e7a" stroke-width="1.5"/>
+  <line x1="88" y1="2" x2="88" y2="98" stroke="#546e7a" stroke-width="1.5"/>
+</svg>

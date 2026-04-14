@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="lawnG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#66bb6a" stop-opacity="0.25"/>
+      <stop offset="50%" stop-color="#43a047" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#2e7d32" stop-opacity="0.18"/>
+    </linearGradient>
+  </defs>
+  <!-- Lawn fill -->
+  <rect x="2" y="2" width="96" height="96" rx="4" fill="url(#lawnG)" stroke="#388e3c" stroke-width="1.5"/>
+  <!-- Mow line texture (subtle stripes) -->
+  <rect x="2" y="2" width="96" height="12" fill="#81c784" fill-opacity="0.06"/>
+  <rect x="2" y="26" width="96" height="12" fill="#81c784" fill-opacity="0.06"/>
+  <rect x="2" y="50" width="96" height="12" fill="#81c784" fill-opacity="0.06"/>
+  <rect x="2" y="74" width="96" height="12" fill="#81c784" fill-opacity="0.06"/>
+  <!-- Grass blade marks -->
+  <path d="M 18,18 L 19,12 L 20,18" stroke="#2e7d32" stroke-width="0.8" fill="none" opacity="0.3"/>
+  <path d="M 42,16 L 43,10 L 44,16" stroke="#388e3c" stroke-width="0.8" fill="none" opacity="0.25"/>
+  <path d="M 68,20 L 69,14 L 70,20" stroke="#2e7d32" stroke-width="0.8" fill="none" opacity="0.3"/>
+  <path d="M 88,15 L 89,9 L 90,15" stroke="#388e3c" stroke-width="0.8" fill="none" opacity="0.25"/>
+  <path d="M 14,42 L 15,36 L 16,42" stroke="#2e7d32" stroke-width="0.8" fill="none" opacity="0.3"/>
+  <path d="M 38,40 L 39,34 L 40,40" stroke="#388e3c" stroke-width="0.8" fill="none" opacity="0.25"/>
+  <path d="M 58,44 L 59,38 L 60,44" stroke="#2e7d32" stroke-width="0.8" fill="none" opacity="0.3"/>
+  <path d="M 82,38 L 83,32 L 84,38" stroke="#388e3c" stroke-width="0.8" fill="none" opacity="0.25"/>
+  <path d="M 20,68 L 21,62 L 22,68" stroke="#2e7d32" stroke-width="0.8" fill="none" opacity="0.3"/>
+  <path d="M 48,66 L 49,60 L 50,66" stroke="#388e3c" stroke-width="0.8" fill="none" opacity="0.25"/>
+  <path d="M 73,70 L 74,64 L 75,70" stroke="#2e7d32" stroke-width="0.8" fill="none" opacity="0.3"/>
+  <path d="M 34,84 L 35,78 L 36,84" stroke="#388e3c" stroke-width="0.8" fill="none" opacity="0.25"/>
+  <path d="M 60,80 L 61,74 L 62,80" stroke="#2e7d32" stroke-width="0.8" fill="none" opacity="0.3"/>
+  <path d="M 85,86 L 86,80 L 87,86" stroke="#388e3c" stroke-width="0.8" fill="none" opacity="0.25"/>
+</svg>

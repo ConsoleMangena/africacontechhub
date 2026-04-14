@@ -102,32 +102,42 @@ export function HelpCenter() {
             </Header>
 
             <Main>
-                <div className="space-y-6 w-full p-6 md:p-8 min-h-screen bg-gray-50">
-            {/* Header */}
-            <div className="space-y-4">
-                <div>
-                    <h1 className="text-lg font-bold font-display tracking-tight text-foreground">Help Center</h1>
-                    <p className="text-xs text-muted-foreground mt-0.5">Find answers to common questions and learn how to use Dzenhare SQB</p>
+                <div className="space-y-6 w-full p-3 sm:p-4 md:p-8 min-h-screen bg-slate-50">
+            {/* Page Header Command Center Style */}
+            <div className="rounded-2xl bg-white p-5 sm:p-6 md:p-8 text-slate-900 relative shadow-sm border border-slate-200 overflow-hidden">
+                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-slate-100/50 rounded-full blur-[100px] pointer-events-none -translate-y-1/2 translate-x-1/3" />
+                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 z-10">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                                <Icon name="help" size={24} className="text-slate-700" />
+                            </div>
+                            <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 font-display">Command Center Support</h1>
+                        </div>
+                        <p className="text-sm font-medium text-slate-500 ml-13">
+                            Knowledge base, FAQs, and priority support for Aspirational Builders.
+                        </p>
+                    </div>
                 </div>
+            </div>
 
-                {/* Search */}
-                <div className="relative max-w-2xl">
-                    <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <Input
-                        placeholder="Search for help articles..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10 h-12 text-base"
-                    />
-                </div>
+            {/* Search */}
+            <div className="relative max-w-2xl bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <Icon name="search" size={20} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <Input
+                    placeholder="Search the knowledge base..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-12 h-14 text-sm font-medium border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent placeholder:text-slate-400 shadow-none"
+                />
             </div>
 
             {/* Featured Articles */}
             {featured.length > 0 && !searchQuery && !selectedCategory && (
                 <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                        <Icon name="star" className="h-5 w-5 text-amber-500" />
-                        <h2 className="text-xl font-semibold text-gray-900">Featured Articles</h2>
+                    <div className="flex items-center gap-2 mb-2">
+                        <Icon name="star" size={20} className="text-amber-500" />
+                        <h2 className="text-lg font-black tracking-tight text-slate-900 font-display">Featured Articles</h2>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {featured.map((article) => {
@@ -135,36 +145,35 @@ export function HelpCenter() {
                             return (
                                 <Card 
                                     key={article.id} 
-                                    className="hover:shadow-lg transition-shadow cursor-pointer border-gray-200"
+                                    className="rounded-2xl border-slate-200 shadow-sm bg-white overflow-hidden hover:border-slate-300 transition-colors cursor-pointer group flex flex-col"
                                     onClick={() => setSelectedArticle(article)}
                                 >
-                                    <CardHeader>
-                                        <div className="flex items-start justify-between">
-                                            <div className="p-2 rounded-lg bg-green-100">
-                                                <Icon name={iconName} className="h-5 w-5 text-green-600" />
+                                    <CardHeader className="flex-1 pb-4">
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="h-10 w-10 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-lg">
+                                                <Icon name={iconName} size={20} className="text-slate-700" />
                                             </div>
-                                            <Badge className="bg-amber-100 text-amber-800 border-amber-200">Featured</Badge>
+                                            <Badge className="bg-slate-900 text-white border-slate-900 text-[10px] uppercase font-bold tracking-wider rounded-lg px-2 shrink-0 shadow-none">Featured</Badge>
                                         </div>
-                                        <CardTitle className="text-lg mt-4">{article.title}</CardTitle>
+                                        <CardTitle className="text-base font-bold text-slate-900 leading-tight group-hover:text-amber-600 transition-colors">{article.title}</CardTitle>
                                         {article.excerpt && (
-                                            <CardDescription className="text-gray-600 mt-2">
+                                            <CardDescription className="text-xs text-slate-500 mt-2 line-clamp-2">
                                                 {article.excerpt}
                                             </CardDescription>
                                         )}
                                     </CardHeader>
-                                    <CardContent>
+                                    <div className="px-6 pb-6 pt-0 mt-auto">
                                         <Button 
-                                            variant="ghost" 
-                                            className="w-full justify-between text-green-600 hover:text-green-700 hover:bg-green-50"
+                                            variant="outline" 
+                                            className="w-full h-9 rounded-xl border-slate-200 bg-white group-hover:bg-slate-50 text-[10px] font-bold uppercase tracking-widest text-slate-700 transition-all shadow-sm"
                                             onClick={(e) => {
                                                 e.stopPropagation()
                                                 setSelectedArticle(article)
                                             }}
                                         >
                                             Read more
-                                            <Icon name="keyboard_arrow_right" className="h-4 w-4" />
                                         </Button>
-                                    </CardContent>
+                                    </div>
                                 </Card>
                             )
                         })}
@@ -175,58 +184,54 @@ export function HelpCenter() {
             {/* FAQs Section */}
             {(!searchQuery || filteredFAQs.length > 0) && (
                 <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                        <Icon name="chat" className="h-5 w-5 text-green-600" />
-                        <h2 className="text-xl font-semibold text-gray-900">Frequently Asked Questions</h2>
+                    <div className="flex items-center gap-2 mb-2">
+                        <Icon name="chat" size={20} className="text-slate-600" />
+                        <h2 className="text-lg font-black tracking-tight text-slate-900 font-display">Frequently Asked Questions</h2>
                     </div>
                     {filteredFAQs.length === 0 ? (
-                        <div className="text-center py-8 text-gray-600">
-                            <Icon name="help_outline" className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                            <p>No FAQs found matching your search.</p>
+                        <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                            <Icon name="help_outline" size={48} className="mx-auto mb-4 text-slate-300" />
+                            <p className="text-sm font-medium text-slate-900">No FAQs found.</p>
+                            <p className="text-xs text-slate-500">Try adjusting your search query.</p>
                         </div>
                     ) : (
-                        <Card className="border-gray-200">
-                            <CardContent className="p-6">
-                                <div className="space-y-3">
-                                    {filteredFAQs.map((faq) => {
-                                        const isExpanded = expandedFAQs.has(faq.id)
-                                        return (
-                                            <Collapsible
-                                                key={faq.id}
-                                                open={isExpanded}
-                                                onOpenChange={() => toggleFAQ(faq.id)}
-                                            >
-                                                <CollapsibleTrigger className="w-full">
-                                                    <div className="flex items-center justify-between p-4 rounded-lg hover:bg-gray-50 transition-colors border border-gray-200">
-                                                        <h3 className="font-medium text-gray-900 text-left pr-4">
-                                                            {faq.question}
-                                                        </h3>
-                                                        {isExpanded ? (
-                                                            <Icon name="keyboard_arrow_up" className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                                                        ) : (
-                                                            <Icon name="keyboard_arrow_down" className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                                                        )}
-                                                    </div>
-                                                </CollapsibleTrigger>
-                                                <CollapsibleContent>
-                                                    <div className="px-4 pb-4 pt-2 text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                                        {faq.answer}
-                                                    </div>
-                                                </CollapsibleContent>
-                                            </Collapsible>
-                                        )
-                                    })}
-                                </div>
-                            </CardContent>
-                        </Card>
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
+                            {filteredFAQs.map((faq) => {
+                                const isExpanded = expandedFAQs.has(faq.id)
+                                return (
+                                    <Collapsible
+                                        key={faq.id}
+                                        open={isExpanded}
+                                        onOpenChange={() => toggleFAQ(faq.id)}
+                                        className="group"
+                                    >
+                                        <CollapsibleTrigger className="w-full">
+                                            <div className="flex items-center justify-between p-4 sm:p-5 hover:bg-slate-50 transition-colors text-left">
+                                                <h3 className="font-bold text-sm sm:text-base text-slate-900 pr-4">
+                                                    {faq.question}
+                                                </h3>
+                                                <div className="shrink-0 h-8 w-8 rounded-full bg-slate-50 group-hover:bg-white border border-slate-200 flex items-center justify-center transition-all">
+                                                    <Icon name={isExpanded ? "remove" : "add"} size={16} className="text-slate-600" />
+                                                </div>
+                                            </div>
+                                        </CollapsibleTrigger>
+                                        <CollapsibleContent>
+                                            <div className="px-5 pb-5 pt-0 text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+                                                {faq.answer}
+                                            </div>
+                                        </CollapsibleContent>
+                                    </Collapsible>
+                                )
+                            })}
+                        </div>
                     )}
                 </div>
             )}
 
             {/* Categories */}
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-gray-900">
+                <div className="flex items-center justify-between mt-4">
+                    <h2 className="text-lg font-black tracking-tight text-slate-900 font-display">
                         {selectedCategory 
                             ? categories.find(c => c.slug === selectedCategory)?.name || 'Category'
                             : 'Browse by Category'
@@ -236,8 +241,9 @@ export function HelpCenter() {
                         <Button 
                             variant="outline" 
                             onClick={() => setSelectedCategory(null)}
-                            className="text-gray-600"
+                            className="h-8 rounded-lg px-3 text-[10px] font-bold uppercase tracking-widest text-slate-600 border-slate-200 hover:bg-slate-50 transition-all"
                         >
+                            <Icon name="close" size={14} className="mr-1.5" />
                             Clear filter
                         </Button>
                     )}
@@ -255,41 +261,41 @@ export function HelpCenter() {
                         const iconName = iconMap[category.icon || ''] || 'help'
                         return (
                             <div key={category.id} className="space-y-4">
-                                <Card className="border-gray-200">
-                                    <CardHeader>
+                                <Card className="rounded-2xl border-slate-200 shadow-sm bg-white overflow-hidden">
+                                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-slate-100 bg-slate-50/50 p-5">
                                         <div className="flex items-center gap-3">
-                                            <div className="p-2 rounded-lg bg-green-100">
-                                                <Icon name={iconName} className="h-5 w-5 text-green-600" />
+                                            <div className="h-10 w-10 flex items-center justify-center bg-white border border-slate-200 rounded-lg shadow-sm">
+                                                <Icon name={iconName} size={20} className="text-slate-700" />
                                             </div>
                                             <div>
-                                                <CardTitle className="text-lg">{category.name}</CardTitle>
+                                                <CardTitle className="text-base font-bold text-slate-900">{category.name}</CardTitle>
                                                 {category.description && (
-                                                    <CardDescription className="text-gray-600 mt-1">
+                                                    <CardDescription className="text-xs font-medium mt-0.5">
                                                         {category.description}
                                                     </CardDescription>
                                                 )}
                                             </div>
                                         </div>
                                     </CardHeader>
-                                    <CardContent>
-                                        <div className="space-y-2">
-                                            {category.articles.map((article) => (
-                                                <div
-                                                    key={article.id}
-                                                    className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer border border-gray-100"
-                                                    onClick={() => setSelectedArticle(article)}
-                                                >
-                                                    <div className="flex-1">
-                                                        <h3 className="font-medium text-gray-900">{article.title}</h3>
-                                                        {article.excerpt && (
-                                                            <p className="text-sm text-gray-600 mt-1">{article.excerpt}</p>
-                                                        )}
-                                                    </div>
-                                                    <Icon name="keyboard_arrow_right" className="h-5 w-5 text-gray-400 ml-4" />
+                                    <div className="p-0 divide-y divide-slate-100">
+                                        {category.articles.map((article) => (
+                                            <div
+                                                key={article.id}
+                                                className="flex items-center justify-between p-4 sm:p-5 hover:bg-slate-50 transition-colors cursor-pointer group"
+                                                onClick={() => setSelectedArticle(article)}
+                                            >
+                                                <div className="flex-1 min-w-0 pr-4">
+                                                    <h3 className="font-bold text-sm text-slate-900 group-hover:text-amber-600 transition-colors truncate">{article.title}</h3>
+                                                    {article.excerpt && (
+                                                        <p className="text-xs text-slate-500 mt-1 line-clamp-1">{article.excerpt}</p>
+                                                    )}
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </CardContent>
+                                                <div className="shrink-0 h-8 w-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center transition-all group-hover:bg-white">
+                                                    <Icon name="arrow_forward" size={16} className="text-slate-400 group-hover:text-slate-900 transition-colors" />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </Card>
                             </div>
                         )
@@ -299,23 +305,23 @@ export function HelpCenter() {
 
             {/* Article Detail Dialog */}
             <Dialog open={!!selectedArticle} onOpenChange={() => setSelectedArticle(null)}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 sm:p-8">
                     {selectedArticle && (
                         <>
                             <DialogHeader>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Badge variant="outline" className="text-gray-700">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">
                                         {selectedArticle.category_name}
                                     </Badge>
                                     {selectedArticle.is_featured && (
-                                        <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+                                        <Badge className="bg-slate-900 text-white border-slate-900 text-[10px] uppercase font-bold tracking-wider rounded-lg px-2 shrink-0 shadow-none">
                                             Featured
                                         </Badge>
                                     )}
                                 </div>
-                                <DialogTitle className="text-2xl">{selectedArticle.title}</DialogTitle>
+                                <DialogTitle className="text-2xl sm:text-3xl font-black text-slate-900 font-display tracking-tight">{selectedArticle.title}</DialogTitle>
                                 {selectedArticle.excerpt && (
-                                    <DialogDescription className="text-gray-600 mt-2">
+                                    <DialogDescription className="text-sm font-medium text-slate-500 mt-2">
                                         {selectedArticle.excerpt}
                                     </DialogDescription>
                                 )}

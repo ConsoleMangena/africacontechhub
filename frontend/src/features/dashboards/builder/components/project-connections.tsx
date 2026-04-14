@@ -38,16 +38,16 @@ export function ProjectConnections({ projectId }: ProjectConnectionsProps) {
         <div className="flex flex-wrap items-center gap-2">
             {contractors.length > 0 && (
                 <div className="flex items-center gap-1">
-                    <Icon name="work" className="h-3 w-3 text-blue-600" />
-                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                    <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider bg-slate-100 text-slate-700 hover:bg-slate-200">
+                        <Icon name="domain" size={12} className="mr-1" />
                         {contractors.length} {contractors.length === 1 ? 'Contractor' : 'Contractors'}
                     </Badge>
                 </div>
             )}
             {suppliers.length > 0 && (
                 <div className="flex items-center gap-1">
-                    <Icon name="package" className="h-3 w-3 text-green-600" />
-                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                    <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider bg-slate-100 text-slate-700 hover:bg-slate-200">
+                        <Icon name="package_2" size={12} className="mr-1" />
                         {suppliers.length} {suppliers.length === 1 ? 'Supplier' : 'Suppliers'}
                     </Badge>
                 </div>

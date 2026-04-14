@@ -20,11 +20,6 @@ const sidebarNavItems = [
     icon: <Icon name="build" size={16} />,
   },
   {
-    title: 'Appearance',
-    href: '/settings/appearance',
-    icon: <Icon name="palette" size={16} />,
-  },
-  {
     title: 'Notifications',
     href: '/settings/notifications',
     icon: <Icon name="notifications" size={16} />,

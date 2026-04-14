@@ -107,33 +107,6 @@ export function JitCapitalScheduler({ schedule, projectId, onDataChange }: Capit
     )
 }
 
-// ---------- GROUP BUY AGGREGATOR ----------
-
-export function GroupBuyAggregator() {
-    return (
-        <section className="bg-white rounded-xl shadow-sm border border-border/60 p-4 text-foreground relative overflow-hidden">
-            <h2 className="text-base font-bold font-display mb-2 flex items-center gap-2 text-indigo-950">
-                <Icon name="group" size={18} className="text-indigo-600" />
-                Group Buy Aggregator
-            </h2>
-            <div className="bg-indigo-50/50 rounded-lg p-3 border border-indigo-100 mb-3">
-                <p className="text-[10px] text-slate-600 mb-2">3 nearby projects ordering PPC cement.</p>
-                <div className="flex justify-between items-center text-xs pb-1.5 border-b border-indigo-100">
-                    <span className="text-slate-500">Your Retail Transport:</span>
-                    <span className="line-through text-slate-400">$200.00</span>
-                </div>
-                <div className="flex justify-between items-center text-sm pt-1.5">
-                    <span className="font-bold text-slate-700">Shared Bulk Transport:</span>
-                    <span className="text-lg font-bold text-emerald-600">$50.00</span>
-                </div>
-            </div>
-            <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg text-xs transition-all shadow-sm border border-emerald-600">
-                Join Cement Pool & Save $150
-            </button>
-        </section>
-    )
-}
-
 // ---------- INFLATION SHIELD ----------
 
 export function InflationShield() {

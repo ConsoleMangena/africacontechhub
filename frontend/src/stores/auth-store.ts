@@ -36,7 +36,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
         // Fetch profile from Django
         const response = await apiClient.get('/api/v1/auth/me/');
-        const userData = response.data;
+        const userData = response.data as User;
         if (!userData) throw new Error('Failed to fetch profile');
         const profile = userData.profile;
 
@@ -50,6 +50,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
               first_name: userData.first_name,
               last_name: userData.last_name,
               profile,
+              role: userData.role
             },
             isLoading: false,
           }
@@ -88,7 +89,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         if (session) {
           try {
             const response = await apiClient.get('/api/v1/auth/me/')
-            const userData = response.data
+            const userData = response.data as User
             if (!userData) throw new Error('Failed to fetch profile')
             const profile = userData.profile
 
@@ -102,6 +103,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
                   first_name: userData.first_name,
                   last_name: userData.last_name,
                   profile,
+                  role: userData.role
                 },
                 isLoading: false,
               },

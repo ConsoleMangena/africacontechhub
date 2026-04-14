@@ -216,7 +216,7 @@ function ProjectProcurementPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Link to={`/builder/measurements`} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+              <Link to={`/builder/projectbudget`} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
                 <Icon name="arrow_back" size={18} className="text-slate-500" />
               </Link>
               <div>
@@ -243,7 +243,7 @@ function ProjectProcurementPage() {
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
               <strong className="font-semibold">Signed final budget required.</strong>{' '}
               Go to{' '}
-              <Link to="/builder/measurements" className="underline font-medium">
+              <Link to="/builder/projectbudget" className="underline font-medium">
                 Construction Budget
               </Link>
               , promote to final, and sign before raising procurement requests.

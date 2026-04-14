@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Soil bed -->
+  <rect x="4" y="4" width="92" height="92" rx="8" fill="#795548" fill-opacity="0.2" stroke="#5d4037" stroke-width="1.8"/>
+  <!-- Edging -->
+  <rect x="6" y="6" width="88" height="88" rx="6" fill="none" stroke="#8d6e63" stroke-width="0.6" opacity="0.4"/>
+  <!-- Soil texture dots -->
+  <circle cx="15" cy="15" r="1" fill="#6d4c41" opacity="0.3"/>
+  <circle cx="35" cy="12" r="1" fill="#6d4c41" opacity="0.2"/>
+  <circle cx="85" cy="88" r="1" fill="#6d4c41" opacity="0.3"/>
+  <!-- Row lines -->
+  <line x1="12" y1="25" x2="88" y2="25" stroke="#8d6e63" stroke-width="0.5" opacity="0.3"/>
+  <line x1="12" y1="50" x2="88" y2="50" stroke="#8d6e63" stroke-width="0.5" opacity="0.3"/>
+  <line x1="12" y1="75" x2="88" y2="75" stroke="#8d6e63" stroke-width="0.5" opacity="0.3"/>
+  <!-- Plants (realistic green spots) -->
+  <circle cx="25" cy="25" r="7" fill="#66bb6a" fill-opacity="0.35" stroke="#388e3c" stroke-width="0.8"/>
+  <circle cx="50" cy="25" r="7" fill="#43a047" fill-opacity="0.35" stroke="#388e3c" stroke-width="0.8"/>
+  <circle cx="75" cy="25" r="7" fill="#66bb6a" fill-opacity="0.35" stroke="#388e3c" stroke-width="0.8"/>
+  <circle cx="25" cy="50" r="8" fill="#43a047" fill-opacity="0.35" stroke="#2e7d32" stroke-width="0.8"/>
+  <circle cx="50" cy="50" r="8" fill="#66bb6a" fill-opacity="0.35" stroke="#2e7d32" stroke-width="0.8"/>
+  <circle cx="75" cy="50" r="8" fill="#43a047" fill-opacity="0.35" stroke="#2e7d32" stroke-width="0.8"/>
+  <circle cx="25" cy="75" r="7" fill="#66bb6a" fill-opacity="0.35" stroke="#388e3c" stroke-width="0.8"/>
+  <circle cx="50" cy="75" r="7" fill="#43a047" fill-opacity="0.35" stroke="#388e3c" stroke-width="0.8"/>
+  <circle cx="75" cy="75" r="7" fill="#66bb6a" fill-opacity="0.35" stroke="#388e3c" stroke-width="0.8"/>
+  <!-- Plant centers -->
+  <circle cx="25" cy="25" r="2" fill="#2e7d32" opacity="0.5"/>
+  <circle cx="50" cy="25" r="2" fill="#2e7d32" opacity="0.5"/>
+  <circle cx="75" cy="25" r="2" fill="#2e7d32" opacity="0.5"/>
+  <circle cx="25" cy="50" r="2.5" fill="#1b5e20" opacity="0.5"/>
+  <circle cx="50" cy="50" r="2.5" fill="#1b5e20" opacity="0.5"/>
+  <circle cx="75" cy="50" r="2.5" fill="#1b5e20" opacity="0.5"/>
+  <circle cx="25" cy="75" r="2" fill="#2e7d32" opacity="0.5"/>
+  <circle cx="50" cy="75" r="2" fill="#2e7d32" opacity="0.5"/>
+  <circle cx="75" cy="75" r="2" fill="#2e7d32" opacity="0.5"/>
+</svg>

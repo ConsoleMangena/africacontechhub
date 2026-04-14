@@ -76,8 +76,8 @@ function Avatar({ src, name, size = 'lg' }: { src?: string; name?: string; size?
     return <img src={src} alt={name ?? ''} className={`${dim} rounded-full object-cover ring-2 ring-white shadow-md`} />
   }
   return (
-    <div className={`${dim} rounded-full bg-gradient-to-br from-green-700 to-green-900 flex items-center justify-center ring-2 ring-white shadow-md`}>
-      <span className={`${textSz} font-bold text-white`}>{getInitials(name)}</span>
+    <div className={`${dim} rounded-full bg-slate-100 flex items-center justify-center ring-2 ring-white shadow-sm border border-slate-200`}>
+      <span className={`${textSz} font-bold text-slate-700`}>{getInitials(name)}</span>
     </div>
   )
 }
@@ -172,7 +172,7 @@ function RouteComponent() {
           <ProfileDropdown />
         </div>
       </Header>
-      <Main className="bg-slate-50 min-h-[calc(100vh-theme(spacing.16))]">
+      <Main className="bg-white min-h-[calc(100vh-theme(spacing.16))]">
         <div className="w-full p-4 md:p-8 space-y-6">
 
           {/* ── Header ── */}
@@ -241,11 +241,11 @@ function RouteComponent() {
                     className="group rounded-xl border border-slate-200 bg-white hover:shadow-lg hover:border-green-300 transition-all duration-200 overflow-hidden"
                   >
                     {/* Top accent */}
-                    <div className="h-16 bg-gradient-to-r from-green-700 to-green-900 relative">
+                    <div className="h-16 bg-white border-b border-slate-100 relative">
                       {pro.is_verified && (
-                        <span className="absolute top-2 right-2 flex items-center gap-1 bg-white/90 backdrop-blur rounded-full px-2 py-0.5">
-                          <Icon name="verified" size={12} className="text-green-700" />
-                          <span className="text-[9px] font-bold text-green-800 uppercase">Verified</span>
+                        <span className="absolute top-2 right-2 flex items-center gap-1 bg-green-50 rounded-full px-2 py-0.5 border border-green-100">
+                          <Icon name="verified" size={12} className="text-green-600" />
+                          <span className="text-[9px] font-bold text-green-700 uppercase tracking-wider">Verified</span>
                         </span>
                       )}
                     </div>
@@ -303,7 +303,7 @@ function RouteComponent() {
                       <div className="flex gap-2 w-full mt-4">
                         <Button
                           size="sm"
-                          className="flex-1 bg-green-700 hover:bg-green-800 text-white h-9"
+                          className="flex-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm h-9"
                           onClick={() => { setSelectedProfessional(pro); setShowContactModal(true) }}
                         >
                           <Icon name="call" size={16} className="mr-1.5" />
@@ -408,7 +408,7 @@ function RouteComponent() {
 
                   <div className="flex gap-2 w-full mt-5">
                     <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => setShowContactModal(false)}>Close</Button>
-                    <Button size="sm" className="flex-1 h-9 bg-green-700 hover:bg-green-800" onClick={() => {
+                    <Button size="sm" className="flex-1 h-9 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm" onClick={() => {
                       if (selectedProfessional.user_details?.phone_number) {
                         navigator.clipboard.writeText(selectedProfessional.user_details.phone_number)
                         toast.success('Phone number copied')
@@ -476,7 +476,7 @@ function RouteComponent() {
                 </div>
                 <DialogFooter className="gap-2">
                   <Button type="button" variant="ghost" onClick={() => setEditTarget(null)}>Cancel</Button>
-                  <Button type="submit" className="bg-green-700 hover:bg-green-800 text-white" disabled={actionLoading === `edit-${editTarget?.id}`}>
+                  <Button type="submit" className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm" disabled={actionLoading === `edit-${editTarget?.id}`}>
                     {actionLoading === `edit-${editTarget?.id}` ? <Icon name="progress_activity" size={14} className="animate-spin mr-1.5" /> : null}
                     Save Changes
                   </Button>

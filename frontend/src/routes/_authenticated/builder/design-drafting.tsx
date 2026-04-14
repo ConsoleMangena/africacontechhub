@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Header } from "@/components/layout/header";
 import { Main } from "@/components/layout/main";
 import { ProfileDropdown } from "@/components/profile-dropdown";
@@ -17,7 +17,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useBuilderStore } from "@/stores/builder-store";
 import { ProjectModeBadge } from "@/components/project-mode-badge";
+import { ProjectWorkspacePicker } from "@/features/dashboards/builder/components/project-workspace-picker";
 import { builderApi } from "@/services/api";
 import type { Project, DrawingRequest } from "@/types/api";
 import { cn } from "@/lib/utils";
@@ -25,6 +27,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_authenticated/builder/design-drafting")(
   {
     component: RouteComponent,
+    validateSearch: (search: Record<string, unknown>) => ({
+      projectId: (search.projectId as string) || undefined,
+    }),
   },
 );
 
@@ -75,8 +80,43 @@ function getInitials(name?: string) {
 }
 
 function RouteComponent() {
+  const { projectId: searchProjectId } = Route.useSearch();
+  const navigate = useNavigate();
+  const builderStore = useBuilderStore();
+  const resolvedProjectId = searchProjectId ? Number(searchProjectId) : builderStore.selectedProjectId ?? null;
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<number | null>(null);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [selectedProject, setSelectedProject] = useState<number | null>(
+    resolvedProjectId,
+  );
+
+  const selectProject = (id: number) => {
+    setSelectedProject(id);
+    builderStore.selectProject(id);
+    navigate({
+      to: "/builder/design-drafting",
+      search: { projectId: String(id) },
+      replace: true,
+    });
+  };
+
+  const exitProject = useCallback(() => {
+    setSelectedProject(null);
+    setRequests([]);
+    setShowRequestForm(false);
+    setShowDirectUpload(false);
+    setShowExploreModal(false);
+    setShowContactModal(false);
+    setSelectedProfessional(null);
+    setDirectFiles([]);
+    builderStore.exitProject();
+    navigate({
+      to: "/builder/design-drafting",
+      search: { projectId: undefined },
+      replace: true,
+    });
+  }, [navigate, builderStore]);
+
   const [requests, setRequests] = useState<DrawingRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -119,8 +159,14 @@ function RouteComponent() {
   const currentProject = projects.find((p) => p.id === selectedProject);
   const isDIFY = currentProject?.engagement_tier === "DIFY";
 
-  // Load projects
+  const filteredRequests = requests;
+
+  useEffect(() => {
+    setSelectedProject(searchProjectId ? Number(searchProjectId) : builderStore.selectedProjectId ?? null);
+  }, [searchProjectId, builderStore.selectedProjectId]);
+
   const fetchProjects = useCallback(() => {
+    setLoadingProjects(true);
     builderApi
       .getProjects()
       .then((res) => {
@@ -129,15 +175,24 @@ function RouteComponent() {
           : (res.data as any).results || [];
         setProjects(data);
         projectsCachedRef.current = true;
-        if (data.length > 0 && !selectedProject) setSelectedProject(data[0].id);
       })
-      .catch(() => toast.error("Failed to load projects"));
-  }, [selectedProject]);
+      .catch(() => toast.error("Failed to load projects"))
+      .finally(() => setLoadingProjects(false));
+  }, []);
 
   useEffect(() => {
-    if (projectsCachedRef.current && projects.length > 0) return;
+    if (projectsCachedRef.current && projects.length > 0) {
+      setLoadingProjects(false);
+      return;
+    }
     fetchProjects();
-  }, []);
+  }, [fetchProjects, projects.length]);
+
+  useEffect(() => {
+    if (loadingProjects || !selectedProject) return;
+    if (projects.some((project) => project.id === selectedProject)) return;
+    exitProject();
+  }, [exitProject, loadingProjects, projects, selectedProject]);
 
   const fetchProfessionals = async () => {
     setLoadingPros(true);
@@ -207,9 +262,14 @@ function RouteComponent() {
   };
 
   const fetchRequests = useCallback(async () => {
+    if (!selectedProject) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const res = await builderApi.getAllDrawingRequests();
+      const res = await builderApi.getProjectDrawingRequests(selectedProject);
       const data = Array.isArray(res.data)
         ? res.data
         : (res.data as any).results || [];
@@ -220,7 +280,7 @@ function RouteComponent() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedProject]);
 
   useEffect(() => {
     fetchRequests();
@@ -333,11 +393,12 @@ function RouteComponent() {
           : `${directFiles.length} uploaded drawing files`;
       const title = directUploadForm.title.trim() || generatedTitle;
 
-      // Create a drawing request for the uploaded files
+      // Create a drawing request container explicitly marked as COMPLETED for the library
       const res = await builderApi.createDrawingRequest({
         project: selectedProject,
         drawing_type: directUploadForm.drawingType,
         title,
+        status: "COMPLETED",
       });
       const requestId = res.data.id;
 
@@ -405,6 +466,59 @@ function RouteComponent() {
   const curProj = projects.find((p) => p.id === selectedProject);
   const archDetails = curProj?.architect_details;
 
+  if (loadingProjects) {
+    return (
+      <>
+        <Header>
+          <div className="ms-auto flex items-center space-x-4">
+            <Search />
+            <ProfileDropdown />
+          </div>
+        </Header>
+        <Main className="bg-slate-50 min-h-[calc(100vh-theme(spacing.16))]">
+          <div className="max-w-7xl mx-auto p-4 md:p-8">
+            <ProjectWorkspacePicker
+              title="Choose a design workspace"
+              description="Select a project tile before opening requests, architect assignments, or studio shortcuts. Only the selected project's design data will load into this workspace."
+              projects={[]}
+              loading
+              onSelectProject={selectProject}
+              onPrimaryAction={() => navigate({ to: "/builder" })}
+              primaryActionLabel="Open Portfolio"
+            />
+          </div>
+        </Main>
+      </>
+    );
+  }
+
+  if (!selectedProject || !currentProject) {
+    return (
+      <>
+        <Header>
+          <div className="ms-auto flex items-center space-x-4">
+            <Search />
+            <ProfileDropdown />
+          </div>
+        </Header>
+        <Main className="bg-slate-50 min-h-[calc(100vh-theme(spacing.16))]">
+          <div className="max-w-7xl mx-auto p-4 md:p-8">
+            <ProjectWorkspacePicker
+              title="Choose a design workspace"
+              description="Pick a project tile to open its drawing requests, architect context, and studio handoff. Until then, this page stays clean and avoids loading project-specific design records."
+              projects={projects}
+              onSelectProject={selectProject}
+              onPrimaryAction={() => navigate({ to: "/builder" })}
+              primaryActionLabel="Open Portfolio"
+              emptyTitle="No design-ready projects yet"
+              emptyDescription="Create a project from the builder portfolio first, then return here to manage its drawings and studio workflow."
+            />
+          </div>
+        </Main>
+      </>
+    );
+  }
+
   return (
     <>
       <Header>
@@ -417,29 +531,28 @@ function RouteComponent() {
         <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-5">
           {/* ── Header ── */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              Design Drafting
-            </h1>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                Design Drafting
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                {currentProject.title}{currentProject.location ? ` • ${currentProject.location}` : ""}
+              </p>
+            </div>
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <select
-                  value={selectedProject ?? ""}
-                  onChange={(e) => setSelectedProject(Number(e.target.value))}
-                  className="h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm focus:ring-0 focus:border-slate-900 outline-none w-56 transition-all"
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title}
-                    </option>
-                  ))}
-                </select>
-                {currentProject && (
-                  <ProjectModeBadge
-                    engagementTier={currentProject.engagement_tier}
-                    size="sm"
-                  />
-                )}
-              </div>
+              <ProjectModeBadge
+                engagementTier={currentProject.engagement_tier}
+                size="sm"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={exitProject}
+                className="h-9 text-[10px] font-bold uppercase tracking-wider border-slate-200 text-slate-700 hover:bg-slate-50"
+              >
+                <Icon name="logout" size={14} className="mr-1.5" />
+                Exit Project
+              </Button>
               {isDIFY ? (
                 <div className="text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center gap-1.5">
                   <Icon name="info" size={14} className="text-slate-400" />
@@ -464,7 +577,10 @@ function RouteComponent() {
                     <Icon name="add" size={16} className="mr-1.5" />
                     Request Drawing
                   </Button>
-                  <a href="/builder/architectural-studio" target="_blank" rel="noopener noreferrer">
+                  <Link
+                    to="/builder/architectural-studio"
+                    search={selectedProject ? { projectId: String(selectedProject) } : {}}
+                  >
                     <Button
                       size="sm"
                       className="bg-indigo-600 hover:bg-indigo-700 h-9 text-[10px] font-bold uppercase tracking-wider text-white shadow-none gap-1.5"
@@ -472,7 +588,7 @@ function RouteComponent() {
                       <Icon name="draw" size={16} />
                       Open Studio
                     </Button>
-                  </a>
+                  </Link>
                 </>
               )}
             </div>
@@ -485,29 +601,29 @@ function RouteComponent() {
                 {
                   icon: "description",
                   label: "Total",
-                  value: requests.length,
+                  value: filteredRequests.length,
                   bg: "bg-slate-50",
                   text: "text-slate-600",
                 },
                 {
                   icon: "schedule",
                   label: "Pending",
-                  value: requests.filter((r) => r.status === "PENDING").length,
+                  value: filteredRequests.filter((r) => r.status === "PENDING").length,
                   bg: "bg-slate-50",
                   text: "text-slate-500",
                 },
                 {
                   icon: "sync",
                   label: "In Progress",
-                  value: requests.filter((r) => r.status === "IN_PROGRESS")
+                  value: filteredRequests.filter((r) => r.status === "IN_PROGRESS")
                     .length,
                   bg: "bg-slate-50",
                   text: "text-slate-700",
                 },
                 {
                   icon: "check_circle",
-                  label: "Completed",
-                  value: requests.filter((r) => r.status === "COMPLETED")
+                  label: "Library Items",
+                  value: filteredRequests.filter((r) => r.status === "COMPLETED")
                     .length,
                   bg: "bg-slate-900",
                   text: "text-white",
@@ -880,22 +996,33 @@ function RouteComponent() {
             }
           />
 
-          {/* ── Drawing Requests ── */}
-          <div className="rounded-xl border border-slate-200 bg-white">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Icon name="folder" size={18} className="text-indigo-500" />
-                Drawing Requests
-                <Badge variant="secondary" className="text-[10px] ml-1">
-                  {requests.length}
-                </Badge>
-              </h2>
+          {/* ── Active Studio Requests ── */}
+          <div className="rounded-xl border-2 border-slate-200 bg-white overflow-hidden shadow-sm">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Icon name="design_services" size={18} className="text-indigo-600" />
+                  Active Studio Requests
+                  <Badge className="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0 shadow-none border-none ml-1">
+                    {filteredRequests.filter((r) => r.status !== "COMPLETED").length}
+                  </Badge>
+                </h2>
+                <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mt-1">Pending and in-progress drafts mapped to your architect</p>
+              </div>
+              <Button
+                onClick={() => setShowRequestForm(true)}
+                size="sm"
+                className="bg-slate-900 hover:bg-slate-800 h-8 text-[10px] font-bold uppercase tracking-wider text-white shadow-none rounded-lg"
+              >
+                <Icon name="add" size={14} className="mr-1.5" />
+                New Request
+              </Button>
             </div>
 
             {loading ? (
               <div className="divide-y divide-slate-50">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="px-4 py-3 flex items-center gap-3">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="px-4 py-4 flex items-center gap-3">
                     <div className="h-9 w-9 rounded-lg bg-slate-100 animate-pulse shrink-0" />
                     <div className="flex-1 space-y-1.5">
                       <div className="h-4 w-40 bg-slate-100 rounded animate-pulse" />
@@ -904,212 +1031,242 @@ function RouteComponent() {
                   </div>
                 ))}
               </div>
-            ) : requests.length === 0 ? (
-              <div className="px-4 py-12 text-center">
+            ) : filteredRequests.filter((r) => r.status !== "COMPLETED").length === 0 ? (
+              <div className="px-4 py-10 text-center bg-slate-50/30">
                 <Icon
                   name="architecture"
                   size={32}
-                  className="mx-auto mb-2 text-slate-300"
+                  className="mx-auto mb-3 text-slate-300"
                 />
-                <p className="text-sm text-slate-500 font-medium">
-                  No drawing requests yet
+                <p className="text-sm font-bold text-slate-500">
+                  No active requests
                 </p>
-                <div className="flex gap-2 justify-center mt-3">
-                  <Button
-                    onClick={() => setShowDirectUpload(true)}
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs border-indigo-200 text-indigo-700"
-                  >
-                    <Icon name="cloud_upload" size={13} className="mr-1" />
-                    Upload
-                  </Button>
-                  <Button
-                    onClick={() => setShowRequestForm(true)}
-                    size="sm"
-                    className="bg-indigo-600 hover:bg-indigo-700 h-7 text-xs"
-                  >
-                    <Icon name="add" size={13} className="mr-1" />
-                    Request
-                  </Button>
-                </div>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  When you request a fresh draft from an architect, its progress will be tracked here.
+                </p>
               </div>
             ) : (
-              <div>
-                {Array.from(new Set(requests.map((r) => r.project))).map(
-                  (projectId) => {
-                    const project = projects.find((p) => p.id === projectId);
-                    const projectRequests = requests.filter(
-                      (r) => r.project === projectId,
+              <div className="divide-y divide-slate-50">
+                {filteredRequests
+                  .filter((r) => r.status !== "COMPLETED")
+                  .map((request) => {
+                    const dtCfg = DRAWING_TYPES.find(
+                      (d) => d.value === request.drawing_type,
                     );
                     return (
-                      <div key={projectId}>
-                        <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-                          <Icon
-                            name="folder_special"
-                            size={14}
-                            className="text-indigo-500"
-                          />
-                          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                            {project?.title || `Project #${projectId}`}
-                          </span>
-                          <Badge
-                            variant="secondary"
-                            className="text-[9px] ml-auto"
-                          >
-                            {projectRequests.length}
-                          </Badge>
+                      <div key={request.id}>
+                        <div className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors">
+                          <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 border border-slate-200">
+                            <Icon
+                              name={dtCfg?.icon || "description"}
+                              size={20}
+                              className="text-slate-600"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <p className="text-sm font-bold text-slate-900 truncate flex items-center gap-1.5">
+                                {request.title}
+                              </p>
+                              <Badge
+                                className={`${STATUS_CLS[request.status] || "bg-slate-100 text-slate-600"} text-[9px] px-2 py-0 border-none shadow-none font-bold uppercase tracking-wider`}
+                              >
+                                {request.status.replace("_", " ")}
+                              </Badge>
+                            </div>
+                            <p className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                              <Icon name="category" size={12} /> {dtCfg?.label || request.drawing_type}
+                              <span>•</span>
+                              <Icon name="event" size={12} /> {new Date(request.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0 transition-colors"
+                              onClick={() => {
+                                setUploadingForRequest(request.id);
+                                fileInputRef.current?.click();
+                              }}
+                            >
+                              <Icon name="attach_file" size={14} className="mr-1" /> Ref
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0 transition-colors"
+                              onClick={() => handleDeleteRequest(request.id)}
+                            >
+                              <Icon name="delete" size={16} />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="divide-y divide-slate-50">
-                          {projectRequests.map((request) => {
-                            const dtCfg = DRAWING_TYPES.find(
-                              (d) => d.value === request.drawing_type,
-                            );
-                            return (
-                              <div key={request.id}>
-                                <div className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50/50">
-                                  <div className="h-9 w-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100 shadow-sm">
-                                    <Icon
-                                      name={dtCfg?.icon || "description"}
-                                      size={18}
-                                      className="text-slate-600"
-                                    />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-sm font-semibold text-slate-900 truncate">
-                                        {request.title}
-                                      </p>
-                                      <Badge
-                                        className={`${STATUS_CLS[request.status] || "bg-slate-100 text-slate-600"} text-[9px] px-2 py-0.5 border-none shadow-none font-bold uppercase tracking-wider`}
-                                      >
-                                        {request.status.replace("_", " ")}
-                                      </Badge>
+
+                        {/* Inline Files (e.g. references or draft previews) */}
+                        {request.files.length > 0 && (
+                          <div className="px-4 pb-3 pl-16">
+                            <div className="space-y-1 mt-1">
+                              {request.files.map((file) => {
+                                const ext = file.file_type || file.original_name.split(".").pop() || "";
+                                const isImage = ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext.toLowerCase());
+                                return (
+                                  <div key={file.id} className="flex items-center gap-2.5 py-1.5 px-3 rounded-lg bg-slate-50/50 hover:bg-slate-100 transition-colors group/file">
+                                    {isImage ? (
+                                      <Icon name="image" size={14} className="text-indigo-400 shrink-0" />
+                                    ) : (
+                                      <Icon name={getFileIcon(ext)} size={14} className="text-slate-400 shrink-0" />
+                                    )}
+                                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                                      <p className="text-xs font-medium text-slate-700 truncate">{file.original_name}</p>
+                                      <span className="text-[9px] text-slate-400">{file.file_size}</span>
                                     </div>
-                                    <p className="text-[11px] text-slate-400">
-                                      {dtCfg?.label || request.drawing_type} ·{" "}
-                                      {new Date(
-                                        request.created_at,
-                                      ).toLocaleDateString()}
-                                      {request.files.length > 0 &&
-                                        ` · ${request.files.length} file${request.files.length > 1 ? "s" : ""}`}
-                                    </p>
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-100 shrink-0 rounded-lg"
-                                    onClick={() => {
-                                      setUploadingForRequest(request.id);
-                                      fileInputRef.current?.click();
-                                    }}
-                                  >
-                                    <Icon
-                                      name="cloud_upload"
-                                      size={14}
-                                      className="mr-1.5"
-                                    />
-                                    Upload
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 text-slate-300 hover:text-red-500 hover:bg-red-50 shrink-0 rounded-lg"
-                                    onClick={() =>
-                                      handleDeleteRequest(request.id)
-                                    }
-                                  >
-                                    <Icon name="delete" size={14} />
-                                  </Button>
-                                </div>
-                                {request.files.length > 0 && (
-                                  <div className="px-4 pb-3 pl-16">
-                                    <div className="space-y-1">
-                                      {request.files.map((file) => {
-                                        const ext =
-                                          file.file_type ||
-                                          file.original_name.split(".").pop() ||
-                                          "";
-                                        const isImage = [
-                                          "png",
-                                          "jpg",
-                                          "jpeg",
-                                          "gif",
-                                          "webp",
-                                          "svg",
-                                        ].includes(ext.toLowerCase());
-                                        return (
-                                          <div
-                                            key={file.id}
-                                            className="flex items-center gap-2.5 py-1.5 px-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors group"
-                                          >
-                                            {isImage ? (
-                                              <img
-                                                src={file.file}
-                                                alt=""
-                                                className="h-8 w-8 rounded object-cover shrink-0 border border-slate-200"
-                                              />
-                                            ) : (
-                                              <div className="h-8 w-8 rounded bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                                                <Icon
-                                                  name={getFileIcon(ext)}
-                                                  size={16}
-                                                  className="text-slate-500"
-                                                />
-                                              </div>
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                              <p className="text-xs font-medium text-slate-800 truncate">
-                                                {file.original_name}
-                                              </p>
-                                              <p className="text-[10px] text-slate-400">
-                                                {ext.toUpperCase()} ·{" "}
-                                                {file.file_size}
-                                              </p>
-                                            </div>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                              onClick={() =>
-                                                window.open(file.file, "_blank")
-                                              }
-                                            >
-                                              <Icon
-                                                name="open_in_new"
-                                                size={13}
-                                              />
-                                            </Button>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600"
-                                              onClick={() =>
-                                                handleDeleteFile(
-                                                  request.id,
-                                                  file.id,
-                                                )
-                                              }
-                                            >
-                                              <Icon name="close" size={13} />
-                                            </Button>
-                                          </div>
-                                        );
-                                      })}
+                                    <div className="flex gap-1 opacity-0 group-hover/file:opacity-100 transition-opacity">
+                                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-900" onClick={() => window.open(file.file, "_blank")}>
+                                        <Icon name="open_in_new" size={12} />
+                                      </Button>
+                                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-red-600" onClick={() => handleDeleteFile(request.id, file.id)}>
+                                        <Icon name="close" size={12} />
+                                      </Button>
                                     </div>
                                   </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
-                  },
-                )}
+                  })}
               </div>
             )}
           </div>
+
+          {/* ── Project Drawings Library ── */}
+          <div className="rounded-xl border-2 border-slate-200 bg-white overflow-hidden shadow-sm">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Icon name="folder_open" size={18} className="text-emerald-600" />
+                  Project Drawings Library
+                  <Badge className="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0 shadow-none border-none ml-1">
+                    {filteredRequests.filter((r) => r.status === "COMPLETED").length}
+                  </Badge>
+                </h2>
+                <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mt-1">Finalized prints and direct file uploads</p>
+              </div>
+              <Button
+                onClick={() => setShowDirectUpload(true)}
+                size="sm"
+                className="bg-slate-100 border border-slate-200 hover:bg-slate-200 h-8 text-[10px] font-bold uppercase tracking-wider text-slate-700 shadow-none rounded-lg"
+              >
+                <Icon name="cloud_upload" size={14} className="mr-1.5" />
+                Upload Documents
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-16 rounded-xl bg-slate-100 animate-pulse border border-slate-200" />
+                ))}
+              </div>
+            ) : filteredRequests.filter((r) => r.status === "COMPLETED").length === 0 ? (
+              <div className="px-4 py-12 text-center bg-slate-50/30">
+                <Icon
+                  name="inventory_2"
+                  size={32}
+                  className="mx-auto mb-3 text-slate-300"
+                />
+                <p className="text-sm font-bold text-slate-500">
+                  Library is empty
+                </p>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  Completed drafts and directly uploaded sheets will be safely stored here for easy access.
+                </p>
+              </div>
+            ) : (
+              <div className="p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredRequests
+                  .filter((r) => r.status === "COMPLETED")
+                  .map((request) => {
+                    const dtCfg = DRAWING_TYPES.find(
+                      (d) => d.value === request.drawing_type,
+                    );
+                    return (
+                      <div key={request.id} className="rounded-xl border border-slate-200 bg-white p-3 hover:border-slate-300 transition-colors shadow-sm group">
+                        <div className="flex items-start gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0 border border-emerald-100">
+                            <Icon
+                              name={dtCfg?.icon || "description"}
+                              size={20}
+                              className="text-emerald-600"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-slate-900 truncate mb-1" title={request.title}>
+                              {request.title}
+                            </p>
+                            <p className="text-[10px] font-semibold text-slate-400 flex items-center gap-1.5 truncate">
+                              {dtCfg?.label || request.drawing_type}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-slate-300 hover:text-red-500 hover:bg-red-50 shrink-0 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                            onClick={() => handleDeleteRequest(request.id)}
+                          >
+                            <Icon name="delete" size={14} />
+                          </Button>
+                        </div>
+                        
+                        {/* Inline Files specific to this library upload */}
+                        {request.files.length > 0 ? (
+                          <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                            {request.files.map((file) => {
+                              const ext = file.file_type || file.original_name.split(".").pop() || "";
+                              const isImage = ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext.toLowerCase());
+                              return (
+                                <div key={file.id} className="flex items-center gap-2 py-1.5 px-2.5 rounded-md bg-slate-50 hover:bg-slate-100 border border-slate-100 group/file cursor-pointer" onClick={() => window.open(file.file, "_blank")}>
+                                  {isImage ? (
+                                    <Icon name="image" size={14} className="text-indigo-500 shrink-0" />
+                                  ) : (
+                                    <Icon name={getFileIcon(ext)} size={14} className="text-slate-500 shrink-0" />
+                                  )}
+                                  <p className="text-[11px] font-medium text-slate-700 truncate flex-1 min-w-0">
+                                    {file.original_name}
+                                  </p>
+                                  <div className="flex items-center gap-1 opacity-0 group-hover/file:opacity-100 transition-opacity">
+                                    <span className="text-[9px] text-slate-400 font-bold mr-1">{file.file_size}</span>
+                                    <Icon name="download" size={14} className="text-slate-600" />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+                            <p className="text-[10px] text-slate-400 italic">No files attached yet</p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[9px] font-bold uppercase tracking-wider text-slate-500 hover:bg-slate-100 rounded"
+                              onClick={() => {
+                                setUploadingForRequest(request.id);
+                                fileInputRef.current?.click();
+                              }}
+                            >
+                              <Icon name="add" size={12} className="mr-1" /> Add Files
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+           </div>
         </div>
       </Main>
 

@@ -7,6 +7,8 @@ from .models import (
     MaterialRequest, DrawingRequest, DrawingFile, ProjectTeam,
     BOQCorrection, ScheduleOfMaterial, ProjectBudgetVersion,
     ProjectMilestone, ProjectActivity, UserNotification, ProjectDocument,
+    ArchitecturalDrawing, BudgetAnalysisHistory,
+    MaterialPool, MaterialPoolCommitment,
 )
 from apps.authentication.models import Profile
 
@@ -270,3 +272,44 @@ class ProjectDocumentSerializer(serializers.ModelSerializer):
         model = ProjectDocument
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at', 'file_size')
+
+
+class ArchitecturalDrawingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ArchitecturalDrawing
+        fields = ('id', 'project', 'data', 'created_at', 'updated_at')
+        read_only_fields = ('project', 'created_at', 'updated_at')
+
+
+class BudgetAnalysisHistorySerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BudgetAnalysisHistory
+        fields = (
+            'id', 'project', 'user', 'user_name', 'file_name',
+            'summary', 'data', 'total_items', 'total_cost',
+            'created_at', 'updated_at',
+        )
+        read_only_fields = ('user', 'created_at', 'updated_at')
+
+    def get_user_name(self, obj):
+        if obj.user:
+            name = obj.user.get_full_name()
+            return name if name else obj.user.email
+        return ''
+
+
+class MaterialPoolSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MaterialPool
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+class MaterialPoolCommitmentSerializer(serializers.ModelSerializer):
+    pool_details = MaterialPoolSerializer(source='pool', read_only=True)
+    
+    class Meta:
+        model = MaterialPoolCommitment
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')

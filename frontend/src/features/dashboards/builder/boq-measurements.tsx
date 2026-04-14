@@ -7,13 +7,14 @@ import type {
 } from '@/types/api';
 import { toast } from 'sonner';
 import { Link } from '@tanstack/react-router';
-import { AiChatButton } from '@/components/ai-chat-button';
 import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/material-icon';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ProjectModeBadge } from '@/components/project-mode-badge';
+import { ProjectWorkspacePicker } from './components/project-workspace-picker';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
 type TabKey = 'building_items' | 'professional_fees' | 'admin_expenses' | 'labour_costs' | 'machine_plants' | 'labour_breakdowns' | 'schedule_tasks' | 'schedule_materials';
 
@@ -41,10 +42,17 @@ const TABS: { key: TabKey, label: string }[] = [
     { key: 'schedule_materials', label: 'Materials' },
 ];
 
-export default function BOQMeasurements() {
+export interface BOQMeasurementsProps {
+    initialProjectId?: number | null;
+    onSelectProject?: (projectId: number) => void;
+    onExitProject?: () => void;
+    onOpenPortfolio?: () => void;
+}
+
+export default function BOQMeasurements({ initialProjectId = null, onSelectProject, onExitProject, onOpenPortfolio }: BOQMeasurementsProps) {
     const [projects, setProjects] = useState<Project[]>([]);
     const [loadingProjects, setLoadingProjects] = useState(true);
-    const [selectedProject, setSelectedProject] = useState<number | null>(null);
+    const [selectedProject, setSelectedProject] = useState<number | null>(initialProjectId);
     const [budgetSheets, setBudgetSheets] = useState<BudgetSheets | null>(null);
     const [activeTab, setActiveTab] = useState<TabKey>('building_items');
     const [loading, setLoading] = useState(false);
@@ -62,6 +70,25 @@ export default function BOQMeasurements() {
     const currentProject = projects.find(p => p.id === selectedProject);
     const isDIFY = currentProject?.engagement_tier === 'DIFY';
     const canEdit = !isDIFY && !(budgetView === 'final' && budgetSheets?.budget_meta?.is_locked);
+
+    const selectProject = (projectId: number) => {
+        setSelectedProject(projectId);
+        onSelectProject?.(projectId);
+    };
+
+    const exitProject = () => {
+        setSelectedProject(null);
+        setBudgetSheets(null);
+        setAllProcured(false);
+        setEditingItem(null);
+        setSignOpen(false);
+        setLoading(false);
+        onExitProject?.();
+    };
+
+    useEffect(() => {
+        setSelectedProject(initialProjectId ?? null);
+    }, [initialProjectId]);
 
     // Check if all BOQ items already have procurement requests
     useEffect(() => {
@@ -96,15 +123,23 @@ export default function BOQMeasurements() {
     useEffect(() => {
         builderApi.getProjects().then(res => {
             setProjects(res.data.results || []);
-            if (res.data.results?.length > 0) {
-                setSelectedProject(res.data.results[0].id);
-            }
         }).catch(() => toast.error("Failed to load projects"))
         .finally(() => setLoadingProjects(false));
     }, []);
 
     useEffect(() => {
-        if (!selectedProject) return;
+        if (loadingProjects || !selectedProject) return;
+        if (projects.some((project) => project.id === selectedProject)) return;
+        exitProject();
+    }, [loadingProjects, projects, selectedProject]);
+
+    useEffect(() => {
+        if (!selectedProject) {
+            setBudgetSheets(null);
+            setAllProcured(false);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         builderApi.getProjectBudgetSheets(selectedProject, budgetView)
             .then(res => setBudgetSheets(res.data))
@@ -141,10 +176,6 @@ export default function BOQMeasurements() {
         } finally {
             setSigning(false);
         }
-    };
-
-    const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setSelectedProject(Number(e.target.value));
     };
 
     const deleteItem = async (id: number, type: TabKey) => {
@@ -218,38 +249,91 @@ export default function BOQMeasurements() {
 
     if (loadingProjects) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[40vh]">
-                <Icon name="progress_activity" size={40} className="animate-spin text-primary mb-3" />
-                <p className="text-slate-500 text-sm">Loading...</p>
+            <div className="w-full px-3 py-4 sm:p-4 md:p-8">
+                <ProjectWorkspacePicker
+                    title="Choose a budget workspace"
+                    description="Select a project tile before loading budget sheets, BOQ tabs, and signing tools. Only the chosen project's budget data will be opened here."
+                    projects={[]}
+                    loading
+                    onSelectProject={selectProject}
+                    onPrimaryAction={onOpenPortfolio}
+                    primaryActionLabel="Open Portfolio"
+                />
             </div>
         );
     }
 
     if (projects.length === 0) {
-        return <div className="p-8 text-center text-slate-500">No active projects found. Create a project first.</div>;
+        return (
+            <div className="w-full px-3 py-4 sm:p-4 md:p-8">
+                <ProjectWorkspacePicker
+                    title="Choose a budget workspace"
+                    description="Pick a project tile to open its construction budget, BOQ details, and signing controls. Until then, this page stays free of project-specific budget data."
+                    projects={[]}
+                    onSelectProject={selectProject}
+                    onPrimaryAction={onOpenPortfolio}
+                    primaryActionLabel="Open Portfolio"
+                    emptyTitle="No budget workspaces yet"
+                    emptyDescription="Create a project from your builder portfolio first, then return here to build, review, and sign its BOQ budget sheets."
+                />
+            </div>
+        );
+    }
+
+    if (!selectedProject || !currentProject) {
+        return (
+            <div className="w-full px-3 py-4 sm:p-4 md:p-8">
+                <ProjectWorkspacePicker
+                    title="Choose a budget workspace"
+                    description="Pick a project tile to open its construction budget, BOQ details, and signing controls. Until then, this page stays free of project-specific budget data."
+                    projects={projects}
+                    onSelectProject={selectProject}
+                    onPrimaryAction={onOpenPortfolio}
+                    primaryActionLabel="Open Portfolio"
+                    emptyTitle="No budget workspaces yet"
+                    emptyDescription="Create a project from your builder portfolio first, then return here to build, review, and sign its BOQ budget sheets."
+                />
+            </div>
+        );
     }
 
     const isFinalLocked = Boolean(budgetSheets?.budget_meta?.is_locked);
     const canOpenProcurement = Boolean(selectedProject && isFinalLocked);
 
+    const buildingTotal = budgetSheets?.building_items?.reduce((s, i) => s + Number(i.amount || 0), 0) || 0;
+    const professionalTotal = budgetSheets?.professional_fees?.reduce((s, i) => s + Number(i.estimated_fee || 0), 0) || 0;
+    const adminTotal = budgetSheets?.admin_expenses?.reduce((s, i) => s + Number(i.total_cost || 0), 0) || 0;
+    const labourTotal = budgetSheets?.labour_costs?.reduce((s, i) => s + Number(i.total_cost || 0), 0) || 0;
+    const plantTotal = budgetSheets?.machine_plants?.reduce((s, i) => s + Number(i.total_cost || 0), 0) || 0;
+    
+    const chartData = [
+        { name: 'Materials', value: buildingTotal, color: '#38bdf8' }, // sky-400
+        { name: 'Professional', value: professionalTotal, color: '#a78bfa' }, // violet-400
+        { name: 'Admin', value: adminTotal, color: '#fbbf24' }, // amber-400
+        { name: 'Labour', value: labourTotal, color: '#34d399' }, // emerald-400
+        { name: 'Plant', value: plantTotal, color: '#fb7185' }, // rose-400
+    ].filter(d => d.value > 0);
+
     return (
-        <div className="w-full px-3 py-4 sm:p-4 md:p-8 space-y-4 sm:space-y-6">
+        <div className="flex h-full w-full overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-y-auto px-3 py-4 sm:p-4 md:p-8 space-y-4 sm:space-y-6">
             <div className="flex flex-col gap-3 sm:gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Project Budget</h1>
+                    <div>
+                        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Project Budget</h1>
+                        <p className="mt-1 text-sm text-slate-500">{currentProject.title}{currentProject.location ? ` • ${currentProject.location}` : ''}</p>
+                    </div>
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
-                            <select
-                                value={selectedProject || ''}
-                                onChange={handleProjectChange}
-                                className="h-9 sm:h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none flex-1 sm:flex-none sm:w-64 min-w-0"
-                            >
-                                {projects.map(p => (
-                                    <option key={p.id} value={p.id}>{p.title}</option>
-                                ))}
-                            </select>
-                            {currentProject && <ProjectModeBadge engagementTier={currentProject.engagement_tier} size="sm" />}
-                        </div>
+                        <ProjectModeBadge engagementTier={currentProject.engagement_tier} size="sm" />
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={exitProject}
+                            className="h-9 sm:h-10 border-slate-200 bg-white text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                        >
+                            <Icon name="logout" className="mr-1.5 text-base" />
+                            Exit Project
+                        </Button>
                         <div className="flex rounded-lg border border-slate-200 overflow-hidden shadow-sm">
                             <button
                                 type="button"
@@ -266,7 +350,12 @@ export default function BOQMeasurements() {
                                 Final
                             </button>
                         </div>
-                        {selectedProject && <AiChatButton projectId={selectedProject} />}
+                        <Button asChild variant="outline" className="h-9 sm:h-10 border-slate-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 border-emerald-200 px-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all">
+                            <Link to="/builder/budget-engineer" search={selectedProject ? { projectId: String(selectedProject) } : {}}>
+                                <Icon name="engineering" className="mr-1.5 text-base" />
+                                Engineer
+                            </Link>
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -326,6 +415,50 @@ export default function BOQMeasurements() {
                 ) : null}
 
             </div>
+
+            {/* Budget Summary Dashboard */}
+            {chartData.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 rounded-xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
+                    <div className="md:col-span-2 flex flex-col justify-center">
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Budget Distribution Breakdown</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+                            {chartData.map((data, idx) => (
+                                <div key={data.name} className="flex flex-col gap-1 p-3 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-sm hover:border-slate-200 transition-all">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: data.color }} />
+                                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{data.name}</span>
+                                    </div>
+                                    <span className="text-sm sm:text-base font-bold text-slate-900 pl-5">${data.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="md:col-span-1 h-[200px] sm:h-[240px] flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={chartData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={65}
+                                    outerRadius={95}
+                                    paddingAngle={3}
+                                    dataKey="value"
+                                    stroke="none"
+                                >
+                                    {chartData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <RechartsTooltip 
+                                    formatter={(value: number) => [`$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Amount']}
+                                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="flex gap-0.5 sm:gap-1 border-b border-slate-200 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 scrollbar-hide">
@@ -463,6 +596,7 @@ export default function BOQMeasurements() {
                 </DialogContent>
             </Dialog>
         </div>
+        </div>
     );
 }
 
@@ -471,38 +605,54 @@ export default function BOQMeasurements() {
 function BuildingItemsTable({ items, onDelete, onEdit, readOnly }: { items: BOQBuildingItem[], onDelete: (id: number) => void, onEdit: (item: BOQBuildingItem) => void, readOnly?: boolean }) {
     if (items.length === 0) return <EmptyState />;
     return (
-        <div className="space-y-3 p-3 sm:p-4">
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                {items.map((i, idx) => (
-                    <div key={i.id} className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:shadow-md hover:border-slate-900 hover:-translate-y-0.5 transition-all duration-300" style={{ animation: `tileIn 0.35s ease-out ${idx * 40}ms both` }}>
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                            <p className="text-xs sm:text-sm font-semibold text-slate-900 line-clamp-2 flex-1">{i.description}</p>
-                            <div className="flex items-center gap-1 shrink-0">
-                                {i.is_ai_generated && <span className="text-base" title="AI generated">✨</span>}
-                                {!readOnly && (
-                                    <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                        <button type="button" onClick={() => onEdit(i)} className="p-1.5 sm:p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-900"><Icon name="edit" size={16} /></button>
-                                        <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 sm:p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500"><Icon name="delete" size={16} /></button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        {i.specification && <p className="text-[11px] text-slate-400 line-clamp-1 mb-2">{i.specification}</p>}
-                        <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                            {i.bill_no && <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-mono">Bill {i.bill_no}</span>}
-                            <span>{i.unit || '—'}</span>
-                            <span>Qty: {Number(i.quantity).toLocaleString()}</span>
-                            <span>Rate: ${Number(i.rate).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                        </div>
-                        <div className="flex items-center justify-end mt-2 sm:mt-3 pt-2 border-t border-slate-100">
-                            <span className="text-sm font-bold text-slate-900">${Number(i.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
-                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Building Cost</span>
-                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.amount), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+        <div className="space-y-0 p-3 sm:p-4">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                        <thead className="bg-slate-50 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-200">
+                            <tr>
+                                <th className="px-4 py-3">Bill No</th>
+                                <th className="px-4 py-3">Description</th>
+                                <th className="px-4 py-3 text-right">Qty</th>
+                                <th className="px-4 py-3 text-right">Unit</th>
+                                <th className="px-4 py-3 text-right">Rate</th>
+                                <th className="px-4 py-3 text-right">Amount</th>
+                                {!readOnly && <th className="px-4 py-3 w-16 text-center"></th>}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {items.map((i, idx) => (
+                                <tr key={i.id} className="hover:bg-slate-50 transition-colors group">
+                                    <td className="px-4 py-3 font-mono text-[11px] text-slate-500">{i.bill_no || '—'}</td>
+                                    <td className="px-4 py-3 text-slate-900 font-medium whitespace-normal min-w-[200px]">
+                                        {i.description}
+                                        {i.is_ai_generated && <span className="ml-1" title="AI generated">✨</span>}
+                                        {i.specification && <p className="text-[11px] text-slate-400 font-normal mt-0.5">{i.specification}</p>}
+                                    </td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{Number(i.quantity).toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-right text-slate-500 text-[11px]">{i.unit || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">${Number(i.rate).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-900">${Number(i.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    {!readOnly && (
+                                         <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button type="button" onClick={() => onEdit(i)} className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-900"><Icon name="edit" size={16} /></button>
+                                                <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-500"><Icon name="delete" size={16} /></button>
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot className="bg-slate-900 text-white">
+                            <tr>
+                                <th colSpan={5} className="px-4 py-3 text-right text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-300 border-none">Total Building Cost</th>
+                                <th className="px-4 py-3 text-right font-bold text-sm sm:text-lg border-none">${items.reduce((sum, i) => sum + Number(i.amount), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                {!readOnly && <th className="border-none"></th>}
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -511,33 +661,48 @@ function BuildingItemsTable({ items, onDelete, onEdit, readOnly }: { items: BOQB
 function ProfessionalFeesTable({ items, onDelete, onEdit, readOnly }: { items: BOQProfessionalFee[], onDelete: (id: number) => void, onEdit: (item: BOQProfessionalFee) => void, readOnly?: boolean }) {
     if (items.length === 0) return <EmptyState />;
     return (
-        <div className="space-y-3 p-3 sm:p-4">
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                {items.map((i, idx) => (
-                    <div key={i.id} className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:shadow-lg hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-200" style={{ animation: `tileIn 0.35s ease-out ${idx * 40}ms both` }}>
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                            <p className="text-xs sm:text-sm font-semibold text-slate-900 flex-1">{i.discipline || '—'}</p>
-                            {!readOnly && (
-                                <div className="flex gap-0.5 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                    <button type="button" onClick={() => onEdit(i)} className="p-1.5 sm:p-1 rounded hover:bg-emerald-50 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
-                                    <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 sm:p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
-                                </div>
-                            )}
-                        </div>
-                        {i.role_scope && <p className="text-[11px] text-slate-400 line-clamp-2 mb-2">{i.role_scope}</p>}
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                            <span>Basis: {i.basis || '—'}</span>
-                            <span>Rate: {i.rate || '—'}</span>
-                        </div>
-                        <div className="flex items-center justify-end mt-2 sm:mt-3 pt-2 border-t border-slate-100">
-                            <span className="text-sm font-bold text-slate-900">${Number(i.estimated_fee).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
-                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Professional Fees</span>
-                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.estimated_fee), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+        <div className="space-y-0 p-3 sm:p-4">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                        <thead className="bg-slate-50 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-200">
+                            <tr>
+                                <th className="px-4 py-3">Discipline</th>
+                                <th className="px-4 py-3">Description / Scope</th>
+                                <th className="px-4 py-3">Basis</th>
+                                <th className="px-4 py-3 text-right">Rate</th>
+                                <th className="px-4 py-3 text-right">Estimated Fee</th>
+                                {!readOnly && <th className="px-4 py-3 w-16 text-center"></th>}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {items.map((i, idx) => (
+                                <tr key={i.id} className="hover:bg-slate-50 transition-colors group">
+                                    <td className="px-4 py-3 text-slate-900 font-medium">{i.discipline || '—'}</td>
+                                    <td className="px-4 py-3 text-slate-700 whitespace-normal min-w-[200px]">{i.role_scope || '—'}</td>
+                                    <td className="px-4 py-3 text-slate-500 text-[11px]">{i.basis || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{i.rate || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-900">${Number(i.estimated_fee).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    {!readOnly && (
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button type="button" onClick={() => onEdit(i)} className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
+                                                <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot className="bg-slate-900 text-white">
+                            <tr>
+                                <th colSpan={4} className="px-4 py-3 text-right text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-300 border-none">Total Professional Fees</th>
+                                <th className="px-4 py-3 text-right font-bold text-sm sm:text-lg border-none">${items.reduce((sum, i) => sum + Number(i.estimated_fee), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                {!readOnly && <th className="border-none"></th>}
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -546,34 +711,50 @@ function ProfessionalFeesTable({ items, onDelete, onEdit, readOnly }: { items: B
 function AdminExpensesTable({ items, onDelete, onEdit, readOnly }: { items: BOQAdminExpense[], onDelete: (id: number) => void, onEdit: (item: BOQAdminExpense) => void, readOnly?: boolean }) {
     if (items.length === 0) return <EmptyState />;
     return (
-        <div className="space-y-3 p-3 sm:p-4">
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                {items.map((i, idx) => (
-                    <div key={i.id} className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:shadow-lg hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-200" style={{ animation: `tileIn 0.35s ease-out ${idx * 40}ms both` }}>
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                            <p className="text-xs sm:text-sm font-semibold text-slate-900 flex-1">{i.item_role || '—'}</p>
-                            {!readOnly && (
-                                <div className="flex gap-0.5 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                    <button type="button" onClick={() => onEdit(i)} className="p-1.5 sm:p-1 rounded hover:bg-emerald-50 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
-                                    <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 sm:p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
-                                </div>
-                            )}
-                        </div>
-                        {i.description && <p className="text-[11px] text-slate-400 line-clamp-1 mb-2">{i.description}</p>}
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                            <span>Trips/Wk: {i.trips_per_week || '—'}</span>
-                            <span>Distance: {i.distance || '—'} km</span>
-                            <span>Rate: ${Number(i.rate).toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center justify-end mt-2 sm:mt-3 pt-2 border-t border-slate-100">
-                            <span className="text-sm font-bold text-slate-900">${Number(i.total_cost).toLocaleString()}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
-                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Admin Costs</span>
-                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+        <div className="space-y-0 p-3 sm:p-4">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                        <thead className="bg-slate-50 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-200">
+                            <tr>
+                                <th className="px-4 py-3">Role</th>
+                                <th className="px-4 py-3">Description</th>
+                                <th className="px-4 py-3 text-right">Trips/Week</th>
+                                <th className="px-4 py-3 text-right">Distance (km)</th>
+                                <th className="px-4 py-3 text-right">Rate</th>
+                                <th className="px-4 py-3 text-right">Total Cost</th>
+                                {!readOnly && <th className="px-4 py-3 w-16 text-center"></th>}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {items.map((i, idx) => (
+                                <tr key={i.id} className="hover:bg-slate-50 transition-colors group">
+                                    <td className="px-4 py-3 text-slate-900 font-medium">{i.item_role || '—'}</td>
+                                    <td className="px-4 py-3 text-slate-700 whitespace-normal min-w-[200px]">{i.description || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{i.trips_per_week || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{i.distance || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">${Number(i.rate).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-900">${Number(i.total_cost).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    {!readOnly && (
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button type="button" onClick={() => onEdit(i)} className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
+                                                <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot className="bg-slate-900 text-white">
+                            <tr>
+                                <th colSpan={5} className="px-4 py-3 text-right text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-300 border-none">Total Admin Costs</th>
+                                <th className="px-4 py-3 text-right font-bold text-sm sm:text-lg border-none">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                {!readOnly && <th className="border-none"></th>}
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -582,38 +763,57 @@ function AdminExpensesTable({ items, onDelete, onEdit, readOnly }: { items: BOQA
 function LabourCostsTable({ items, onDelete, onEdit, readOnly }: { items: BOQLabourCost[], onDelete: (id: number) => void, onEdit: (item: BOQLabourCost) => void, readOnly?: boolean }) {
     if (items.length === 0) return <EmptyState />;
     return (
-        <div className="space-y-3 p-3 sm:p-4">
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                {items.map((i, idx) => (
-                    <div key={i.id} className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:shadow-lg hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-200" style={{ animation: `tileIn 0.35s ease-out ${idx * 40}ms both` }}>
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                            <p className="text-xs sm:text-sm font-semibold text-slate-900 flex-1">{i.trade_role || '—'}</p>
-                            {!readOnly && (
-                                <div className="flex gap-0.5 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                    <button type="button" onClick={() => onEdit(i)} className="p-1.5 sm:p-1 rounded hover:bg-emerald-50 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
-                                    <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 sm:p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-2 mb-2">
-                            {i.phase && <span className="text-[9px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-slate-200">{i.phase}</span>}
-                            {i.skill_level && <span className="text-[9px] bg-white text-slate-500 px-2 py-0.5 rounded border border-slate-100 italic">{i.skill_level}</span>}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                            <span>Gang: {i.gang_size || '—'}</span>
-                            <span>{i.duration_weeks || '—'} wks</span>
-                            <span>{i.total_man_days || '—'} man-days</span>
-                            <span>${Number(i.daily_rate).toLocaleString()}/day</span>
-                        </div>
-                        <div className="flex items-center justify-end mt-2 sm:mt-3 pt-2 border-t border-slate-100">
-                            <span className="text-sm font-bold text-emerald-700">${Number(i.total_cost).toLocaleString()}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
-                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Labour Cost</span>
-                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+        <div className="space-y-0 p-3 sm:p-4">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                        <thead className="bg-slate-50 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-200">
+                            <tr>
+                                <th className="px-4 py-3">Trade Role</th>
+                                <th className="px-4 py-3">Phase / Skill</th>
+                                <th className="px-4 py-3 text-right">Gang Size</th>
+                                <th className="px-4 py-3 text-right text-nowrap">Duration (wks)</th>
+                                <th className="px-4 py-3 text-right text-nowrap">Man-days</th>
+                                <th className="px-4 py-3 text-right">Daily Rate</th>
+                                <th className="px-4 py-3 text-right">Total Cost</th>
+                                {!readOnly && <th className="px-4 py-3 w-16 text-center"></th>}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {items.map((i, idx) => (
+                                <tr key={i.id} className="hover:bg-slate-50 transition-colors group">
+                                    <td className="px-4 py-3 text-slate-900 font-medium">{i.trade_role || '—'}</td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-col items-start gap-1">
+                                            {i.phase && <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">{i.phase}</span>}
+                                            {i.skill_level && <span className="text-[9px] text-slate-500 italic">{i.skill_level}</span>}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{i.gang_size || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{i.duration_weeks || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{i.total_man_days || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">${Number(i.daily_rate).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-900">${Number(i.total_cost).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    {!readOnly && (
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button type="button" onClick={() => onEdit(i)} className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
+                                                <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot className="bg-slate-900 text-white">
+                            <tr>
+                                <th colSpan={6} className="px-4 py-3 text-right text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-300 border-none">Total Labour Cost</th>
+                                <th className="px-4 py-3 text-right font-bold text-sm sm:text-lg border-none">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                {!readOnly && <th className="border-none"></th>}
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -622,34 +822,52 @@ function LabourCostsTable({ items, onDelete, onEdit, readOnly }: { items: BOQLab
 function MachinePlantsTable({ items, onDelete, onEdit, readOnly }: { items: BOQMachinePlant[], onDelete: (id: number) => void, onEdit: (item: BOQMachinePlant) => void, readOnly?: boolean }) {
     if (items.length === 0) return <EmptyState />;
     return (
-        <div className="space-y-3 p-3 sm:p-4">
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                {items.map((i, idx) => (
-                    <div key={i.id} className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:shadow-lg hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-200" style={{ animation: `tileIn 0.35s ease-out ${idx * 40}ms both` }}>
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                            <p className="text-xs sm:text-sm font-semibold text-slate-900 flex-1">{i.machine_item || '—'}</p>
-                            {!readOnly && (
-                                <div className="flex gap-0.5 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                    <button type="button" onClick={() => onEdit(i)} className="p-1.5 sm:p-1 rounded hover:bg-emerald-50 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
-                                    <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 sm:p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
-                                </div>
-                            )}
-                        </div>
-                        {i.category && <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-medium inline-block mb-2">{i.category}</span>}
-                        <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                            <span>Qty: {i.qty || '1'}</span>
-                            <span>Wet: ${Number(i.daily_wet_rate).toLocaleString()}/day</span>
-                            <span>{i.days_rqd || '—'} days</span>
-                        </div>
-                        <div className="flex items-center justify-end mt-2 sm:mt-3 pt-2 border-t border-slate-100">
-                            <span className="text-sm font-bold text-slate-900">${Number(i.total_cost).toLocaleString()}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
-                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Machine/Plant Cost</span>
-                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+        <div className="space-y-0 p-3 sm:p-4">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                        <thead className="bg-slate-50 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-200">
+                            <tr>
+                                <th className="px-4 py-3">Machine Item</th>
+                                <th className="px-4 py-3">Category</th>
+                                <th className="px-4 py-3 text-right">Qty</th>
+                                <th className="px-4 py-3 text-right text-nowrap">Days Rqd</th>
+                                <th className="px-4 py-3 text-right">Wet Rate</th>
+                                <th className="px-4 py-3 text-right">Total Cost</th>
+                                {!readOnly && <th className="px-4 py-3 w-16 text-center"></th>}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {items.map((i, idx) => (
+                                <tr key={i.id} className="hover:bg-slate-50 transition-colors group">
+                                    <td className="px-4 py-3 text-slate-900 font-medium whitespace-normal min-w-[200px]">{i.machine_item || '—'}</td>
+                                    <td className="px-4 py-3">
+                                        {i.category && <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded font-medium">{i.category}</span>}
+                                    </td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{i.qty || '1'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{i.days_rqd || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">${Number(i.daily_wet_rate).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-900">${Number(i.total_cost).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    {!readOnly && (
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button type="button" onClick={() => onEdit(i)} className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
+                                                <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot className="bg-slate-900 text-white">
+                            <tr>
+                                <th colSpan={5} className="px-4 py-3 text-right text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-300 border-none">Total Machine/Plant Cost</th>
+                                <th className="px-4 py-3 text-right font-bold text-sm sm:text-lg border-none">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                {!readOnly && <th className="border-none"></th>}
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -658,33 +876,50 @@ function MachinePlantsTable({ items, onDelete, onEdit, readOnly }: { items: BOQM
 function LabourBreakdownsTable({ items, onDelete, onEdit, readOnly }: { items: BOQLabourBreakdown[], onDelete: (id: number) => void, onEdit: (item: BOQLabourBreakdown) => void, readOnly?: boolean }) {
     if (items.length === 0) return <EmptyState />;
     return (
-        <div className="space-y-3 p-3 sm:p-4">
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {items.map((i, idx) => (
-                    <div key={i.id} className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:shadow-lg hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-200" style={{ animation: `tileIn 0.35s ease-out ${idx * 40}ms both` }}>
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                            <p className="text-xs sm:text-sm font-semibold text-slate-900 flex-1">{i.trade_role || '—'}</p>
-                            {!readOnly && (
-                                <div className="flex gap-0.5 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                    <button type="button" onClick={() => onEdit(i)} className="p-1.5 sm:p-1 rounded hover:bg-emerald-50 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
-                                    <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 sm:p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
-                                </div>
-                            )}
-                        </div>
-                        {i.phase && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium inline-block mb-2">{i.phase}</span>}
-                        <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                            <span>Gang: {i.gang_size || '—'}</span>
-                            <span>{i.duration_weeks || '—'} wks</span>
-                        </div>
-                        <div className="flex items-center justify-end mt-2 sm:mt-3 pt-2 border-t border-slate-100">
-                            <span className="text-sm font-bold text-slate-900">${Number(i.total_cost).toLocaleString()}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
-                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Labour Breakdown</span>
-                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+        <div className="space-y-0 p-3 sm:p-4">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                        <thead className="bg-slate-50 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-200">
+                            <tr>
+                                <th className="px-4 py-3">Trade Role</th>
+                                <th className="px-4 py-3">Phase</th>
+                                <th className="px-4 py-3 text-right">Gang Size</th>
+                                <th className="px-4 py-3 text-right">Duration (wks)</th>
+                                <th className="px-4 py-3 text-right">Total Cost</th>
+                                {!readOnly && <th className="px-4 py-3 w-16 text-center"></th>}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {items.map((i, idx) => (
+                                <tr key={i.id} className="hover:bg-slate-50 transition-colors group">
+                                    <td className="px-4 py-3 text-slate-900 font-medium">{i.trade_role || '—'}</td>
+                                    <td className="px-4 py-3">
+                                        {i.phase && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">{i.phase}</span>}
+                                    </td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{i.gang_size || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{i.duration_weeks || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-900">${Number(i.total_cost).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    {!readOnly && (
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button type="button" onClick={() => onEdit(i)} className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
+                                                <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot className="bg-slate-900 text-white">
+                            <tr>
+                                <th colSpan={4} className="px-4 py-3 text-right text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-300 border-none">Total Labour Breakdown</th>
+                                <th className="px-4 py-3 text-right font-bold text-sm sm:text-lg border-none">${items.reduce((sum, i) => sum + Number(i.total_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                {!readOnly && <th className="border-none"></th>}
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -693,36 +928,50 @@ function LabourBreakdownsTable({ items, onDelete, onEdit, readOnly }: { items: B
 function ScheduleTasksTable({ items, onDelete, onEdit, readOnly }: { items: BOQScheduleTask[], onDelete: (id: number) => void, onEdit: (item: BOQScheduleTask) => void, readOnly?: boolean }) {
     if (items.length === 0) return <EmptyState />;
     return (
-        <div className="space-y-3 p-3 sm:p-4">
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                {items.map((i, idx) => (
-                    <div key={i.id} className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:shadow-lg hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-200" style={{ animation: `tileIn 0.35s ease-out ${idx * 40}ms both` }}>
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                            <p className="text-xs sm:text-sm font-semibold text-slate-900 line-clamp-2 flex-1">{i.task_description || '—'}</p>
-                            <div className="flex items-center gap-1 shrink-0">
-                                {i.wbs && <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono">{i.wbs}</span>}
-                                {!readOnly && (
-                                    <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                        <button type="button" onClick={() => onEdit(i)} className="p-1.5 sm:p-1 rounded hover:bg-emerald-50 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
-                                        <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 sm:p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-[11px] text-slate-500 mt-1">
-                            <span>{i.start_date || '—'} → {i.end_date || '—'}</span>
-                            <span>{i.days || '—'} days</span>
-                            {i.predecessor && <span className="text-slate-400">← {i.predecessor}</span>}
-                        </div>
-                        <div className="flex items-center justify-end mt-2 sm:mt-3 pt-2 border-t border-slate-100">
-                            <span className="text-sm font-bold text-slate-900">${Number(i.est_cost).toLocaleString()}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm">
-                <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-widest">Total Schedule Cost</span>
-                <span className="text-sm sm:text-lg font-bold text-white">${items.reduce((sum, i) => sum + Number(i.est_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+        <div className="space-y-0 p-3 sm:p-4">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                        <thead className="bg-slate-50 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-200">
+                            <tr>
+                                <th className="px-4 py-3">WBS</th>
+                                <th className="px-4 py-3 min-w-[200px]">Task Description</th>
+                                <th className="px-4 py-3 text-center">Start → End</th>
+                                <th className="px-4 py-3 text-right">Days</th>
+                                <th className="px-4 py-3 text-center">Predecessor</th>
+                                <th className="px-4 py-3 text-right">Est. Cost</th>
+                                {!readOnly && <th className="px-4 py-3 w-16 text-center"></th>}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {items.map((i, idx) => (
+                                <tr key={i.id} className="hover:bg-slate-50 transition-colors group">
+                                    <td className="px-4 py-3 font-mono text-[11px] text-slate-500">{i.wbs || '—'}</td>
+                                    <td className="px-4 py-3 text-slate-900 font-medium whitespace-normal">{i.task_description || '—'}</td>
+                                    <td className="px-4 py-3 text-center text-slate-700 text-[11px]">{i.start_date || '—'} <span className="text-slate-400 mx-1">→</span> {i.end_date || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{i.days || '—'}</td>
+                                    <td className="px-4 py-3 text-center text-[11px] text-slate-500">{i.predecessor || '—'}</td>
+                                    <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-900">${Number(i.est_cost).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    {!readOnly && (
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button type="button" onClick={() => onEdit(i)} className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
+                                                <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot className="bg-slate-900 text-white">
+                            <tr>
+                                <th colSpan={5} className="px-4 py-3 text-right text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-300 border-none">Total Schedule Cost</th>
+                                <th className="px-4 py-3 text-right font-bold text-sm sm:text-lg border-none">${items.reduce((sum, i) => sum + Number(i.est_cost), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                {!readOnly && <th className="border-none"></th>}
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -751,34 +1000,47 @@ function ScheduleMaterialsTable({ items, onDelete, onEdit, readOnly }: { items: 
     };
 
     return (
-        <div className="space-y-4 sm:space-y-5 p-3 sm:p-4">
-            {Object.entries(groupedItems).map(([section, sectionItems]) => (
-                <div key={section}>
-                    <p className="text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 px-1">{formatSection(section)}</p>
-                    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                        {sectionItems.map((i, idx) => (
-                            <div key={i.id} className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:shadow-lg hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-200" style={{ animation: `tileIn 0.35s ease-out ${idx * 40}ms both` }}>
-                                <div className="flex items-start justify-between gap-2 mb-1">
-                                    <p className="text-xs sm:text-sm font-semibold text-slate-900 line-clamp-2 flex-1">{i.material_description}</p>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                        {i.is_ai_generated && <span className="text-base" title="AI generated">✨</span>}
+        <div className="space-y-0 p-3 sm:p-4">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                        <thead className="bg-slate-50 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-200">
+                            <tr>
+                                <th className="px-4 py-3">Material Description</th>
+                                <th className="px-4 py-3 text-right">Est. Qty</th>
+                                {!readOnly && <th className="px-4 py-3 w-16 text-center"></th>}
+                            </tr>
+                        </thead>
+                        {Object.entries(groupedItems).map(([section, sectionItems]) => (
+                            <tbody key={section} className="divide-y divide-slate-100">
+                                <tr className="bg-slate-50/80 border-t border-slate-200">
+                                    <td colSpan={readOnly ? 2 : 3} className="px-4 py-2 font-bold text-[10px] uppercase tracking-widest text-slate-500">
+                                        {formatSection(section)}
+                                    </td>
+                                </tr>
+                                {sectionItems.map((i, idx) => (
+                                    <tr key={i.id} className="hover:bg-slate-50 transition-colors group">
+                                        <td className="px-4 py-3 text-slate-900 font-medium whitespace-normal min-w-[250px]">
+                                            {i.material_description}
+                                            {i.is_ai_generated && <span className="ml-1" title="AI generated">✨</span>}
+                                            {i.specification && <p className="text-[11px] text-slate-400 font-normal mt-0.5">{i.specification}</p>}
+                                        </td>
+                                        <td className="px-4 py-3 text-right tabular-nums text-slate-700 font-semibold">{i.estimated_qty || '—'}</td>
                                         {!readOnly && (
-                                            <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                                <button type="button" onClick={() => onEdit(i)} className="p-1.5 sm:p-1 rounded hover:bg-emerald-50 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
-                                                <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 sm:p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
-                                            </div>
+                                            <td className="px-4 py-3 text-center">
+                                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button type="button" onClick={() => onEdit(i)} className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-emerald-600"><Icon name="edit" size={16} /></button>
+                                                    <button type="button" onClick={() => onDelete(i.id)} className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-rose-500"><Icon name="delete" size={16} /></button>
+                                                </div>
+                                            </td>
                                         )}
-                                    </div>
-                                </div>
-                                {i.specification && <p className="text-[11px] text-slate-400 line-clamp-2 mb-2">{i.specification}</p>}
-                                <div className="text-[11px] text-slate-500 mt-1">
-                                    <span>Est. Qty: {i.estimated_qty || '—'}</span>
-                                </div>
-                            </div>
+                                    </tr>
+                                ))}
+                            </tbody>
                         ))}
-                    </div>
+                    </table>
                 </div>
-            ))}
+            </div>
         </div>
     );
 }

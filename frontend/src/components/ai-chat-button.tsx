@@ -1127,7 +1127,7 @@ export function AiChatButton({ project, projectId: propProjectId }: AiChatButton
                                   <p className={`text-[10px] font-medium mt-2 ${boqSaveSuccessMsg.includes('Error') || boqSaveSuccessMsg.includes('Select') ? 'text-red-600' : 'text-emerald-700'}`}>
                                     {boqSaveSuccessMsg}
                                     {!boqSaveSuccessMsg.includes('Error') && !boqSaveSuccessMsg.includes('Select') && (
-                                      <a href="/builder/measurements" className="ml-2 underline text-emerald-800 hover:text-emerald-900 font-semibold">
+                                      <a href="/builder/projectbudget" className="ml-2 underline text-emerald-800 hover:text-emerald-900 font-semibold">
                                         Open Budget Page →
                                       </a>
                                     )}

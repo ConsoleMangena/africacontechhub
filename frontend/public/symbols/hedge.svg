@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="hedgeG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#43a047" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#2e7d32" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="33" width="94" height="38" rx="19" fill="#000" opacity="0.06" transform="translate(2,2)"/>
+  <rect x="2" y="30" width="96" height="40" rx="20" fill="url(#hedgeG)" stroke="#2e7d32" stroke-width="1.5"/>
+  <!-- Foliage clusters -->
+  <circle cx="18" cy="50" r="11" fill="#66bb6a" fill-opacity="0.2" stroke="#388e3c" stroke-width="0.7"/>
+  <circle cx="36" cy="48" r="12" fill="#43a047" fill-opacity="0.2" stroke="#388e3c" stroke-width="0.7"/>
+  <circle cx="54" cy="52" r="11" fill="#66bb6a" fill-opacity="0.2" stroke="#388e3c" stroke-width="0.7"/>
+  <circle cx="72" cy="49" r="12" fill="#43a047" fill-opacity="0.2" stroke="#388e3c" stroke-width="0.7"/>
+  <circle cx="88" cy="50" r="10" fill="#66bb6a" fill-opacity="0.18" stroke="#388e3c" stroke-width="0.7"/>
+  <!-- Highlight dots -->
+  <circle cx="26" cy="46" r="1.5" fill="#a5d6a7" opacity="0.5"/>
+  <circle cx="44" cy="52" r="1.5" fill="#a5d6a7" opacity="0.5"/>
+  <circle cx="62" cy="47" r="1.5" fill="#a5d6a7" opacity="0.5"/>
+  <circle cx="80" cy="51" r="1.5" fill="#a5d6a7" opacity="0.5"/>
+</svg>

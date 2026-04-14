@@ -107,12 +107,14 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 # Provider-agnostic primary config (Google Gemini default)
 AI_API_PROVIDER = os.getenv('AI_API_PROVIDER', 'google')
 AI_API_KEY = os.getenv('GEMINI_API_KEY', os.getenv('AI_API_KEY', ''))
+GEMINI_API_KEY = AI_API_KEY
 AI_BASE_URL = os.getenv('AI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai')
 AI_API_VERSION = os.getenv('AI_API_VERSION', 'v1beta')
 AI_CHAT_MODEL = os.getenv('AI_CHAT_MODEL', 'gemini-3.1-pro-preview')
 AI_DRAW_MODEL = os.getenv('AI_DRAW_MODEL', 'gemini-3.1-pro-preview')
 AI_ANALYSE_MODEL = os.getenv('AI_ANALYSE_MODEL', os.getenv('AI_CHAT_MODEL', 'gemini-3.1-pro-preview'))
 APIFY_API_TOKEN = os.getenv('APIFY_API_TOKEN', '')
+GEMINI_CHAT_MODEL = AI_CHAT_MODEL
 
 # ── Model Context Protocol (MCP) Configuration ───────────────────────
 # List of URLs for remote MCP servers (SSE transport)
@@ -284,4 +286,7 @@ if not DEBUG:
     _csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '')
     if _csrf_origins:
         CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+
+# ── Google Maps API ────────────────────────────────────────
+GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', '')
 

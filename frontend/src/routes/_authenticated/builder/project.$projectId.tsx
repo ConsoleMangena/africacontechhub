@@ -2,7 +2,7 @@ import { Icon } from '@/components/ui/material-icon'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useEffect, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { builderApi } from '@/services/api'
 import type { Project } from '@/types/api'
 import { DitDashboard } from '@/features/dashboards/builder/components/dit-dashboard'
@@ -147,18 +147,27 @@ function ProjectRouteComponent() {
             )}
           </div>
           <div className='ms-auto flex items-center justify-end gap-2 sm:gap-4'>
+            <Link to="/builder/architectural-studio" search={{ projectId }}>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 sm:h-10 rounded-xl border-slate-200 bg-white hover:bg-slate-50 px-3 sm:px-4 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-700 transition-all shadow-sm"
+              >
+                <Icon name="architecture" size={14} className="sm:mr-1.5" />
+                <span className="hidden sm:inline">Open Studio</span>
+              </Button>
+            </Link>
             {project.status === 'PLANNING' && (
               <Button
-                size="sm"
-                className="h-8 sm:h-9 bg-primary hover:bg-primary/90 text-primary-foreground px-2 sm:px-4"
                 onClick={handleInitiateProject}
                 disabled={initiating}
+                className="bg-slate-900 border-slate-900 hover:bg-slate-800 text-white h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest shadow-sm transition-all"
               >
                 {initiating ? (
-                  <Icon name="progress_activity" className="h-4 w-4 animate-spin" />
+                  <Icon name="progress_activity" size={14} className="animate-spin" />
                 ) : (
                   <>
-                    <Icon name="play_arrow" className="sm:mr-2 h-4 w-4" />
+                    <Icon name="play_arrow" size={14} className="sm:mr-1.5" />
                     <span className="hidden sm:inline">Initiate Project</span>
                   </>
                 )}

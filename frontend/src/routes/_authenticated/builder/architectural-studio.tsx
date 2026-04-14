@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   useRef,
   useState,
@@ -33,10 +33,14 @@ import {
   Button,
   Dropdown,
   Tooltip,
-  Switch,
+  message,
 } from "antd";
 import { ProfileDropdown } from "@/components/profile-dropdown";
-import { aiApi } from "@/services/api";
+import { aiApi, builderApi } from "@/services/api";
+import type { RoofType } from "@/components/three-cad-viewport";
+import { PrintElevations } from "@/components/print-elevations";
+import { PrintFloorPlan } from "@/components/print-floor-plan";
+import PrintSection from "@/components/print-section";
 
 const ThreeCADViewport = lazy(() =>
   import("@/components/three-cad-viewport").then((m) => ({ default: m.ThreeCADViewport }))
@@ -440,6 +444,154 @@ const SYMBOL_LIBRARY: Record<
     anchorX: 0,
     anchorY: 0,
   },
+  driveway: {
+    src: "/symbols/driveway.svg",
+    label: "Driveway",
+    defaultWidth: 3000,
+    defaultHeight: 6000,
+    anchorX: 0,
+    anchorY: 0,
+  },
+  veranda: {
+    src: "/symbols/veranda.svg",
+    label: "Veranda / Patio",
+    defaultWidth: 4000,
+    defaultHeight: 3000,
+    anchorX: 0,
+    anchorY: 0,
+  },
+  paved_area: {
+    src: "/symbols/paved_area.svg",
+    label: "Paved Area",
+    defaultWidth: 3000,
+    defaultHeight: 3000,
+    anchorX: 0,
+    anchorY: 0,
+  },
+  // ── Trees & Vegetation ──
+  tree_deciduous: {
+    src: "/symbols/tree_deciduous.svg",
+    label: "Deciduous Tree",
+    defaultWidth: 3000,
+    defaultHeight: 3000,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  tree_palm: {
+    src: "/symbols/tree_palm.svg",
+    label: "Palm Tree",
+    defaultWidth: 2400,
+    defaultHeight: 2400,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  tree_conifer: {
+    src: "/symbols/tree_conifer.svg",
+    label: "Conifer / Pine",
+    defaultWidth: 2000,
+    defaultHeight: 2000,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  shrub: {
+    src: "/symbols/shrub.svg",
+    label: "Shrub",
+    defaultWidth: 1500,
+    defaultHeight: 1200,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  hedge: {
+    src: "/symbols/hedge.svg",
+    label: "Hedge Row",
+    defaultWidth: 4000,
+    defaultHeight: 800,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  flower_bed: {
+    src: "/symbols/flower_bed.svg",
+    label: "Flower Bed",
+    defaultWidth: 2000,
+    defaultHeight: 2000,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  garden_bed: {
+    src: "/symbols/garden_bed.svg",
+    label: "Garden Bed",
+    defaultWidth: 3000,
+    defaultHeight: 3000,
+    anchorX: 0,
+    anchorY: 0,
+  },
+  lawn: {
+    src: "/symbols/lawn.svg",
+    label: "Lawn Area",
+    defaultWidth: 5000,
+    defaultHeight: 5000,
+    anchorX: 0,
+    anchorY: 0,
+  },
+  // ── Property & Boundaries ──
+  boundary_fence: {
+    src: "/symbols/boundary_fence.svg",
+    label: "Boundary Fence",
+    defaultWidth: 6000,
+    defaultHeight: 400,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  boundary_wall: {
+    src: "/symbols/boundary_wall.svg",
+    label: "Boundary Wall",
+    defaultWidth: 6000,
+    defaultHeight: 500,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  gate: {
+    src: "/symbols/gate.svg",
+    label: "Gate",
+    defaultWidth: 3000,
+    defaultHeight: 1500,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  // ── Utilities & Services ──
+  water_tank: {
+    src: "/symbols/water_tank.svg",
+    label: "Water Tank",
+    defaultWidth: 2000,
+    defaultHeight: 2000,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  borehole: {
+    src: "/symbols/borehole.svg",
+    label: "Borehole",
+    defaultWidth: 1500,
+    defaultHeight: 1500,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  // ── Outdoor Features ──
+  fire_pit: {
+    src: "/symbols/fire_pit.svg",
+    label: "Fire Pit",
+    defaultWidth: 1800,
+    defaultHeight: 1800,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  clothesline: {
+    src: "/symbols/clothesline.svg",
+    label: "Clothesline",
+    defaultWidth: 2400,
+    defaultHeight: 2400,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
 };
 
 // Image cache for symbols
@@ -455,6 +607,9 @@ function getSymbolImage(name: string): HTMLImageElement | null {
 }
 // Preload all symbols
 Object.keys(SYMBOL_LIBRARY).forEach((k) => getSymbolImage(k));
+// Expose cache globally for print components
+(window as any).__archStudioSymbolLibrary = SYMBOL_LIBRARY;
+(window as any).__archStudioSymbolCache = symbolImageCache;
 
 const DEFAULT_LAYERS: LayerData[] = [
   { name: "Layer 0", visible: true, locked: false, color: "#e8eaf0", lineType: "solid" },
@@ -496,6 +651,9 @@ export const Route = createFileRoute(
   "/_authenticated/builder/architectural-studio",
 )({
   component: ArchitecturalStudioCanvas,
+  validateSearch: (search: Record<string, unknown>) => ({
+    projectId: (search.projectId as string) || undefined,
+  }),
 });
 
 const COLORS = {
@@ -516,7 +674,13 @@ const COLORS = {
 };
 
 export type UnitSystem = "mm" | "cm" | "m" | "in" | "ft";
+export type BuildingType = "residential" | "commercial" | "industrial" | "institutional" | "mixed-use";
+export type WallMaterial = "brick" | "concrete-block" | "timber-frame" | "steel-frame" | "stone" | "precast";
+export type RoofMaterial = "concrete-tile" | "clay-tile" | "metal-sheet" | "slate" | "thatch" | "membrane";
+export type FoundationType = "strip" | "stepped" | "pad" | "raft";
+
 export interface DrawingSettings {
+  // Drawing
   unit: UnitSystem;
   precision: number;
   gridSize: number;
@@ -525,15 +689,39 @@ export interface DrawingSettings {
   mergeWalls: boolean;
   hatchRooms: boolean;
   roomLabels: boolean;
+  // Building info
+  projectName: string;
+  buildingType: BuildingType;
+  numStoreys: number;
+  // Structural dimensions (mm)
+  floorToFloorHeight: number;
+  ceilingHeight: number;
+  slabThickness: number;
+  foundationDepth: number;
+  foundationType: FoundationType;
+  // Materials
+  wallMaterial: WallMaterial;
+  roofMaterial: RoofMaterial;
+  // Site
+  plotWidth: number;
+  plotDepth: number;
+  setbackFront: number;
+  setbackRear: number;
+  setbackLeft: number;
+  setbackRight: number;
+  // Architectural tool defaults
   wallThickness: number;
   doorWidth: number;
+  doorHeight: number;
   windowWidth: number;
   windowHeight: number;
+  windowSillHeight: number;
   stairWidth: number;
   stairDepth: number;
 }
 
 export const DEFAULT_SETTINGS: DrawingSettings = {
+  // Drawing
   unit: "mm",
   precision: 1,
   gridSize: 20,
@@ -542,10 +730,33 @@ export const DEFAULT_SETTINGS: DrawingSettings = {
   mergeWalls: true,
   hatchRooms: true,
   roomLabels: true,
+  // Building info
+  projectName: "",
+  buildingType: "residential",
+  numStoreys: 1,
+  // Structural dimensions (mm)
+  floorToFloorHeight: 3000,
+  ceilingHeight: 2700,
+  slabThickness: 170,
+  foundationDepth: 600,
+  foundationType: "strip",
+  // Materials
+  wallMaterial: "brick",
+  roofMaterial: "concrete-tile",
+  // Site
+  plotWidth: 20000,
+  plotDepth: 30000,
+  setbackFront: 3000,
+  setbackRear: 3000,
+  setbackLeft: 1500,
+  setbackRight: 1500,
+  // Architectural tool defaults
   wallThickness: 200,
   doorWidth: 900,
+  doorHeight: 2100,
   windowWidth: 1200,
-  windowHeight: 200,
+  windowHeight: 1200,
+  windowSillHeight: 900,
   stairWidth: 900,
   stairDepth: 1800,
 };
@@ -610,6 +821,107 @@ function drawGrid(
 
 }
 
+function drawWindowSymbol2D(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  color: string,
+) {
+  const span = Math.max(Math.abs(width), Math.abs(height));
+  const depth = Math.max(6, Math.min(Math.min(Math.abs(width), Math.abs(height)), span * 0.22));
+  const halfW = width / 2;
+  const halfH = height / 2;
+  const isHorizontal = Math.abs(width) >= Math.abs(height);
+  const lineA = -depth * 0.28;
+  const lineB = depth * 0.28;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1, depth * 0.12);
+  ctx.setLineDash([]);
+
+  if (isHorizontal) {
+    ctx.beginPath();
+    ctx.moveTo(-halfW, -halfH);
+    ctx.lineTo(-halfW, halfH);
+    ctx.moveTo(halfW, -halfH);
+    ctx.lineTo(halfW, halfH);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-halfW, lineA);
+    ctx.lineTo(halfW, lineA);
+    ctx.moveTo(-halfW, lineB);
+    ctx.lineTo(halfW, lineB);
+    ctx.stroke();
+
+    ctx.lineWidth = Math.max(1, depth * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(-halfW * 0.7, 0);
+    ctx.lineTo(halfW * 0.7, 0);
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(-halfW, -halfH);
+    ctx.lineTo(halfW, -halfH);
+    ctx.moveTo(-halfW, halfH);
+    ctx.lineTo(halfW, halfH);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(lineA, -halfH);
+    ctx.lineTo(lineA, halfH);
+    ctx.moveTo(lineB, -halfH);
+    ctx.lineTo(lineB, halfH);
+    ctx.stroke();
+
+    ctx.lineWidth = Math.max(1, depth * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(0, -halfH * 0.7);
+    ctx.lineTo(0, halfH * 0.7);
+    ctx.stroke();
+  }
+}
+
+function drawDoorSwingSymbol2D(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  wallDepth: number,
+  color: string,
+  swing: "left" | "right",
+) {
+  const opening = Math.abs(width);
+  const halfDepth = wallDepth / 2;
+  const sign = swing === "left" ? 1 : -1;
+
+  ctx.strokeStyle = color;
+  ctx.setLineDash([]);
+
+  ctx.lineWidth = Math.max(1, wallDepth * 0.12);
+  ctx.beginPath();
+  ctx.moveTo(0, -halfDepth);
+  ctx.lineTo(0, halfDepth);
+  ctx.moveTo(sign * opening, -halfDepth);
+  ctx.lineTo(sign * opening, halfDepth);
+  ctx.stroke();
+
+  ctx.lineWidth = Math.max(1.2, wallDepth * 0.14);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, -opening);
+  ctx.stroke();
+
+  ctx.lineWidth = Math.max(1, wallDepth * 0.08);
+  ctx.setLineDash([Math.max(4, wallDepth * 0.3), Math.max(3, wallDepth * 0.22)]);
+  ctx.beginPath();
+  if (swing === "left") {
+    ctx.arc(0, 0, opening, 0, -Math.PI / 2, true);
+  } else {
+    ctx.arc(0, 0, opening, Math.PI, -Math.PI / 2, false);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
 type BlockInfo = { x: number; y: number; width: number; height: number; rot: number; sym: string };
 
 function drawElement(
@@ -627,6 +939,11 @@ function drawElement(
   ctx.fillStyle = selected ? COLORS.yellow + "22" : "transparent";
   ctx.lineWidth = Math.max(1, el.lineWidth * zoom);
   ctx.setLineDash(getLineDashForLayerLineType(layerLineType, el.lineWidth));
+  if ((el.type === "line" || el.type === "polyline") && el.layer === "Walls") {
+    ctx.lineCap = "square";
+    ctx.lineJoin = "miter";
+    ctx.miterLimit = 8;
+  }
 
 
   const drawRoomHatch = (x: number, y: number, w: number, h: number) => {
@@ -954,7 +1271,18 @@ function drawElement(
     ctx.translate(bx, by);
     ctx.rotate(rot);
     ctx.scale(flipX, flipY);
-    if (img && img.complete && img.naturalWidth > 0) {
+    if (/door_swing_left/i.test(el.symbolName) || /door_swing_right/i.test(el.symbolName)) {
+      const wallDepth = Math.max(8, Math.min(Math.abs(bh), s.wallThickness * zoom));
+      drawDoorSwingSymbol2D(
+        ctx,
+        bw,
+        wallDepth,
+        selected ? COLORS.yellow : el.color,
+        /left/i.test(el.symbolName) ? "left" : "right",
+      );
+    } else if (/window/i.test(el.symbolName)) {
+      drawWindowSymbol2D(ctx, bw, bh, selected ? COLORS.yellow : el.color);
+    } else if (img && img.complete && img.naturalWidth > 0) {
       if (el.color === "#ffffff") {
         // Fast path for white color (commonly used in dark mode)
         ctx.filter = "invert(1)";
@@ -1011,20 +1339,28 @@ function thickenLine(
   x2: number,
   y2: number,
   width: number,
+  extendStart = false,
+  extendEnd = false,
 ) {
   const dx = x2 - x1,
     dy = y2 - y1;
   const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len,
+    uy = dy / len;
   const nx = -dy / len,
     ny = dx / len;
   const h = width / 2;
+  const sx = x1 - (extendStart ? ux * h : 0);
+  const sy = y1 - (extendStart ? uy * h : 0);
+  const ex = x2 + (extendEnd ? ux * h : 0);
+  const ey = y2 + (extendEnd ? uy * h : 0);
   return [
     [
-      [x1 + nx * h, y1 + ny * h],
-      [x1 - nx * h, y1 - ny * h],
-      [x2 - nx * h, y2 - ny * h],
-      [x2 + nx * h, y2 + ny * h],
-      [x1 + nx * h, y1 + ny * h],
+      [sx + nx * h, sy + ny * h],
+      [sx - nx * h, sy - ny * h],
+      [ex - nx * h, ey - ny * h],
+      [ex + nx * h, ey + ny * h],
+      [sx + nx * h, sy + ny * h],
     ],
   ];
 }
@@ -1171,27 +1507,113 @@ function getCommandSuggestions(input: string): CommandDef[] {
 }
 
 export default function ArchitecturalStudioCanvas() {
+  const { projectId } = Route.useSearch();
+  const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cmdInputRef = useRef<HTMLInputElement>(null);
   const cmdHistoryRef = useRef<HTMLDivElement>(null);
+  const zoomIn3DRef = useRef<(() => void) | null>(null);
+  const zoomOut3DRef = useRef<(() => void) | null>(null);
+  const resetView3DRef = useRef<(() => void) | null>(null);
   const [tool, setTool] = useState<Tool>("line");
   const [aiMode, setAiMode] = useState(false);
   const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
+  const [roofType, setRoofType] = useState<RoofType>("flat");
+  const [showPrintElevations, setShowPrintElevations] = useState(false);
+  const [showPrintFloorPlan, setShowPrintFloorPlan] = useState(false);
+  const [showPrintSection, setShowPrintSection] = useState(false);
+  const [floorPlanPrintSnapshot, setFloorPlanPrintSnapshot] = useState<string | null>(null);
   const [color] = useState(COLORS.white);
   const lineWidth = 1;
+
+  const createPrintableFloorPlanSnapshot = useCallback(() => {
+    const source = canvasRef.current;
+    if (!source) return null;
+
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = source.width;
+    exportCanvas.height = source.height;
+    const exportCtx = exportCanvas.getContext("2d");
+    if (!exportCtx) return source.toDataURL("image/png");
+
+    exportCtx.drawImage(source, 0, 0);
+    const image = exportCtx.getImageData(0, 0, exportCanvas.width, exportCanvas.height);
+    const data = image.data;
+
+    const hexToRgb = (hex: string) => {
+      const clean = hex.replace("#", "");
+      return {
+        r: parseInt(clean.slice(0, 2), 16),
+        g: parseInt(clean.slice(2, 4), 16),
+        b: parseInt(clean.slice(4, 6), 16),
+      };
+    };
+
+    const bg = hexToRgb(COLORS.bg);
+    const grid = hexToRgb(COLORS.grid);
+    const gridMajor = hexToRgb(COLORS.gridMajor);
+    const whiteInk = hexToRgb(COLORS.white);
+
+    const isNear = (r: number, g: number, b: number, target: { r: number; g: number; b: number }, tol: number) => (
+      Math.abs(r - target.r) <= tol &&
+      Math.abs(g - target.g) <= tol &&
+      Math.abs(b - target.b) <= tol
+    );
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const a = data[i + 3];
+      if (a === 0) continue;
+
+      if (isNear(r, g, b, bg, 10)) {
+        data[i] = 255; data[i + 1] = 255; data[i + 2] = 255;
+      } else if (isNear(r, g, b, grid, 12)) {
+        data[i] = 236; data[i + 1] = 240; data[i + 2] = 244;
+      } else if (isNear(r, g, b, gridMajor, 12)) {
+        data[i] = 220; data[i + 1] = 226; data[i + 2] = 232;
+      } else if (isNear(r, g, b, whiteInk, 18)) {
+        data[i] = 34; data[i + 1] = 34; data[i + 2] = 34;
+      }
+    }
+
+    exportCtx.putImageData(image, 0, 0);
+    return exportCanvas.toDataURL("image/png");
+  }, []);
+
+  // ── Project-specific state ──
+  const [projectName, setProjectName] = useState<string | null>(null);
+  const [apiLoading, setApiLoading] = useState(!!projectId);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [showOpenProject, setShowOpenProject] = useState(false);
+  const [allProjects, setAllProjects] = useState<any[]>([]);
+
+  const projectIdNum = projectId ? Number(projectId) : null;
+  const storageKey = projectId ? `arch-studio-drawing-${projectId}` : STORAGE_KEY;
+
+  // Load all projects for Open Project dialog
+  useEffect(() => {
+    if (showOpenProject && allProjects.length === 0) {
+      builderApi.getProjects()
+        .then((res: any) => {
+          const data = Array.isArray(res.data) ? res.data : res.data?.results || [];
+          setAllProjects(data);
+        })
+        .catch(() => message.error("Failed to load projects"));
+    }
+  }, [showOpenProject, allProjects.length]);
+
+  const DEFAULT_STATE: SavedStudioState = {
+    pages: [{ id: "page-1", name: "Page 1", elements: [] }],
+    activePageId: "page-1",
+    layers: DEFAULT_LAYERS,
+    activeLayer: "Layer 0",
+  };
+
   const saved = useRef(
-    loadSaved<SavedStudioState>(STORAGE_KEY, {
-      pages: [
-        {
-          id: "page-1",
-          name: "Page 1",
-          elements: [],
-        },
-      ],
-      activePageId: "page-1",
-      layers: DEFAULT_LAYERS,
-      activeLayer: "Layer 0",
-    }),
+    loadSaved<SavedStudioState>(storageKey, DEFAULT_STATE),
   );
 
   const initialPages = useMemo<StudioPage[]>(() => {
@@ -1289,8 +1711,149 @@ export default function ArchitecturalStudioCanvas() {
   const [doorSwing, setDoorSwing] = useState<"right" | "left">("right");
   const [settings, setSettings] = useState<DrawingSettings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
+  const [elementsSidebarOpen, setElementsSidebarOpen] = useState(false);
+  const [sidebarSearch, setSidebarSearch] = useState("");
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(["Doors & Windows"]));
   const dragMoveStart = useRef<{ wx: number; wy: number } | null>(null);
   const isDragging = useRef(false);
+
+  // ── Refs that always hold the latest state (for save-on-exit) ──
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
+  const activePageIdRef = useRef(activePageId);
+  activePageIdRef.current = activePageId;
+  const layersRef = useRef(layers);
+  layersRef.current = layers;
+  const activeLayerRef = useRef(activeLayer);
+  activeLayerRef.current = activeLayer;
+  const getSnapshotRef = useRef(getSnapshot);
+  getSnapshotRef.current = getSnapshot;
+
+  // Build the payload object from refs (always up-to-date).
+  const buildPayload = useCallback(() => {
+    const snapshot = getSnapshotRef.current();
+    const latestPages = pagesRef.current.map((p) =>
+      p.id === activePageIdRef.current
+        ? { ...p, elements: snapshot.present }
+        : p,
+    );
+    return {
+      pages: latestPages,
+      activePageId: activePageIdRef.current,
+      layers: layersRef.current,
+      activeLayer: activeLayerRef.current,
+    };
+  }, []);
+
+  // Save to API
+  const saveToApi = useCallback(async (manual = false) => {
+    if (!projectIdNum) return;
+    try {
+      if (manual) setIsSaving(true);
+      const payload = buildPayload();
+      await builderApi.saveProjectDrawing(projectIdNum, payload);
+      setLastSavedAt(new Date());
+      if (manual) message.success("Drawing saved to project.");
+    } catch {
+      if (manual) message.error("Failed to save drawing.");
+    } finally {
+      if (manual) setIsSaving(false);
+    }
+  }, [projectIdNum, buildPayload]);
+
+  // Synchronously flush to localStorage only (safe for beforeunload).
+  const persistToStorage = useCallback(() => {
+    try {
+      const payload = buildPayload();
+      localStorage.setItem(storageKey, JSON.stringify(payload));
+    } catch {
+      /* storage full – nothing we can do */
+    }
+  }, [storageKey, buildPayload]);
+
+  // Save on tab close / refresh, page visibility change, and component unmount.
+  // beforeunload: localStorage only (sync, reliable, no auth side-effects).
+  // visibilitychange + unmount: localStorage + API.
+  useEffect(() => {
+    const onBeforeUnload = () => persistToStorage();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        persistToStorage();
+        saveToApi();
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      // Component unmount – final save
+      persistToStorage();
+      saveToApi();
+    };
+  }, [persistToStorage, saveToApi]);
+
+  // ── Load project info and drawing from API on mount ──
+  useEffect(() => {
+    if (!projectIdNum) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [projRes, drawRes] = await Promise.all([
+          builderApi.getProject(projectIdNum),
+          builderApi.getProjectDrawing(projectIdNum),
+        ]);
+        if (cancelled) return;
+
+        setProjectName(projRes.data.title);
+
+        setSettings((s) => ({
+          ...s,
+          projectName: projRes.data.title || s.projectName,
+        }));
+
+        const apiData = drawRes.data?.data;
+        if (apiData && apiData.pages && apiData.pages.length > 0) {
+          const validPages = (apiData.pages as StudioPage[]).filter(
+            (p): p is StudioPage =>
+              !!p && typeof p.id === "string" && typeof p.name === "string" && Array.isArray(p.elements),
+          );
+          if (validPages.length > 0) {
+            setPages(validPages);
+            const nextActiveId =
+              apiData.activePageId && validPages.some((p) => p.id === apiData.activePageId)
+                ? apiData.activePageId
+                : validPages[0].id;
+            setActivePageId(nextActiveId);
+            const targetPage = validPages.find((p) => p.id === nextActiveId) ?? validPages[0];
+            resetElements(targetPage.elements);
+            if (apiData.layers) setLayers(apiData.layers);
+            if (apiData.activeLayer) setActiveLayer(apiData.activeLayer);
+          }
+        }
+      } catch {
+        /* API unavailable — keep localStorage fallback */
+      } finally {
+        if (!cancelled) setApiLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [projectIdNum]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Debounced auto-save to API (every 10s of inactivity after a change) ──
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!projectIdNum) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      saveToApi();
+    }, 10_000);
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, [pages, activePageId, layers, activeLayer, projectIdNum, saveToApi]);
 
   const cmdLog = useCallback((msg: string) => {
     setCmdHistory((prev) => [...prev.slice(-50), msg]);
@@ -1767,12 +2330,13 @@ export default function ArchitecturalStudioCanvas() {
           }
 
           // ── Doors ── Compute hinge from wallId + position
-          for (const door of plan.doors) {
+          for (const door of plan.doors ?? []) {
             const wall = plan.walls.find((w) => w.id === door.wallId);
             if (!wall) continue;
 
             const doorW = door.width ?? settings.doorWidth;
             const isVert = isWallVertical(wall);
+            const doorDepth = wall.thickness === "interior" ? 150 : settings.wallThickness;
 
             // Door hinge at position along wall
             const pt = wallPoint(wall, door.position);
@@ -1805,7 +2369,7 @@ export default function ArchitecturalStudioCanvas() {
               id: door.id ?? crypto.randomUUID(),
               type: "block",
               x: pt.x, y: pt.y,
-              width: doorW, height: doorW,
+              width: doorW, height: doorDepth,
               symbolName,
               rotation,
               color: doorColor,
@@ -1817,7 +2381,7 @@ export default function ArchitecturalStudioCanvas() {
           }
 
           // ── Windows ── Compute center from wallId + centerPosition
-          for (const win of plan.windows) {
+          for (const win of plan.windows ?? []) {
             const wall = plan.walls.find((w) => w.id === win.wallId);
             if (!wall) continue;
 
@@ -1976,6 +2540,12 @@ export default function ArchitecturalStudioCanvas() {
                 id: crypto.randomUUID(), type: "rect",
                 x: sx, y: sy, width: sw, height: sh,
                 color: structColor, lineWidth: 1, layer: "Structure",
+              });
+            } else if (site.type === "BOUNDARY" && Array.isArray((sp as any).points) && ((sp as any).points as any[]).length >= 2) {
+              newElements.push({
+                id: crypto.randomUUID(), type: "polyline",
+                points: (sp as any).points,
+                color: siteColor, lineWidth: 3, layer: "Site",
               });
             }
           }
@@ -2704,7 +3274,7 @@ export default function ArchitecturalStudioCanvas() {
       }
 
       if (splitSpans.length === 0) {
-        return [thickenLine(x1, y1, x2, y2, lineWidth)];
+        return [thickenLine(x1, y1, x2, y2, lineWidth, true, true)];
       }
 
       splitSpans.sort((a, b) => a[0] - b[0]);
@@ -2725,7 +3295,9 @@ export default function ArchitecturalStudioCanvas() {
           outPolys.push(thickenLine(
             x1 + (x2 - x1) * tCurr, y1 + (y2 - y1) * tCurr,
             x1 + (x2 - x1) * sp[0], y1 + (y2 - y1) * sp[0],
-            lineWidth
+            lineWidth,
+            tCurr <= 0,
+            false,
           ));
         }
         tCurr = Math.max(tCurr, sp[1]);
@@ -2733,7 +3305,7 @@ export default function ArchitecturalStudioCanvas() {
       if (tCurr < 1) {
         outPolys.push(thickenLine(
           x1 + (x2 - x1) * tCurr, y1 + (y2 - y1) * tCurr,
-          x2, y2, lineWidth
+          x2, y2, lineWidth, false, true
         ));
       }
       return outPolys;
@@ -3226,12 +3798,13 @@ export default function ArchitecturalStudioCanvas() {
 
     // Ortho mode: constrain to 0°/90° from the start position when drawing
     if (orthoMode && drawing) {
-      const dx = finalX - startPos.x;
-      const dy = finalY - startPos.y;
+      const base = getBasePoint();
+      const dx = finalX - base.x;
+      const dy = finalY - base.y;
       if (Math.abs(dx) >= Math.abs(dy)) {
-        finalY = startPos.y; // horizontal lock
+        finalY = base.y; // horizontal lock
       } else {
-        finalX = startPos.x; // vertical lock
+        finalX = base.x; // vertical lock
       }
     }
 
@@ -3806,12 +4379,13 @@ export default function ArchitecturalStudioCanvas() {
       if (snap) {
         const scaleFactor = Math.max(settings.annoScale, 1);
         const doorWidth = settings.doorWidth / scaleFactor;
+        const doorDepth = settings.wallThickness / scaleFactor;
         setElements(prev => [...prev, {
           id: crypto.randomUUID(),
           type: "block",
           x: snap.x, y: snap.y,
           width: doorWidth,
-          height: doorWidth,
+          height: doorDepth,
           symbolName: symName,
           rotation: snap.rotation,
           color, lineWidth, layer: "Doors",
@@ -4005,6 +4579,7 @@ export default function ArchitecturalStudioCanvas() {
     const wallLW = settings.wallThickness;
     const newEls: DrawingElement[] = [];
     for (let i = 0; i < pts.length - 1; i++) {
+      if (Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y) < 1) continue;
       newEls.push({
         id: crypto.randomUUID(),
         type: "line",
@@ -4013,7 +4588,7 @@ export default function ArchitecturalStudioCanvas() {
         color: wallColor, lineWidth: wallLW, layer: "Walls",
       });
     }
-    setElements(prev => [...prev, ...newEls]);
+    setElements(prev => mergeCollinearWalls([...prev, ...newEls]));
     setDrawing(false);
     setPreviewEl(null);
     cmdLog(`Wall completed: ${newEls.length} segment${newEls.length > 1 ? "s" : ""}`);
@@ -4515,7 +5090,7 @@ export default function ArchitecturalStudioCanvas() {
   useEffect(() => {
     try {
       localStorage.setItem(
-        STORAGE_KEY,
+        storageKey,
         JSON.stringify({ pages, activePageId, layers, activeLayer }),
       );
     } catch {
@@ -4681,6 +5256,18 @@ export default function ArchitecturalStudioCanvas() {
           fontFamily: "'Roboto Mono', monospace",
         }}
       >
+        {/* ── Loading overlay while fetching project data ── */}
+        {apiLoading && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ background: COLORS.bg }}>
+            <div className="flex flex-col items-center gap-3">
+              <LoadingOutlined style={{ fontSize: 32, color: COLORS.accent }} />
+              <span className="text-xs uppercase tracking-widest" style={{ color: COLORS.muted }}>
+                Loading project…
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* ── Top Menu Bar ──────────────────────────────── */}
         <div
           className="flex items-center gap-0 px-2 h-12 shrink-0"
@@ -4690,7 +5277,8 @@ export default function ArchitecturalStudioCanvas() {
           }}
         >
           <Link
-            to="/builder"
+            to={projectId ? `/builder/project/$projectId` as any : "/builder"}
+            params={projectId ? { projectId } : undefined}
             className="flex flex-col items-center justify-center gap-0.5 mr-4 px-2 py-1 rounded transition-all hover:bg-white/10"
             title="Exit Studio"
             style={{ color: COLORS.muted }}
@@ -4698,6 +5286,36 @@ export default function ArchitecturalStudioCanvas() {
             <ArrowLeftOutlined style={{ fontSize: 16 }} />
             <span className="text-[8px] uppercase tracking-wider">Back</span>
           </Link>
+          {projectName && (
+            <div
+              className="flex items-center gap-2 mr-4 px-3 py-1 rounded"
+              style={{ background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)" }}
+            >
+              <span className="text-[9px] uppercase tracking-wider font-bold" style={{ color: COLORS.accent }}>
+                {projectName}
+              </span>
+            </div>
+          )}
+          {projectId && (
+            <div className="mr-4 flex items-center gap-2 px-2 py-0.5 rounded-full bg-black/20 border border-white/5">
+              {isSaving ? (
+                <>
+                  <LoadingOutlined className="text-[10px]" style={{ color: COLORS.cyan }} />
+                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Saving...</span>
+                </>
+              ) : lastSavedAt ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-widest">Saved</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  <span className="text-[9px] text-amber-600/70 font-bold uppercase tracking-widest">Unsaved</span>
+                </>
+              )}
+            </div>
+          )}
           <div
             className="w-px h-6 mr-4"
             style={{ background: COLORS.toolbarBorder }}
@@ -4728,6 +5346,14 @@ export default function ArchitecturalStudioCanvas() {
                       }
                     },
                   },
+                  {
+                    label: "Open Project...",
+                    action: () => setShowOpenProject(true),
+                  },
+                  ...(projectIdNum ? [{
+                    label: "Save Drawing",
+                    action: () => saveToApi(true),
+                  }] : []),
                   { label: "Export SVG", action: exportSVG },
                   {
                     label: "Print...",
@@ -4971,7 +5597,7 @@ export default function ArchitecturalStudioCanvas() {
             </button>
             <button
               onClick={() => {
-                if (viewMode === "3d") return; // 3D viewport handles its own orbit controls
+                if (viewMode === "3d") { zoomIn3DRef.current?.(); return; }
                 const canvas = canvasRef.current;
                 if (!canvas) return;
                 const cx = canvas.width / 2;
@@ -4980,15 +5606,15 @@ export default function ArchitecturalStudioCanvas() {
                 setPan({ x: cx - (cx - pan.x) * (newZoom / zoom), y: cy - (cy - pan.y) * (newZoom / zoom) });
                 setZoom(newZoom);
               }}
-              className={`text-[10px] px-2 py-0.5 rounded ${viewMode === "3d" ? "opacity-50 cursor-not-allowed" : "hover:bg-white/10"}`}
+              className="text-[10px] px-2 py-0.5 rounded hover:bg-white/10"
               style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyan}44` }}
-              title={viewMode === "3d" ? "Use mouse scroll to zoom in 3D" : "Zoom In"}
+              title="Zoom In"
             >
               +
             </button>
             <button
               onClick={() => {
-                if (viewMode === "3d") return;
+                if (viewMode === "3d") { zoomOut3DRef.current?.(); return; }
                 const canvas = canvasRef.current;
                 if (!canvas) return;
                 const cx = canvas.width / 2;
@@ -4997,24 +5623,24 @@ export default function ArchitecturalStudioCanvas() {
                 setPan({ x: cx - (cx - pan.x) * (newZoom / zoom), y: cy - (cy - pan.y) * (newZoom / zoom) });
                 setZoom(newZoom);
               }}
-              className={`text-[10px] px-2 py-0.5 rounded ${viewMode === "3d" ? "opacity-50 cursor-not-allowed" : "hover:bg-white/10"}`}
+              className="text-[10px] px-2 py-0.5 rounded hover:bg-white/10"
               style={{ color: COLORS.cyan, border: `1px solid ${COLORS.cyan}44` }}
-              title={viewMode === "3d" ? "Use mouse scroll to zoom in 3D" : "Zoom Out"}
+              title="Zoom Out"
             >
               −
             </button>
             <button
               onClick={() => {
-                if (viewMode === "3d") return;
+                if (viewMode === "3d") { resetView3DRef.current?.(); return; }
                 setPan({ x: 0, y: 0 });
                 setZoom(1);
               }}
-              className={`text-[10px] px-2 py-0.5 rounded ${viewMode === "3d" ? "opacity-50 cursor-not-allowed" : "hover:bg-white/10"}`}
+              className="text-[10px] px-2 py-0.5 rounded hover:bg-white/10"
               style={{
                 color: COLORS.cyan,
                 border: `1px solid ${COLORS.cyan}44`,
               }}
-              title={viewMode === "3d" ? "3D view cannot be reset here" : "Reset View"}
+              title="Reset View"
             >
               Reset View
             </button>
@@ -5033,6 +5659,38 @@ export default function ArchitecturalStudioCanvas() {
               >
                 Zoom to Fit
               </button>
+            )}
+
+            {/* Print Drawings */}
+            {elements.length > 0 && (
+              <Dropdown
+                menu={{
+                  items: [
+                    {
+                      key: "floor-plan",
+                      label: "🏠 Floor Plan",
+                      onClick: () => {
+                        setShowPrintFloorPlan(true);
+                      },
+                    },
+                    { key: "elevations", label: "🏗 Elevations", onClick: () => setShowPrintElevations(true) },
+                    { key: "section", label: "📐 Cross-Section", onClick: () => setShowPrintSection(true) },
+                  ],
+                }}
+                trigger={["click"]}
+                getPopupContainer={() => document.getElementById("arch-studio-root")!}
+              >
+                <button
+                  className="text-[10px] px-2 py-0.5 rounded hover:bg-white/10"
+                  style={{
+                    color: "#4caf50",
+                    border: "1px solid #4caf5044",
+                  }}
+                  title="Print architectural drawings (A3)"
+                >
+                  🖨 Print ▾
+                </button>
+              </Dropdown>
             )}
 
             {/* Proper App Links */}
@@ -5127,6 +5785,161 @@ export default function ArchitecturalStudioCanvas() {
             ))}
           </div>
 
+          {/* ── Canva-style Elements Sidebar ─────────────── */}
+          {elementsSidebarOpen && (
+            <div
+              className="flex flex-col shrink-0 overflow-hidden"
+              style={{
+                width: 220,
+                background: COLORS.toolbar,
+                borderRight: `1px solid ${COLORS.toolbarBorder}`,
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: COLORS.toolbarBorder }}>
+                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: COLORS.white }}>Elements</span>
+                <button
+                  onClick={() => setElementsSidebarOpen(false)}
+                  className="text-[14px] w-5 h-5 flex items-center justify-center rounded hover:bg-white/10"
+                  style={{ color: COLORS.muted }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Search */}
+              <div className="px-2 py-1.5 border-b" style={{ borderColor: COLORS.toolbarBorder }}>
+                <input
+                  type="text"
+                  value={sidebarSearch}
+                  onChange={(e) => setSidebarSearch(e.target.value)}
+                  placeholder="Search elements..."
+                  className="w-full px-2 py-1 rounded text-[11px] outline-none"
+                  style={{
+                    background: COLORS.bg,
+                    border: `1px solid ${COLORS.toolbarBorder}`,
+                    color: COLORS.white,
+                  }}
+                />
+              </div>
+
+              {/* Categories */}
+              <div className="flex-1 overflow-y-auto px-1 py-1" style={{ scrollbarWidth: "thin" }}>
+                {[
+                  { category: "Doors & Windows", icon: "🚪", items: ["door_swing_right", "door_swing_left", "sliding_door", "garage_door", "window"] },
+                  { category: "Bathroom", icon: "🚿", items: ["toilet", "basin", "bathtub", "shower"] },
+                  { category: "Kitchen", icon: "🍳", items: ["stove", "sink", "fridge", "kitchen_counter"] },
+                  { category: "Bedroom", icon: "🛏", items: ["bed_single", "bed_double"] },
+                  { category: "Living Room", icon: "🛋", items: ["sofa", "dining_table", "tv_unit"] },
+                  { category: "Structure", icon: "🏗", items: ["stairs", "column", "elevator", "escalator", "garage"] },
+                  { category: "Trees & Vegetation", icon: "🌳", items: ["tree_deciduous", "tree_palm", "tree_conifer", "shrub", "hedge", "flower_bed", "garden_bed", "lawn"] },
+                  { category: "Property & Boundaries", icon: "🧱", items: ["boundary_fence", "boundary_wall", "gate"] },
+                  { category: "Site & Outdoor", icon: "🏊", items: ["pool", "septic_tank", "parking", "driveway", "veranda", "paved_area"] },
+                  { category: "Utilities", icon: "🔧", items: ["water_tank", "borehole", "fire_pit", "clothesline"] },
+                ].map(group => {
+                  const searchLower = sidebarSearch.toLowerCase();
+                  const filteredItems = searchLower
+                    ? group.items.filter(sym => {
+                        const def = SYMBOL_LIBRARY[sym];
+                        return def && (def.label.toLowerCase().includes(searchLower) || sym.toLowerCase().includes(searchLower));
+                      })
+                    : group.items;
+
+                  if (searchLower && filteredItems.length === 0) return null;
+
+                  const isExpanded = expandedCategories.has(group.category) || !!searchLower;
+
+                  return (
+                    <div key={group.category} className="mb-0.5">
+                      {/* Category header — collapsible */}
+                      <button
+                        onClick={() => {
+                          setExpandedCategories(prev => {
+                            const next = new Set(prev);
+                            if (next.has(group.category)) next.delete(group.category);
+                            else next.add(group.category);
+                            return next;
+                          });
+                        }}
+                        className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-left hover:bg-white/5 transition-colors"
+                      >
+                        <span className="text-[12px]">{group.icon}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider flex-1" style={{ color: COLORS.white }}>
+                          {group.category}
+                        </span>
+                        <span className="text-[10px]" style={{ color: COLORS.muted, transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
+                          ▶
+                        </span>
+                      </button>
+
+                      {/* Items grid */}
+                      {isExpanded && (
+                        <div className="grid grid-cols-2 gap-1 px-1 pb-1.5">
+                          {(searchLower ? filteredItems : group.items).map(sym => {
+                            const def = SYMBOL_LIBRARY[sym];
+                            if (!def) return null;
+                            const isActive = pendingSymbol === sym;
+                            return (
+                              <button
+                                key={sym}
+                                onClick={() => {
+                                  setPendingSymbol(sym);
+                                  setTool("furniture");
+                                  cmdLog(`Selected: ${def.label} — Click to place`);
+                                }}
+                                className="flex flex-col items-center gap-0.5 p-1.5 rounded transition-all border"
+                                title={def.label}
+                                style={{
+                                  background: isActive ? COLORS.highlight : COLORS.bg,
+                                  borderColor: isActive ? COLORS.cyan : COLORS.toolbarBorder,
+                                }}
+                              >
+                                {/* SVG thumbnail */}
+                                <div className="w-10 h-10 flex items-center justify-center rounded overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                  <img
+                                    src={def.src}
+                                    alt={def.label}
+                                    className="max-w-full max-h-full object-contain"
+                                    style={{ filter: isActive ? "brightness(1.3)" : "brightness(0.85)" }}
+                                    draggable={false}
+                                  />
+                                </div>
+                                <span
+                                  className="text-[8px] leading-tight text-center truncate w-full"
+                                  style={{ color: isActive ? COLORS.cyan : COLORS.muted }}
+                                >
+                                  {def.label}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Sidebar toggle tab (when closed) */}
+          {!elementsSidebarOpen && (
+            <button
+              onClick={() => setElementsSidebarOpen(true)}
+              className="shrink-0 flex flex-col items-center justify-center gap-1 px-1 py-3 hover:bg-white/5 transition-colors"
+              style={{
+                background: COLORS.toolbar,
+                borderRight: `1px solid ${COLORS.toolbarBorder}`,
+                writingMode: "vertical-lr",
+              }}
+              title="Open Elements Panel"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: COLORS.cyan }}>
+                Elements ▶
+              </span>
+            </button>
+          )}
+
           {/* ── Canvas / 3D Viewport ─────────────────────── */}
           {viewMode === "2d" ? (
             <canvas
@@ -5160,6 +5973,13 @@ export default function ArchitecturalStudioCanvas() {
                   majorGrid={settings.majorGrid}
                   canvasWidth={canvasRef.current?.width ?? window.innerWidth}
                   canvasHeight={canvasRef.current?.height ?? window.innerHeight}
+                  roofType={roofType}
+                  foundationType={settings.foundationType}
+                  foundationDepth={settings.foundationDepth}
+                  onRoofTypeChange={setRoofType}
+                  onZoomIn3D={(fn) => { zoomIn3DRef.current = fn; }}
+                  onZoomOut3D={(fn) => { zoomOut3DRef.current = fn; }}
+                  onResetView3D={(fn) => { resetView3DRef.current = fn; }}
                 />
               </Suspense>
             </div>
@@ -5397,7 +6217,10 @@ export default function ArchitecturalStudioCanvas() {
                   { category: "Living", items: ["sofa", "dining_table", "tv_unit"] },
                   { category: "Other", items: ["garage"] },
                   { category: "Structure", items: ["stairs", "column", "elevator", "escalator"] },
-                  { category: "Site", items: ["pool", "septic_tank", "parking"] },
+                  { category: "Trees & Vegetation", items: ["tree_deciduous", "tree_palm", "tree_conifer", "shrub", "hedge", "flower_bed", "garden_bed", "lawn"] },
+                  { category: "Property & Boundaries", items: ["boundary_fence", "boundary_wall", "gate"] },
+                  { category: "Site & Outdoor", items: ["pool", "septic_tank", "parking", "driveway", "veranda", "paved_area"] },
+                  { category: "Utilities", items: ["water_tank", "borehole", "fire_pit", "clothesline"] },
                 ].map(group => (
                   <div key={group.category} className="mb-1.5">
                     <p className="text-[8px] uppercase tracking-wider mb-0.5" style={{ color: COLORS.muted }}>{group.category}</p>
@@ -5828,219 +6651,466 @@ export default function ArchitecturalStudioCanvas() {
               OK
             </Button>,
           ]}
-          styles={{ body: { paddingTop: 16 } }}
-          width={400}
+          styles={{ body: { paddingTop: 12, maxHeight: "70vh", overflowY: "auto" } }}
+          width={540}
         >
           <div className="space-y-4 text-xs font-mono">
-            <div>
-              <label className="block mb-1 font-semibold text-gray-400">
-                Drawing Units
-              </label>
-              <Select
-                value={settings.unit}
-                onChange={(val) =>
-                  setSettings((s) => ({ ...s, unit: val as UnitSystem }))
-                }
-                className="w-full"
-                options={[
-                  { value: "mm", label: "Millimeters (mm)" },
-                  { value: "cm", label: "Centimeters (cm)" },
-                  { value: "m", label: "Meters (m)" },
-                  { value: "in", label: "Inches (in)" },
-                  { value: "ft", label: "Feet (ft)" },
-                ]}
-              />
-            </div>
 
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block mb-1 font-semibold text-gray-400">
-                  Precision
-                </label>
-                <Select
-                  value={settings.precision}
-                  onChange={(val) =>
-                    setSettings((s) => ({ ...s, precision: val }))
-                  }
-                  className="w-full"
-                  options={[
-                    { value: 0, label: "0 (e.g. 10)" },
-                    { value: 1, label: "0.1 (e.g. 10.5)" },
-                    { value: 2, label: "0.01 (e.g. 10.50)" },
-                    { value: 3, label: "0.001 (e.g. 10.500)" },
-                  ]}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block mb-1 font-semibold text-gray-400">
-                  Annotation Scale
-                </label>
-                <Select
-                  value={settings.annoScale}
-                  onChange={(val) =>
-                    setSettings((s) => ({ ...s, annoScale: val }))
-                  }
-                  className="w-full"
-                  options={[
-                    { value: 200, label: "1:50 (200% size)" },
-                    { value: 100, label: "1:100 (100% size)" },
-                    { value: 50, label: "1:200 (50% size)" },
-                    { value: 25, label: "1:400 (25% size)" },
-                  ]}
-                />
-                <p className="text-[9px] mt-1 opacity-70 text-gray-500">
-                  Affects Text & Dimensions
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block mb-1 font-semibold text-gray-400">
-                  Grid Snap Size
-                </label>
-                <InputNumber
-                  className="w-full"
-                  value={settings.gridSize}
-                  onChange={(val) =>
-                    setSettings((s) => ({ ...s, gridSize: val || 20 }))
-                  }
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block mb-1 font-semibold text-gray-400">
-                  Major Grid Lines
-                </label>
-                <InputNumber
-                  className="w-full"
-                  value={settings.majorGrid}
-                  onChange={(val) =>
-                    setSettings((s) => ({ ...s, majorGrid: val || 5 }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="flex gap-4 mt-4">
-              <Checkbox
-                checked={settings.mergeWalls}
-                onChange={(e) =>
-                  setSettings((s) => ({ ...s, mergeWalls: e.target.checked }))
-                }
-              >
-                Merge Walls (Thickness-based)
-              </Checkbox>
-              <Checkbox
-                checked={settings.hatchRooms}
-                onChange={(e) =>
-                  setSettings((s) => ({ ...s, hatchRooms: e.target.checked }))
-                }
-              >
-                Hatch Rooms (Rectangles)
-              </Checkbox>
-              <Checkbox
-                checked={settings.roomLabels}
-                onChange={(e) =>
-                  setSettings((s) => ({ ...s, roomLabels: e.target.checked }))
-                }
-              >
-                Room Labels + Area
-              </Checkbox>
-            </div>
-
-            <div className="border-t pt-3" style={{ borderColor: COLORS.toolbarBorder }}>
-              <p className="text-[10px] font-semibold tracking-wider mb-2" style={{ color: COLORS.muted }}>
-                ARCHITECTURAL TOOL SETTINGS
+            {/* ── BUILDING INFO ─────────────────────────── */}
+            <div className="border-b pb-3" style={{ borderColor: COLORS.toolbarBorder }}>
+              <p className="text-[10px] font-semibold tracking-wider mb-2" style={{ color: "#22d3ee" }}>
+                BUILDING INFORMATION
               </p>
-
+              <div className="mb-3">
+                <label className="block mb-1 font-semibold text-gray-400">Project Name</label>
+                <input
+                  className="w-full px-2 py-1 rounded text-xs bg-[#1a1d27] border outline-none focus:border-cyan-600"
+                  style={{ borderColor: COLORS.toolbarBorder, color: "#e2e8f0" }}
+                  value={settings.projectName}
+                  onChange={(e) => setSettings((s) => ({ ...s, projectName: e.target.value }))}
+                  placeholder="e.g. Smith Residence"
+                />
+              </div>
               <div className="flex gap-4 mb-3">
                 <div className="flex-1">
-                  <label className="block mb-1 font-semibold text-gray-400">
-                    Wall Thickness (mm)
-                  </label>
-                  <InputNumber
-                    min={50}
+                  <label className="block mb-1 font-semibold text-gray-400">Building Type</label>
+                  <Select
+                    value={settings.buildingType}
+                    onChange={(val) => setSettings((s) => ({ ...s, buildingType: val as BuildingType }))}
                     className="w-full"
-                    value={settings.wallThickness}
-                    onChange={(val) =>
-                      setSettings((s) => ({ ...s, wallThickness: Number(val) || 200 }))
-                    }
+                    options={[
+                      { value: "residential", label: "Residential" },
+                      { value: "commercial", label: "Commercial" },
+                      { value: "industrial", label: "Industrial" },
+                      { value: "institutional", label: "Institutional" },
+                      { value: "mixed-use", label: "Mixed-Use" },
+                    ]}
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block mb-1 font-semibold text-gray-400">
-                    Door Width (mm)
-                  </label>
-                  <InputNumber
-                    min={100}
-                    className="w-full"
-                    value={settings.doorWidth}
-                    onChange={(val) =>
-                      setSettings((s) => ({ ...s, doorWidth: Number(val) || 900 }))
-                    }
+                  <label className="block mb-1 font-semibold text-gray-400">Number of Storeys</label>
+                  <InputNumber min={1} max={100} className="w-full" value={settings.numStoreys}
+                    onChange={(val) => setSettings((s) => ({ ...s, numStoreys: Number(val) || 1 }))}
                   />
                 </div>
               </div>
+            </div>
 
+            {/* ── STRUCTURAL DIMENSIONS ─────────────────── */}
+            <div className="border-b pb-3" style={{ borderColor: COLORS.toolbarBorder }}>
+              <p className="text-[10px] font-semibold tracking-wider mb-2" style={{ color: "#22d3ee" }}>
+                STRUCTURAL DIMENSIONS
+              </p>
               <div className="flex gap-4 mb-3">
                 <div className="flex-1">
-                  <label className="block mb-1 font-semibold text-gray-400">
-                    Window Width (mm)
-                  </label>
-                  <InputNumber
-                    min={100}
-                    className="w-full"
-                    value={settings.windowWidth}
-                    onChange={(val) =>
-                      setSettings((s) => ({ ...s, windowWidth: Number(val) || 1200 }))
-                    }
+                  <label className="block mb-1 font-semibold text-gray-400">Floor-to-Floor Height (mm)</label>
+                  <InputNumber min={2400} max={6000} className="w-full" value={settings.floorToFloorHeight}
+                    onChange={(val) => setSettings((s) => ({ ...s, floorToFloorHeight: Number(val) || 3000 }))}
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block mb-1 font-semibold text-gray-400">
-                    Window Height (mm)
-                  </label>
-                  <InputNumber
-                    min={50}
-                    className="w-full"
-                    value={settings.windowHeight}
-                    onChange={(val) =>
-                      setSettings((s) => ({ ...s, windowHeight: Number(val) || 200 }))
-                    }
+                  <label className="block mb-1 font-semibold text-gray-400">Ceiling Height (mm)</label>
+                  <InputNumber min={2100} max={5000} className="w-full" value={settings.ceilingHeight}
+                    onChange={(val) => setSettings((s) => ({ ...s, ceilingHeight: Number(val) || 2700 }))}
                   />
                 </div>
               </div>
-
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <label className="block mb-1 font-semibold text-gray-400">
-                    Stair Width (mm)
-                  </label>
-                  <InputNumber
-                    min={100}
-                    className="w-full"
-                    value={settings.stairWidth}
-                    onChange={(val) =>
-                      setSettings((s) => ({ ...s, stairWidth: Number(val) || 900 }))
-                    }
+                  <label className="block mb-1 font-semibold text-gray-400">Slab Thickness (mm)</label>
+                  <InputNumber min={100} max={500} className="w-full" value={settings.slabThickness}
+                    onChange={(val) => setSettings((s) => ({ ...s, slabThickness: Number(val) || 170 }))}
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block mb-1 font-semibold text-gray-400">
-                    Stair Depth (mm)
-                  </label>
-                  <InputNumber
-                    min={100}
-                    className="w-full"
-                    value={settings.stairDepth}
-                    onChange={(val) =>
-                      setSettings((s) => ({ ...s, stairDepth: Number(val) || 1800 }))
-                    }
+                  <label className="block mb-1 font-semibold text-gray-400">Foundation Depth (mm)</label>
+                  <InputNumber min={300} max={3000} className="w-full" value={settings.foundationDepth}
+                    onChange={(val) => setSettings((s) => ({ ...s, foundationDepth: Number(val) || 600 }))}
                   />
                 </div>
+              </div>
+              <div className="flex gap-4 mt-3">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Foundation Type</label>
+                  <Select
+                    value={settings.foundationType}
+                    onChange={(val) => setSettings((s) => ({ ...s, foundationType: val as FoundationType }))}
+                    className="w-full"
+                    options={[
+                      { value: "strip", label: "Strip Footing" },
+                      { value: "stepped", label: "Stepped Footing" },
+                      { value: "pad", label: "Pad / Isolated Footing" },
+                      { value: "raft", label: "Raft / Mat Foundation" },
+                    ]}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ── MATERIALS ─────────────────────────────── */}
+            <div className="border-b pb-3" style={{ borderColor: COLORS.toolbarBorder }}>
+              <p className="text-[10px] font-semibold tracking-wider mb-2" style={{ color: "#22d3ee" }}>
+                MATERIALS
+              </p>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Wall Material</label>
+                  <Select
+                    value={settings.wallMaterial}
+                    onChange={(val) => setSettings((s) => ({ ...s, wallMaterial: val as WallMaterial }))}
+                    className="w-full"
+                    options={[
+                      { value: "brick", label: "Brick" },
+                      { value: "concrete-block", label: "Concrete Block" },
+                      { value: "timber-frame", label: "Timber Frame" },
+                      { value: "steel-frame", label: "Steel Frame" },
+                      { value: "stone", label: "Stone" },
+                      { value: "precast", label: "Precast Concrete" },
+                    ]}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Roof Material</label>
+                  <Select
+                    value={settings.roofMaterial}
+                    onChange={(val) => setSettings((s) => ({ ...s, roofMaterial: val as RoofMaterial }))}
+                    className="w-full"
+                    options={[
+                      { value: "concrete-tile", label: "Concrete Tile" },
+                      { value: "clay-tile", label: "Clay Tile" },
+                      { value: "metal-sheet", label: "Metal Sheet (IBR)" },
+                      { value: "slate", label: "Slate" },
+                      { value: "thatch", label: "Thatch" },
+                      { value: "membrane", label: "Membrane / Flat" },
+                    ]}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ── SITE ──────────────────────────────────── */}
+            <div className="border-b pb-3" style={{ borderColor: COLORS.toolbarBorder }}>
+              <p className="text-[10px] font-semibold tracking-wider mb-2" style={{ color: "#22d3ee" }}>
+                SITE & SETBACKS
+              </p>
+              <div className="flex gap-4 mb-3">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Plot Width (mm)</label>
+                  <InputNumber min={1000} className="w-full" value={settings.plotWidth}
+                    onChange={(val) => setSettings((s) => ({ ...s, plotWidth: Number(val) || 20000 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Plot Depth (mm)</label>
+                  <InputNumber min={1000} className="w-full" value={settings.plotDepth}
+                    onChange={(val) => setSettings((s) => ({ ...s, plotDepth: Number(val) || 30000 }))}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Front</label>
+                  <InputNumber min={0} className="w-full" value={settings.setbackFront}
+                    onChange={(val) => setSettings((s) => ({ ...s, setbackFront: Number(val) || 0 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Rear</label>
+                  <InputNumber min={0} className="w-full" value={settings.setbackRear}
+                    onChange={(val) => setSettings((s) => ({ ...s, setbackRear: Number(val) || 0 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Left</label>
+                  <InputNumber min={0} className="w-full" value={settings.setbackLeft}
+                    onChange={(val) => setSettings((s) => ({ ...s, setbackLeft: Number(val) || 0 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Right</label>
+                  <InputNumber min={0} className="w-full" value={settings.setbackRight}
+                    onChange={(val) => setSettings((s) => ({ ...s, setbackRight: Number(val) || 0 }))}
+                  />
+                </div>
+              </div>
+              <p className="text-[9px] mt-1 opacity-70 text-gray-500">
+                Setback distances from plot boundary (mm)
+              </p>
+            </div>
+
+            {/* ── DRAWING SETTINGS ──────────────────────── */}
+            <div className="border-b pb-3" style={{ borderColor: COLORS.toolbarBorder }}>
+              <p className="text-[10px] font-semibold tracking-wider mb-2" style={{ color: "#22d3ee" }}>
+                DRAWING
+              </p>
+              <div className="flex gap-4 mb-3">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Drawing Units</label>
+                  <Select
+                    value={settings.unit}
+                    onChange={(val) => setSettings((s) => ({ ...s, unit: val as UnitSystem }))}
+                    className="w-full"
+                    options={[
+                      { value: "mm", label: "Millimeters (mm)" },
+                      { value: "cm", label: "Centimeters (cm)" },
+                      { value: "m", label: "Meters (m)" },
+                      { value: "in", label: "Inches (in)" },
+                      { value: "ft", label: "Feet (ft)" },
+                    ]}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Precision</label>
+                  <Select
+                    value={settings.precision}
+                    onChange={(val) => setSettings((s) => ({ ...s, precision: val }))}
+                    className="w-full"
+                    options={[
+                      { value: 0, label: "0 (e.g. 10)" },
+                      { value: 1, label: "0.1 (e.g. 10.5)" },
+                      { value: 2, label: "0.01 (e.g. 10.50)" },
+                      { value: 3, label: "0.001 (e.g. 10.500)" },
+                    ]}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-4 mb-3">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Grid Snap Size</label>
+                  <InputNumber className="w-full" value={settings.gridSize}
+                    onChange={(val) => setSettings((s) => ({ ...s, gridSize: val || 20 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Major Grid Lines</label>
+                  <InputNumber className="w-full" value={settings.majorGrid}
+                    onChange={(val) => setSettings((s) => ({ ...s, majorGrid: val || 5 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Annotation Scale</label>
+                  <Select
+                    value={settings.annoScale}
+                    onChange={(val) => setSettings((s) => ({ ...s, annoScale: val }))}
+                    className="w-full"
+                    options={[
+                      { value: 200, label: "1:50" },
+                      { value: 100, label: "1:100" },
+                      { value: 50, label: "1:200" },
+                      { value: 25, label: "1:400" },
+                    ]}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <Checkbox checked={settings.mergeWalls}
+                  onChange={(e) => setSettings((s) => ({ ...s, mergeWalls: e.target.checked }))}
+                >Merge Walls</Checkbox>
+                <Checkbox checked={settings.hatchRooms}
+                  onChange={(e) => setSettings((s) => ({ ...s, hatchRooms: e.target.checked }))}
+                >Hatch Rooms</Checkbox>
+                <Checkbox checked={settings.roomLabels}
+                  onChange={(e) => setSettings((s) => ({ ...s, roomLabels: e.target.checked }))}
+                >Room Labels + Area</Checkbox>
+              </div>
+            </div>
+
+            {/* ── ARCHITECTURAL TOOL DEFAULTS ───────────── */}
+            <div>
+              <p className="text-[10px] font-semibold tracking-wider mb-2" style={{ color: "#22d3ee" }}>
+                ARCHITECTURAL TOOL DEFAULTS
+              </p>
+              <div className="flex gap-4 mb-3">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Wall Thickness (mm)</label>
+                  <InputNumber min={50} className="w-full" value={settings.wallThickness}
+                    onChange={(val) => setSettings((s) => ({ ...s, wallThickness: Number(val) || 200 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Door Width (mm)</label>
+                  <InputNumber min={100} className="w-full" value={settings.doorWidth}
+                    onChange={(val) => setSettings((s) => ({ ...s, doorWidth: Number(val) || 900 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Door Height (mm)</label>
+                  <InputNumber min={1500} className="w-full" value={settings.doorHeight}
+                    onChange={(val) => setSettings((s) => ({ ...s, doorHeight: Number(val) || 2100 }))}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-4 mb-3">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Window Width (mm)</label>
+                  <InputNumber min={100} className="w-full" value={settings.windowWidth}
+                    onChange={(val) => setSettings((s) => ({ ...s, windowWidth: Number(val) || 1200 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Window Height (mm)</label>
+                  <InputNumber min={100} className="w-full" value={settings.windowHeight}
+                    onChange={(val) => setSettings((s) => ({ ...s, windowHeight: Number(val) || 1200 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Sill Height (mm)</label>
+                  <InputNumber min={0} className="w-full" value={settings.windowSillHeight}
+                    onChange={(val) => setSettings((s) => ({ ...s, windowSillHeight: Number(val) || 900 }))}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Stair Width (mm)</label>
+                  <InputNumber min={100} className="w-full" value={settings.stairWidth}
+                    onChange={(val) => setSettings((s) => ({ ...s, stairWidth: Number(val) || 900 }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-1 font-semibold text-gray-400">Stair Depth (mm)</label>
+                  <InputNumber min={100} className="w-full" value={settings.stairDepth}
+                    onChange={(val) => setSettings((s) => ({ ...s, stairDepth: Number(val) || 1800 }))}
+                  />
+                </div>
+                <div className="flex-1" />
               </div>
             </div>
           </div>
         </Modal>
+
+        {/* ── Print Elevations Overlay ── */}
+        {showPrintElevations && (
+          <PrintElevations
+            elements={elements}
+            settings={{
+              projectName: settings.projectName || projectName || "",
+              wallThickness: settings.wallThickness,
+              floorToFloorHeight: settings.floorToFloorHeight,
+              ceilingHeight: settings.ceilingHeight,
+              foundationDepth: settings.foundationDepth,
+              foundationType: settings.foundationType,
+              slabThickness: settings.slabThickness,
+              numStoreys: settings.numStoreys,
+              doorWidth: settings.doorWidth,
+              doorHeight: settings.doorHeight,
+              windowWidth: settings.windowWidth,
+              windowHeight: settings.windowHeight,
+              windowSillHeight: settings.windowSillHeight,
+              roofType,
+              roofMaterial: settings.roofMaterial,
+              wallMaterial: settings.wallMaterial,
+              plotWidth: settings.plotWidth,
+              plotDepth: settings.plotDepth,
+            }}
+            onClose={() => setShowPrintElevations(false)}
+          />
+        )}
+
+        {/* ── Print Floor Plan Overlay ── */}
+        {showPrintFloorPlan && (
+          <PrintFloorPlan
+            elements={elements}
+            layers={layers}
+            settings={{
+              projectName: settings.projectName || projectName || "",
+              unit: settings.unit,
+              precision: settings.precision,
+              gridSize: settings.gridSize,
+              majorGrid: settings.majorGrid,
+              annoScale: settings.annoScale,
+              mergeWalls: settings.mergeWalls,
+              hatchRooms: settings.hatchRooms,
+              roomLabels: settings.roomLabels,
+              wallThickness: settings.wallThickness,
+              floorToFloorHeight: settings.floorToFloorHeight,
+              ceilingHeight: settings.ceilingHeight,
+              foundationDepth: settings.foundationDepth,
+              foundationType: settings.foundationType,
+              numStoreys: settings.numStoreys,
+              wallMaterial: settings.wallMaterial,
+              roofMaterial: settings.roofMaterial,
+              plotWidth: settings.plotWidth,
+              plotDepth: settings.plotDepth,
+            }}
+            onClose={() => setShowPrintFloorPlan(false)}
+          />
+        )}
+        {/* ── Print Section Overlay ── */}
+        {showPrintSection && (
+          <PrintSection
+            elements={elements}
+            settings={{
+              projectName: settings.projectName || projectName || "",
+              wallThickness: settings.wallThickness,
+              floorToFloorHeight: settings.floorToFloorHeight,
+              ceilingHeight: settings.ceilingHeight,
+              foundationDepth: settings.foundationDepth,
+              foundationType: settings.foundationType,
+              slabThickness: settings.slabThickness,
+              numStoreys: settings.numStoreys,
+              roofType,
+              roofMaterial: settings.roofMaterial,
+              wallMaterial: settings.wallMaterial,
+              plotWidth: settings.plotWidth,
+              plotDepth: settings.plotDepth,
+            }}
+            onClose={() => setShowPrintSection(false)}
+          />
+        )}
+
+      {/* ── Open Project Dialog ── */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <RobotOutlined className="text-cyan-600" />
+            <span>Open Project Drawing</span>
+          </div>
+        }
+        open={showOpenProject}
+        onCancel={() => setShowOpenProject(false)}
+        footer={null}
+        styles={{ body: { padding: 0 } }}
+        destroyOnClose
+      >
+        <div className="max-h-[60vh] overflow-y-auto">
+          {allProjects.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+              <LoadingOutlined className="text-2xl mb-4" />
+              <p>Loading projects...</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {allProjects.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => {
+                    setShowOpenProject(false);
+                    if (p.id !== projectIdNum) {
+                      navigate({ to: "/builder/architectural-studio", search: { projectId: String(p.id) } });
+                    }
+                  }}
+                  className="p-4 hover:bg-slate-50 cursor-pointer flex items-center justify-between group transition-colors"
+                >
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800">{p.title}</h4>
+                    <p className="text-xs text-slate-500">{p.location || "No location"}</p>
+                  </div>
+                  <Button
+                    type="primary"
+                    ghost
+                    size="small"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    Open
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
+
       </div>
     </ConfigProvider >
   );

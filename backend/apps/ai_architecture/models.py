@@ -173,6 +173,69 @@ class SiteIntel(TimeStampedModel):
         return f"Site Intel for {self.project.title} ({self.created_at.date()})"
 
 
+class DrawingStylePreset(TimeStampedModel):
+    """
+    Configurable drawing style presets for AI image generation.
+    Controls prompt engineering parameters for different architectural styles.
+    """
+    name = models.CharField(max_length=120, help_text="Preset name, e.g. 'Modern Minimalist'")
+    is_active = models.BooleanField(default=True)
+    priority = models.IntegerField(default=0, help_text="Higher priority presets are matched first")
+    keywords = models.TextField(
+        blank=True, default='',
+        help_text="Comma-separated keywords that trigger this preset (e.g. 'modern, minimalist, clean')"
+    )
+    prompt_prefix = models.TextField(
+        blank=True, default='',
+        help_text="Text prepended to the image generation prompt when this preset matches"
+    )
+    prompt_suffix = models.TextField(
+        blank=True, default='',
+        help_text="Text appended to the image generation prompt when this preset matches"
+    )
+    negative_prompt = models.TextField(
+        blank=True, default='',
+        help_text="Negative prompt additions for this style"
+    )
+    guidance_scale = models.FloatField(default=12.0, help_text="CFG guidance scale for image generation")
+
+    class Meta:
+        ordering = ['-priority', 'name']
+        verbose_name = 'Drawing Style Preset'
+        verbose_name_plural = 'Drawing Style Presets'
+
+    def __str__(self):
+        return f"{self.name} {'(active)' if self.is_active else ''}"
+
+    def get_keywords_list(self) -> list:
+        return [k.strip().lower() for k in self.keywords.split(',') if k.strip()]
+
+
+class ImageFeedback(TimeStampedModel):
+    """
+    Stores user feedback on AI-generated images for quality improvement.
+    High-rated prompts are used as few-shot examples for future generations.
+    """
+    message = models.ForeignKey(ChatMessage, on_delete=models.CASCADE, related_name='image_feedback')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='image_feedback')
+    rating = models.IntegerField(help_text="1-5 star rating")
+    original_prompt = models.TextField(blank=True, default='')
+    preset_used = models.ForeignKey(
+        DrawingStylePreset, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='feedback'
+    )
+    feedback_text = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = [('message', 'user')]
+        verbose_name = 'Image Feedback'
+        verbose_name_plural = 'Image Feedback'
+
+    def __str__(self):
+        return f"Feedback by {self.user.username} — {self.rating}★"
+
+
 class BOQTemplate(TimeStampedModel):
     """
     Admin-configurable BOQ format template.

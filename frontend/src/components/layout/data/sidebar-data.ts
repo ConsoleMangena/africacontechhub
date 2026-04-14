@@ -78,14 +78,34 @@ export const sidebarData: SidebarData = {
           icon: 'architecture',
         },
         {
+          title: 'Budget Engineer',
+          url: '/builder/budget-engineer',
+          icon: 'engineering',
+        },
+        {
+          title: 'AI Contract Analyser',
+          url: '/builder/contract-analyser',
+          icon: 'gavel',
+        },
+        {
           title: 'Construction Budget',
-          url: '/builder/measurements',
+          url: '/builder/projectbudget',
           icon: 'receipt_long',
+        },
+        {
+          title: 'Group Buy Aggregator',
+          url: '/builder/group-buy',
+          icon: 'group_add',
         },
         {
           title: 'Procurement',
           url: '/builder/procurement',
           icon: 'inventory_2',
+        },
+        {
+          title: 'Task Board',
+          url: '/builder/task-board',
+          icon: 'view_kanban',
         },
         {
           title: 'Building the Project',
@@ -165,11 +185,6 @@ export const sidebarData: SidebarData = {
               title: 'Account',
               url: '/settings/account',
               icon: 'manage_accounts',
-            },
-            {
-              title: 'Appearance',
-              url: '/settings/appearance',
-              icon: 'palette',
             },
             {
               title: 'Notifications',

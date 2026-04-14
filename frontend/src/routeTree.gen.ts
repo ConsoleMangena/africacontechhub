@@ -35,14 +35,17 @@ import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedBuilderIndexRouteImport } from './routes/_authenticated/builder/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
-import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
+import { Route as AuthenticatedBuilderTaskBoardRouteImport } from './routes/_authenticated/builder/task-board'
+import { Route as AuthenticatedBuilderProjectbudgetRouteImport } from './routes/_authenticated/builder/projectbudget'
 import { Route as AuthenticatedBuilderProcurementRouteImport } from './routes/_authenticated/builder/procurement'
-import { Route as AuthenticatedBuilderMeasurementsRouteImport } from './routes/_authenticated/builder/measurements'
+import { Route as AuthenticatedBuilderGroupBuyRouteImport } from './routes/_authenticated/builder/group-buy'
 import { Route as AuthenticatedBuilderFloorPlansRouteImport } from './routes/_authenticated/builder/floor-plans'
 import { Route as AuthenticatedBuilderDesignDraftingRouteImport } from './routes/_authenticated/builder/design-drafting'
+import { Route as AuthenticatedBuilderContractAnalyserRouteImport } from './routes/_authenticated/builder/contract-analyser'
 import { Route as AuthenticatedBuilderBuildingRouteImport } from './routes/_authenticated/builder/building'
+import { Route as AuthenticatedBuilderBudgetEngineerRouteImport } from './routes/_authenticated/builder/budget-engineer'
 import { Route as AuthenticatedBuilderArchitecturalStudioRouteImport } from './routes/_authenticated/builder/architectural-studio'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminTeamRouteImport } from './routes/_authenticated/admin/team'
@@ -196,12 +199,6 @@ const AuthenticatedSettingsNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
-const AuthenticatedSettingsAppearanceRoute =
-  AuthenticatedSettingsAppearanceRouteImport.update({
-    id: '/appearance',
-    path: '/appearance',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
 const AuthenticatedSettingsAccountRoute =
   AuthenticatedSettingsAccountRouteImport.update({
     id: '/account',
@@ -214,16 +211,28 @@ const AuthenticatedErrorsErrorRoute =
     path: '/errors/$error',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedBuilderTaskBoardRoute =
+  AuthenticatedBuilderTaskBoardRouteImport.update({
+    id: '/task-board',
+    path: '/task-board',
+    getParentRoute: () => AuthenticatedBuilderRoute,
+  } as any)
+const AuthenticatedBuilderProjectbudgetRoute =
+  AuthenticatedBuilderProjectbudgetRouteImport.update({
+    id: '/projectbudget',
+    path: '/projectbudget',
+    getParentRoute: () => AuthenticatedBuilderRoute,
+  } as any)
 const AuthenticatedBuilderProcurementRoute =
   AuthenticatedBuilderProcurementRouteImport.update({
     id: '/procurement',
     path: '/procurement',
     getParentRoute: () => AuthenticatedBuilderRoute,
   } as any)
-const AuthenticatedBuilderMeasurementsRoute =
-  AuthenticatedBuilderMeasurementsRouteImport.update({
-    id: '/measurements',
-    path: '/measurements',
+const AuthenticatedBuilderGroupBuyRoute =
+  AuthenticatedBuilderGroupBuyRouteImport.update({
+    id: '/group-buy',
+    path: '/group-buy',
     getParentRoute: () => AuthenticatedBuilderRoute,
   } as any)
 const AuthenticatedBuilderFloorPlansRoute =
@@ -238,10 +247,22 @@ const AuthenticatedBuilderDesignDraftingRoute =
     path: '/design-drafting',
     getParentRoute: () => AuthenticatedBuilderRoute,
   } as any)
+const AuthenticatedBuilderContractAnalyserRoute =
+  AuthenticatedBuilderContractAnalyserRouteImport.update({
+    id: '/contract-analyser',
+    path: '/contract-analyser',
+    getParentRoute: () => AuthenticatedBuilderRoute,
+  } as any)
 const AuthenticatedBuilderBuildingRoute =
   AuthenticatedBuilderBuildingRouteImport.update({
     id: '/building',
     path: '/building',
+    getParentRoute: () => AuthenticatedBuilderRoute,
+  } as any)
+const AuthenticatedBuilderBudgetEngineerRoute =
+  AuthenticatedBuilderBudgetEngineerRouteImport.update({
+    id: '/budget-engineer',
+    path: '/budget-engineer',
     getParentRoute: () => AuthenticatedBuilderRoute,
   } as any)
 const AuthenticatedBuilderArchitecturalStudioRoute =
@@ -384,14 +405,17 @@ export interface FileRoutesByFullPath {
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRouteWithChildren
   '/builder/architectural-studio': typeof AuthenticatedBuilderArchitecturalStudioRoute
+  '/builder/budget-engineer': typeof AuthenticatedBuilderBudgetEngineerRoute
   '/builder/building': typeof AuthenticatedBuilderBuildingRoute
+  '/builder/contract-analyser': typeof AuthenticatedBuilderContractAnalyserRoute
   '/builder/design-drafting': typeof AuthenticatedBuilderDesignDraftingRoute
   '/builder/floor-plans': typeof AuthenticatedBuilderFloorPlansRoute
-  '/builder/measurements': typeof AuthenticatedBuilderMeasurementsRoute
+  '/builder/group-buy': typeof AuthenticatedBuilderGroupBuyRoute
   '/builder/procurement': typeof AuthenticatedBuilderProcurementRoute
+  '/builder/projectbudget': typeof AuthenticatedBuilderProjectbudgetRoute
+  '/builder/task-board': typeof AuthenticatedBuilderTaskBoardRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
-  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/builder/': typeof AuthenticatedBuilderIndexRoute
@@ -434,14 +458,17 @@ export interface FileRoutesByTo {
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRouteWithChildren
   '/builder/architectural-studio': typeof AuthenticatedBuilderArchitecturalStudioRoute
+  '/builder/budget-engineer': typeof AuthenticatedBuilderBudgetEngineerRoute
   '/builder/building': typeof AuthenticatedBuilderBuildingRoute
+  '/builder/contract-analyser': typeof AuthenticatedBuilderContractAnalyserRoute
   '/builder/design-drafting': typeof AuthenticatedBuilderDesignDraftingRoute
   '/builder/floor-plans': typeof AuthenticatedBuilderFloorPlansRoute
-  '/builder/measurements': typeof AuthenticatedBuilderMeasurementsRoute
+  '/builder/group-buy': typeof AuthenticatedBuilderGroupBuyRoute
   '/builder/procurement': typeof AuthenticatedBuilderProcurementRoute
+  '/builder/projectbudget': typeof AuthenticatedBuilderProjectbudgetRoute
+  '/builder/task-board': typeof AuthenticatedBuilderTaskBoardRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
-  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/builder': typeof AuthenticatedBuilderIndexRoute
@@ -489,14 +516,17 @@ export interface FileRoutesById {
   '/_authenticated/admin/team': typeof AuthenticatedAdminTeamRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRouteWithChildren
   '/_authenticated/builder/architectural-studio': typeof AuthenticatedBuilderArchitecturalStudioRoute
+  '/_authenticated/builder/budget-engineer': typeof AuthenticatedBuilderBudgetEngineerRoute
   '/_authenticated/builder/building': typeof AuthenticatedBuilderBuildingRoute
+  '/_authenticated/builder/contract-analyser': typeof AuthenticatedBuilderContractAnalyserRoute
   '/_authenticated/builder/design-drafting': typeof AuthenticatedBuilderDesignDraftingRoute
   '/_authenticated/builder/floor-plans': typeof AuthenticatedBuilderFloorPlansRoute
-  '/_authenticated/builder/measurements': typeof AuthenticatedBuilderMeasurementsRoute
+  '/_authenticated/builder/group-buy': typeof AuthenticatedBuilderGroupBuyRoute
   '/_authenticated/builder/procurement': typeof AuthenticatedBuilderProcurementRoute
+  '/_authenticated/builder/projectbudget': typeof AuthenticatedBuilderProjectbudgetRoute
+  '/_authenticated/builder/task-board': typeof AuthenticatedBuilderTaskBoardRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
-  '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/builder/': typeof AuthenticatedBuilderIndexRoute
@@ -544,14 +574,17 @@ export interface FileRouteTypes {
     | '/admin/team'
     | '/admin/users'
     | '/builder/architectural-studio'
+    | '/builder/budget-engineer'
     | '/builder/building'
+    | '/builder/contract-analyser'
     | '/builder/design-drafting'
     | '/builder/floor-plans'
-    | '/builder/measurements'
+    | '/builder/group-buy'
     | '/builder/procurement'
+    | '/builder/projectbudget'
+    | '/builder/task-board'
     | '/errors/$error'
     | '/settings/account'
-    | '/settings/appearance'
     | '/settings/notifications'
     | '/admin/'
     | '/builder/'
@@ -594,14 +627,17 @@ export interface FileRouteTypes {
     | '/admin/team'
     | '/admin/users'
     | '/builder/architectural-studio'
+    | '/builder/budget-engineer'
     | '/builder/building'
+    | '/builder/contract-analyser'
     | '/builder/design-drafting'
     | '/builder/floor-plans'
-    | '/builder/measurements'
+    | '/builder/group-buy'
     | '/builder/procurement'
+    | '/builder/projectbudget'
+    | '/builder/task-board'
     | '/errors/$error'
     | '/settings/account'
-    | '/settings/appearance'
     | '/settings/notifications'
     | '/admin'
     | '/builder'
@@ -648,14 +684,17 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/team'
     | '/_authenticated/admin/users'
     | '/_authenticated/builder/architectural-studio'
+    | '/_authenticated/builder/budget-engineer'
     | '/_authenticated/builder/building'
+    | '/_authenticated/builder/contract-analyser'
     | '/_authenticated/builder/design-drafting'
     | '/_authenticated/builder/floor-plans'
-    | '/_authenticated/builder/measurements'
+    | '/_authenticated/builder/group-buy'
     | '/_authenticated/builder/procurement'
+    | '/_authenticated/builder/projectbudget'
+    | '/_authenticated/builder/task-board'
     | '/_authenticated/errors/$error'
     | '/_authenticated/settings/account'
-    | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/notifications'
     | '/_authenticated/admin/'
     | '/_authenticated/builder/'
@@ -869,13 +908,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
-    '/_authenticated/settings/appearance': {
-      id: '/_authenticated/settings/appearance'
-      path: '/appearance'
-      fullPath: '/settings/appearance'
-      preLoaderRoute: typeof AuthenticatedSettingsAppearanceRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
     '/_authenticated/settings/account': {
       id: '/_authenticated/settings/account'
       path: '/account'
@@ -890,6 +922,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedErrorsErrorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/builder/task-board': {
+      id: '/_authenticated/builder/task-board'
+      path: '/task-board'
+      fullPath: '/builder/task-board'
+      preLoaderRoute: typeof AuthenticatedBuilderTaskBoardRouteImport
+      parentRoute: typeof AuthenticatedBuilderRoute
+    }
+    '/_authenticated/builder/projectbudget': {
+      id: '/_authenticated/builder/projectbudget'
+      path: '/projectbudget'
+      fullPath: '/builder/projectbudget'
+      preLoaderRoute: typeof AuthenticatedBuilderProjectbudgetRouteImport
+      parentRoute: typeof AuthenticatedBuilderRoute
+    }
     '/_authenticated/builder/procurement': {
       id: '/_authenticated/builder/procurement'
       path: '/procurement'
@@ -897,11 +943,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBuilderProcurementRouteImport
       parentRoute: typeof AuthenticatedBuilderRoute
     }
-    '/_authenticated/builder/measurements': {
-      id: '/_authenticated/builder/measurements'
-      path: '/measurements'
-      fullPath: '/builder/measurements'
-      preLoaderRoute: typeof AuthenticatedBuilderMeasurementsRouteImport
+    '/_authenticated/builder/group-buy': {
+      id: '/_authenticated/builder/group-buy'
+      path: '/group-buy'
+      fullPath: '/builder/group-buy'
+      preLoaderRoute: typeof AuthenticatedBuilderGroupBuyRouteImport
       parentRoute: typeof AuthenticatedBuilderRoute
     }
     '/_authenticated/builder/floor-plans': {
@@ -918,11 +964,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBuilderDesignDraftingRouteImport
       parentRoute: typeof AuthenticatedBuilderRoute
     }
+    '/_authenticated/builder/contract-analyser': {
+      id: '/_authenticated/builder/contract-analyser'
+      path: '/contract-analyser'
+      fullPath: '/builder/contract-analyser'
+      preLoaderRoute: typeof AuthenticatedBuilderContractAnalyserRouteImport
+      parentRoute: typeof AuthenticatedBuilderRoute
+    }
     '/_authenticated/builder/building': {
       id: '/_authenticated/builder/building'
       path: '/building'
       fullPath: '/builder/building'
       preLoaderRoute: typeof AuthenticatedBuilderBuildingRouteImport
+      parentRoute: typeof AuthenticatedBuilderRoute
+    }
+    '/_authenticated/builder/budget-engineer': {
+      id: '/_authenticated/builder/budget-engineer'
+      path: '/budget-engineer'
+      fullPath: '/builder/budget-engineer'
+      preLoaderRoute: typeof AuthenticatedBuilderBudgetEngineerRouteImport
       parentRoute: typeof AuthenticatedBuilderRoute
     }
     '/_authenticated/builder/architectural-studio': {
@@ -1056,7 +1116,6 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedSettingsRouteRouteChildren {
   AuthenticatedSettingsAccountRoute: typeof AuthenticatedSettingsAccountRoute
-  AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
   AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
 }
@@ -1064,7 +1123,6 @@ interface AuthenticatedSettingsRouteRouteChildren {
 const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
   {
     AuthenticatedSettingsAccountRoute: AuthenticatedSettingsAccountRoute,
-    AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
     AuthenticatedSettingsNotificationsRoute:
       AuthenticatedSettingsNotificationsRoute,
     AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
@@ -1161,11 +1219,15 @@ const AuthenticatedBuilderProjectProjectIdRouteWithChildren =
 
 interface AuthenticatedBuilderRouteChildren {
   AuthenticatedBuilderArchitecturalStudioRoute: typeof AuthenticatedBuilderArchitecturalStudioRoute
+  AuthenticatedBuilderBudgetEngineerRoute: typeof AuthenticatedBuilderBudgetEngineerRoute
   AuthenticatedBuilderBuildingRoute: typeof AuthenticatedBuilderBuildingRoute
+  AuthenticatedBuilderContractAnalyserRoute: typeof AuthenticatedBuilderContractAnalyserRoute
   AuthenticatedBuilderDesignDraftingRoute: typeof AuthenticatedBuilderDesignDraftingRoute
   AuthenticatedBuilderFloorPlansRoute: typeof AuthenticatedBuilderFloorPlansRoute
-  AuthenticatedBuilderMeasurementsRoute: typeof AuthenticatedBuilderMeasurementsRoute
+  AuthenticatedBuilderGroupBuyRoute: typeof AuthenticatedBuilderGroupBuyRoute
   AuthenticatedBuilderProcurementRoute: typeof AuthenticatedBuilderProcurementRoute
+  AuthenticatedBuilderProjectbudgetRoute: typeof AuthenticatedBuilderProjectbudgetRoute
+  AuthenticatedBuilderTaskBoardRoute: typeof AuthenticatedBuilderTaskBoardRoute
   AuthenticatedBuilderIndexRoute: typeof AuthenticatedBuilderIndexRoute
   AuthenticatedBuilderProjectProjectIdRoute: typeof AuthenticatedBuilderProjectProjectIdRouteWithChildren
 }
@@ -1173,12 +1235,19 @@ interface AuthenticatedBuilderRouteChildren {
 const AuthenticatedBuilderRouteChildren: AuthenticatedBuilderRouteChildren = {
   AuthenticatedBuilderArchitecturalStudioRoute:
     AuthenticatedBuilderArchitecturalStudioRoute,
+  AuthenticatedBuilderBudgetEngineerRoute:
+    AuthenticatedBuilderBudgetEngineerRoute,
   AuthenticatedBuilderBuildingRoute: AuthenticatedBuilderBuildingRoute,
+  AuthenticatedBuilderContractAnalyserRoute:
+    AuthenticatedBuilderContractAnalyserRoute,
   AuthenticatedBuilderDesignDraftingRoute:
     AuthenticatedBuilderDesignDraftingRoute,
   AuthenticatedBuilderFloorPlansRoute: AuthenticatedBuilderFloorPlansRoute,
-  AuthenticatedBuilderMeasurementsRoute: AuthenticatedBuilderMeasurementsRoute,
+  AuthenticatedBuilderGroupBuyRoute: AuthenticatedBuilderGroupBuyRoute,
   AuthenticatedBuilderProcurementRoute: AuthenticatedBuilderProcurementRoute,
+  AuthenticatedBuilderProjectbudgetRoute:
+    AuthenticatedBuilderProjectbudgetRoute,
+  AuthenticatedBuilderTaskBoardRoute: AuthenticatedBuilderTaskBoardRoute,
   AuthenticatedBuilderIndexRoute: AuthenticatedBuilderIndexRoute,
   AuthenticatedBuilderProjectProjectIdRoute:
     AuthenticatedBuilderProjectProjectIdRouteWithChildren,

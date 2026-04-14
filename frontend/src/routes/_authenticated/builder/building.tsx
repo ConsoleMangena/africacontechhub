@@ -8,16 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ProjectModeBadge } from '@/components/project-mode-badge'
+import { ProjectWorkspacePicker } from '@/features/dashboards/builder/components/project-workspace-picker'
 import { DIFYProgressDashboard } from '@/components/dify-progress-dashboard'
-import { ProjectHealthDashboard } from '@/components/project-health-dashboard'
-import { MilestoneTracker, type Milestone } from '@/components/milestone-tracker'
 import { QuickActionsPanel } from '@/components/quick-actions-panel'
 import { ProjectTimeline } from '@/components/project-timeline'
-import { ActivityFeed, type ActivityEvent } from '@/components/activity-feed'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useBuilderStore } from '@/stores/builder-store'
 import { builderApi } from '@/services/api'
 import type {
   Project, ProjectTeam, ProfessionalProfile,
@@ -25,6 +24,9 @@ import type {
 } from '@/types/api'
 
 export const Route = createFileRoute('/_authenticated/builder/building')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    projectId: search.projectId ? Number(search.projectId) : undefined,
+  }),
   component: RouteComponent,
 })
 
@@ -65,36 +67,44 @@ const ICON_COLOR: Record<string, { bg: string; text: string }> = {
   amber:   { bg: 'bg-slate-50', text: 'text-slate-600' },
 }
 
-function StatCard({ icon, iconColor, label, value, sub, href, progress }: { icon: string; iconColor: string; label: string; value: string | number; sub?: string; href?: string; progress?: number }) {
+function StatCard({ icon, iconColor, label, value, sub, href, search, progress }: { icon: string; iconColor: string; label: string; value: string | number; sub?: string; href?: string; search?: Record<string, number | string | undefined>; progress?: number }) {
   const ic = ICON_COLOR[iconColor] ?? ICON_COLOR.blue
   const Wrapper = href ? Link : 'div'
-  const wrapperProps = href ? { to: href } : {}
+  const wrapperProps = href ? { to: href, search } : {}
   return (
     <Wrapper
       {...(wrapperProps as any)}
-      className="group relative flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 transition-all duration-200 hover:shadow-lg hover:shadow-slate-200/50 hover:border-slate-300 hover:-translate-y-0.5 cursor-pointer overflow-hidden"
+      className="group relative flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/50 hover:border-slate-300 hover:-translate-y-1 cursor-pointer overflow-hidden"
     >
+      {/* Decorative background glow */}
+      <div className={`absolute -top-10 -right-10 w-24 h-24 rounded-full ${ic.bg} blur-2xl opacity-50 group-hover:opacity-100 transition-opacity duration-300`} />
+      
       {progress !== undefined && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100">
-          <div className="h-full bg-slate-900 rounded-r-full transition-all duration-500 shadow-none border-none" style={{ width: `${Math.min(progress, 100)}%` }} />
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100/50">
+          <div className="h-full bg-slate-800 rounded-r-full transition-all duration-700 shadow-none border-none ease-out" style={{ width: `${Math.min(progress, 100)}%` }} />
         </div>
       )}
-      <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 ${ic.bg} transition-transform duration-200 group-hover:scale-110`}>
+      <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${ic.bg} border border-slate-100 transition-transform duration-300 group-hover:scale-110 shadow-sm relative z-10`}>
         <Icon name={icon} size={22} className={ic.text} />
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider leading-none">{label}</p>
-        <p className="text-xl font-bold text-slate-900 leading-tight mt-1">{value}</p>
-        {sub && <p className="text-[10px] text-slate-400 truncate mt-0.5">{sub}</p>}
+      <div className="min-w-0 flex-1 relative z-10">
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">{label}</p>
+        <p className="text-2xl font-black text-slate-900 leading-tight mt-1 font-display tracking-tight">{value}</p>
+        {sub && <p className="text-[11px] text-slate-500 truncate mt-1 font-medium">{sub}</p>}
       </div>
-      {href && <Icon name="arrow_forward" size={16} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />}
+      {href && <Icon name="arrow_forward" size={18} className="text-slate-300 group-hover:text-slate-600 transition-colors shrink-0 relative z-10" />}
     </Wrapper>
   )
 }
 
 function RouteComponent() {
+  const { projectId: searchProjectId } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const builderStore = useBuilderStore()
+  const resolvedProjectId = searchProjectId ?? builderStore.selectedProjectId ?? null
   const [projects, setProjects] = useState<Project[]>([])
-  const [selectedProject, setSelectedProject] = useState<number | null>(null)
+  const [loadingProjects, setLoadingProjects] = useState(true)
+  const [selectedProject, setSelectedProject] = useState<number | null>(resolvedProjectId)
   const [updatingStatus, setUpdatingStatus] = useState(false)
 
   // Team
@@ -119,27 +129,65 @@ function RouteComponent() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ tasks: true, procurement: true, team: true, timeline: false })
   const toggle = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
 
-  // Milestones and Activity Feed
-  const [milestones, setMilestones] = useState<Milestone[]>([])
-  const [activities, setActivities] = useState<ActivityEvent[]>([])
 
   const teamCacheRef = useRef<Map<number, ProjectTeam[]>>(new Map())
   const projectsCachedRef = useRef(false)
 
   const currentProject = projects.find(p => p.id === selectedProject) ?? null
 
+  const selectProject = useCallback((projectId: number) => {
+    setSelectedProject(projectId)
+    builderStore.selectProject(projectId)
+    navigate({
+      to: '/builder/building',
+      search: { projectId },
+      replace: true,
+    })
+  }, [navigate, builderStore])
+
+  const exitProject = useCallback(() => {
+    setSelectedProject(null)
+    setArtisans([])
+    setMaterialRequests([])
+    setScheduleTasks([])
+    setBudgetSheets(null)
+    setShowExploreModal(false)
+    setShowContactModal(false)
+    setSelectedProfessional(null)
+    builderStore.exitProject()
+    navigate({
+      to: '/builder/building',
+      search: { projectId: undefined },
+      replace: true,
+    })
+  }, [navigate, builderStore])
+
+  useEffect(() => {
+    const next = searchProjectId ?? builderStore.selectedProjectId ?? null
+    setSelectedProject(next)
+  }, [searchProjectId, builderStore.selectedProjectId])
+
   // ── Load projects ──
   useEffect(() => {
-    if (projectsCachedRef.current && projects.length > 0) return
+    if (projectsCachedRef.current && projects.length > 0) {
+      setLoadingProjects(false)
+      return
+    }
     builderApi.getProjects()
       .then(res => {
         const data = Array.isArray(res.data) ? res.data : (res.data as any).results || []
         setProjects(data)
         projectsCachedRef.current = true
-        if (data.length > 0 && !selectedProject) setSelectedProject(data[0].id)
       })
       .catch(() => toast.error('Failed to load projects'))
-  }, [])
+      .finally(() => setLoadingProjects(false))
+  }, [projects.length])
+
+  useEffect(() => {
+    if (loadingProjects || !selectedProject) return
+    if (projects.some((project) => project.id === selectedProject)) return
+    exitProject()
+  }, [exitProject, loadingProjects, projects, selectedProject])
 
   // ── Load WIP data when project changes ──
   useEffect(() => {
@@ -166,14 +214,6 @@ function RouteComponent() {
       setScheduleTasks(Array.isArray(extract(stRes)) ? extract(stRes) : [])
       setBudgetSheets(bsRes.data && typeof bsRes.data === 'object' && !Array.isArray(bsRes.data) ? bsRes.data as BudgetSheets : null)
       
-      // Initialize sample milestones (TODO: fetch from API)
-      setMilestones([
-        { id: 1, name: 'Design Approval', description: 'Architectural plans approved', targetDate: new Date(Date.now() + 7 * 86400000).toISOString(), completed: false, category: 'design' },
-        { id: 2, name: 'Budget Signed', description: 'Final budget approved and signed', targetDate: new Date(Date.now() + 14 * 86400000).toISOString(), completed: bsRes.data?.budget_meta?.is_locked || false, completedDate: bsRes.data?.budget_meta?.signed_at || undefined, category: 'budget' },
-        { id: 3, name: 'Materials Procured', description: 'All materials ordered and delivered', targetDate: new Date(Date.now() + 30 * 86400000).toISOString(), completed: false, category: 'procurement' },
-        { id: 4, name: 'Foundation Complete', description: 'Foundation work finished', targetDate: new Date(Date.now() + 45 * 86400000).toISOString(), completed: false, category: 'construction' },
-      ])
-      
       // Initialize sample activities (TODO: fetch from API)
       setActivities([
         { id: 1, type: 'budget', action: 'Budget Updated', description: 'Final budget sheet was updated', user: 'John Doe', timestamp: new Date(Date.now() - 3600000).toISOString() },
@@ -199,7 +239,15 @@ function RouteComponent() {
     finally { setLoadingTeam(false); setRefetching(false) }
   }, [selectedProject])
 
-  useEffect(() => { fetchTeam() }, [selectedProject])
+  useEffect(() => {
+    if (!selectedProject) {
+      setArtisans([])
+      setLoadingTeam(false)
+      setRefetching(false)
+      return
+    }
+    fetchTeam()
+  }, [fetchTeam, selectedProject])
 
   const fetchProfessionals = async () => {
     setLoadingPros(true)
@@ -292,6 +340,59 @@ function RouteComponent() {
   const projectStatusCfg = PROJECT_STATUSES.find(s => s.value === currentProject?.status)
   const isDIFY = currentProject?.engagement_tier === 'DIFY'
 
+  if (loadingProjects) {
+    return (
+      <>
+        <Header>
+          <div className="ms-auto flex items-center space-x-2 sm:space-x-4">
+            <div className="hidden sm:block"><Search /></div>
+            <ProfileDropdown />
+          </div>
+        </Header>
+        <Main className="bg-slate-50/80 min-h-[calc(100vh-theme(spacing.16))]">
+          <div className="w-full px-3 py-4 sm:p-4 md:p-6 lg:p-8">
+            <ProjectWorkspacePicker
+              title="Select a project workspace"
+              description="Choose the site you want to manage. I’ll only load live budget, team, schedule, and procurement data after you enter a specific project workspace."
+              projects={[]}
+              loading
+              onSelectProject={selectProject}
+              onPrimaryAction={() => navigate({ to: '/builder' })}
+              primaryActionLabel="Open Portfolio"
+            />
+          </div>
+        </Main>
+      </>
+    )
+  }
+
+  if (!selectedProject || !currentProject) {
+    return (
+      <>
+        <Header>
+          <div className="ms-auto flex items-center space-x-2 sm:space-x-4">
+            <div className="hidden sm:block"><Search /></div>
+            <ProfileDropdown />
+          </div>
+        </Header>
+        <Main className="bg-slate-50/80 min-h-[calc(100vh-theme(spacing.16))]">
+          <div className="w-full px-3 py-4 sm:p-4 md:p-6 lg:p-8">
+            <ProjectWorkspacePicker
+              title="Select a project workspace"
+              description="Pick a project tile to open its management cockpit. Until you select one, no team, budget, schedule, or procurement details are pulled into this page."
+              projects={projects}
+              onSelectProject={selectProject}
+              onPrimaryAction={() => navigate({ to: '/builder' })}
+              primaryActionLabel="Open Portfolio"
+              emptyTitle="No project workspaces yet"
+              emptyDescription="Create a project from your builder overview, then return here to enter its dedicated workspace."
+            />
+          </div>
+        </Main>
+      </>
+    )
+  }
+
   return (
     <>
       <Header>
@@ -304,44 +405,50 @@ function RouteComponent() {
         <div className="w-full px-3 py-4 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6">
 
           {/* ── Hero Header ── */}
-          <div className="rounded-xl sm:rounded-2xl bg-white p-4 sm:p-5 md:p-6 text-slate-900 relative border border-slate-200 shadow-sm">
-            <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="rounded-2xl bg-white p-5 sm:p-6 md:p-8 text-slate-900 relative shadow-sm border border-slate-200 overflow-hidden">
+            {/* Very subtle ambient gradients on white */}
+            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-slate-100/50 rounded-full blur-[100px] pointer-events-none -translate-y-1/2 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-indigo-50/50 rounded-full blur-[80px] pointer-events-none translate-y-1/3 -translate-x-1/3" />
+
+            <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 z-10">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                    <Icon name="construction" size={20} className="text-indigo-600" />
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                    <Icon name="construction" size={24} className="text-slate-700" />
                   </div>
-                  <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-slate-900">Project Management</h1>
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 font-display">Project Command Center</h1>
                 </div>
                 {currentProject && (
-                  <p className="text-sm font-medium text-slate-500 flex items-center gap-1.5 ml-10">
-                    <Icon name="location_on" size={14} className="text-slate-400" />
-                    {currentProject.location}
-                    <span className="text-slate-300 mx-1">•</span>
-                    Created {new Date(currentProject.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                  <p className="text-sm font-semibold text-slate-500 flex items-center gap-2 ml-12">
+                    <span className="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200 text-slate-600">
+                      <Icon name="location_on" size={14} className="text-slate-400" />
+                      {currentProject.location}
+                    </span>
+                    <span className="text-slate-300 font-black">•</span>
+                    <span className="text-slate-500">Created {new Date(currentProject.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
                   </p>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <select
-                    value={selectedProject ?? ''}
-                    onChange={e => setSelectedProject(Number(e.target.value))}
-                    className="h-9 sm:h-10 px-4 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-700 focus:ring-0 outline-none flex-1 sm:flex-none sm:w-60 transition-all cursor-pointer"
-                  >
-                    {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-                  </select>
-                  {currentProject && <ProjectModeBadge engagementTier={currentProject.engagement_tier} size="sm" />}
-                </div>
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <ProjectModeBadge engagementTier={currentProject.engagement_tier} size="sm" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={exitProject}
+                  className="h-10 rounded-xl border-slate-200 bg-white hover:bg-slate-50 px-4 text-xs font-bold uppercase tracking-widest text-slate-600 transition-all shadow-sm"
+                >
+                  <Icon name="logout" size={14} className="mr-1.5" />
+                  Exit
+                </Button>
                 {currentProject && (
                   <Select value={currentProject.status} onValueChange={v => handleProjectStatusChange(v as Project['status'])}>
-                    <SelectTrigger className={`h-9 sm:h-10 w-full sm:w-40 font-semibold text-sm rounded-lg sm:rounded-xl ${projectStatusCfg?.triggerCls ?? 'bg-slate-50 border-slate-200 text-slate-700'}`} disabled={updatingStatus}>
+                    <SelectTrigger className="h-10 w-full sm:w-44 font-bold text-sm rounded-xl bg-white border-slate-200 text-slate-800 hover:bg-slate-50 transition-all shadow-sm" disabled={updatingStatus}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {PROJECT_STATUSES.map(s => (
                         <SelectItem key={s.value} value={s.value}>
-                          <span className="flex items-center gap-2">
+                          <span className="flex items-center gap-2 font-semibold">
                             <Icon name={s.icon} size={16} />
                             {s.label}
                           </span>
@@ -355,16 +462,17 @@ function RouteComponent() {
 
             {/* Overall Progress Bar */}
             {currentProject && (
-              <div className="relative mt-4 sm:mt-5 pt-3 sm:pt-4 border-t border-slate-100">
-                <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-                  <span>Overall Progress</span>
-                  <span className="text-slate-900">{scheduleTasks.length > 0 ? Math.round((scheduleTasks.filter(t => t.est_cost).length / scheduleTasks.length) * 100) : 0}%</span>
+              <div className="relative mt-6 pt-5 border-t border-slate-100 z-10 w-full">
+                <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+                  <span>Overall Project Burn</span>
+                  <span className="text-emerald-600">{scheduleTasks.length > 0 ? Math.round((scheduleTasks.filter(t => t.est_cost).length / scheduleTasks.length) * 100) : 0}%</span>
                 </div>
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
                   <div
-                    className="h-full bg-slate-900 rounded-full transition-all duration-1000 ease-out"
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out relative"
                     style={{ width: `${scheduleTasks.length > 0 ? Math.round((scheduleTasks.filter(t => t.est_cost).length / scheduleTasks.length) * 100) : 0}%` }}
-                  />
+                  >
+                  </div>
                 </div>
               </div>
             )}
@@ -381,24 +489,11 @@ function RouteComponent() {
             />
           )}
 
-          {/* ── Project Health Dashboard ── */}
-          {currentProject && (
-            <ProjectHealthDashboard
-              budgetUtilization={budgetTotal > 0 ? (actualSpent / budgetTotal) * 100 : 0}
-              tasksCompleted={scheduleTasks.filter(t => t.est_cost).length}
-              totalTasks={scheduleTasks.length}
-              teamAssigned={artisans.filter(a => a.status === 'assigned').length}
-              teamPending={artisans.filter(a => a.status === 'pending').length}
-              procurementDelivered={materialRequests.filter(r => r.status === 'DELIVERED').length}
-              totalProcurement={materialRequests.length}
-            />
-          )}
-
           {/* ── Stat cards ── */}
           <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <StatCard icon="wallet" iconColor="blue" label="Budget" value={budgetTotal > 0 ? `$${budgetTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'} sub={budgetSheets?.budget_meta?.is_locked ? 'Signed & Locked' : 'Draft'} href="/builder/budget" progress={budgetTotal > 0 ? (actualSpent / budgetTotal) * 100 : 0} />
+            <StatCard icon="wallet" iconColor="blue" label="Budget" value={budgetTotal > 0 ? `$${budgetTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'} sub={budgetSheets?.budget_meta?.is_locked ? 'Signed & Locked' : 'Draft'} href="/builder/projectbudget" search={{ projectId: selectedProject }} progress={budgetTotal > 0 ? (actualSpent / budgetTotal) * 100 : 0} />
             <StatCard icon="groups" iconColor="emerald" label="Team" value={artisans.length} sub={`${artisans.filter(a => a.status === 'assigned').length} active members`} progress={artisans.length > 0 ? (artisans.filter(a => a.status === 'assigned').length / artisans.length) * 100 : 0} />
-            <StatCard icon="inventory_2" iconColor="violet" label="Procurement" value={totalProc} sub={totalProc > 0 ? `${procPercent}% delivered` : 'No requests yet'} href="/builder/procurement" progress={procPercent} />
+            <StatCard icon="inventory_2" iconColor="violet" label="Procurement" value={totalProc} sub={totalProc > 0 ? `${procPercent}% delivered` : 'No requests yet'} href="/builder/procurement" search={{ projectId: selectedProject }} progress={procPercent} />
             <StatCard icon="schedule" iconColor="amber" label="Tasks" value={scheduleTasks.length} sub={scheduleTasks.length > 0 ? `${scheduleTasks.filter(t => t.est_cost).length} costed` : 'No tasks yet'} progress={scheduleTasks.length > 0 ? (scheduleTasks.filter(t => t.est_cost).length / scheduleTasks.length) * 100 : 0} />
           </div>
 
@@ -527,7 +622,7 @@ function RouteComponent() {
                     </div>
                     <p className="text-sm font-medium text-slate-600">No procurement requests yet</p>
                     <p className="text-xs text-slate-400 mt-1">Create requests from your budget page</p>
-                    <Link to="/builder/procurement" className="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-violet-600 hover:text-violet-700">
+                    <Link to="/builder/procurement" search={{ projectId: selectedProject }} className="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-violet-600 hover:text-violet-700">
                       Go to Procurement <Icon name="arrow_forward" size={12} />
                     </Link>
                   </div>
@@ -548,7 +643,7 @@ function RouteComponent() {
               </div>
             </div>
 
-            {/* Right column (1/3) — Team, Actions, Milestones, Activity */}
+            {/* Right column (1/3) — Team, Actions, Activity */}
             <div className="lg:col-span-1 space-y-5">
 
               {/* Quick Actions Panel */}
@@ -559,110 +654,10 @@ function RouteComponent() {
                 onUploadPhoto={() => toast.info('Upload Photo feature coming soon')}
                 onAddDocument={() => toast.info('Add Document feature coming soon')}
                 onAddTeamMember={() => setShowExploreModal(true)}
-                onCreateProcurement={() => window.location.href = '/builder/procurement'}
+                onCreateProcurement={() => navigate({ to: '/builder/procurement', search: { projectId: selectedProject ?? undefined } })}
                 isDIFY={isDIFY}
               />
 
-              {/* Team roster */}
-              <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 border-b border-slate-100 rounded-t-xl sm:rounded-t-2xl">
-                  <button type="button" onClick={() => toggle('team')} className="flex items-center gap-2">
-                    <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center">
-                        <Icon name="groups" size={16} className="text-slate-400" />
-                      </div>
-                      Team
-                      <Badge variant="secondary" className="text-[10px] ml-1 rounded-full px-2">{artisans.length}</Badge>
-                    </h2>
-                    <Icon name="expand_more" size={20} className={`text-slate-400 transition-transform duration-200 ${collapsed['team'] ? '-rotate-90' : ''}`} />
-                  </button>
-                  {!isDIFY && (
-                    <Button size="sm" variant="ghost" className="h-8 text-xs text-emerald-600 hover:bg-emerald-50 rounded-lg" onClick={() => setShowExploreModal(true)}>
-                      <Icon name="person_add" size={14} className="mr-1" />Add
-                    </Button>
-                  )}
-                </div>
-                <div className={`divide-y divide-slate-50 overflow-hidden transition-all duration-300 ease-in-out ${collapsed['team'] ? 'max-h-0' : 'max-h-[420px] overflow-y-auto'}`}>
-                  {refetching && <div className="h-0.5 w-full bg-slate-100 overflow-hidden"><div className="h-full w-1/3 bg-emerald-500 rounded-full" style={{ animation: 'teamShimmer 1.2s ease-in-out infinite' }} /><style>{`@keyframes teamShimmer{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}}`}</style></div>}
-                  {loadingTeam ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="px-5 py-3.5 flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-xl bg-slate-100 animate-pulse" />
-                        <div className="flex-1 space-y-1.5"><div className="h-3.5 w-28 bg-slate-100 rounded animate-pulse" /><div className="h-2.5 w-20 bg-slate-50 rounded animate-pulse" /></div>
-                      </div>
-                    ))
-                  ) : artisans.length === 0 ? (
-                    <div className="px-5 py-10 text-center">
-                      <div className="h-14 w-14 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-3">
-                        <Icon name={isDIFY ? 'schedule' : 'person_add'} size={28} className="text-emerald-400" />
-                      </div>
-                      {isDIFY ? (
-                        <>
-                          <p className="font-medium text-slate-600 text-sm mb-1">DIFY Mode</p>
-                          <p className="text-xs text-slate-400">SQB will assign professionals to your project</p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-sm font-medium text-slate-600">No team members yet</p>
-                          <button onClick={() => setShowExploreModal(true)} className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700">
-                            Browse Professionals <Icon name="arrow_forward" size={12} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    artisans.map((a, idx) => (
-                      <div key={a.id} className="px-5 py-2.5 flex items-center gap-3 hover:bg-slate-50/50 transition-colors" style={{ animation: `fadeSlideIn 0.3s ease-out ${idx * 40}ms both` }}>
-                        <div className="h-9 w-9 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100 overflow-hidden">
-                          {a.user_details?.avatar ? (
-                            <img src={a.user_details.avatar} alt="" className="h-full w-full object-cover" />
-                          ) : (
-                            <Icon name={getRoleIcon(a.role)} size={16} className="text-slate-400" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-slate-800 truncate">{a.full_name}</p>
-                          <p className="text-[10px] text-slate-400 truncate">{getRoleLabel(a.role)}</p>
-                        </div>
-                        {isDIFY ? (
-                          <Badge variant="secondary" className="text-[9px] px-2 py-0.5 rounded-full">{a.status}</Badge>
-                        ) : (
-                          <>
-                            <Select value={a.status} onValueChange={v => handleTeamStatusChange(a.id, v as ProjectTeam['status'])}>
-                              <SelectTrigger className="h-7 w-[80px] text-[9px] py-0 px-2 bg-transparent border-slate-200 rounded-lg">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="pending" className="text-[10px]">Pending</SelectItem>
-                                <SelectItem value="assigned" className="text-[10px]">Assigned</SelectItem>
-                                <SelectItem value="completed" className="text-[10px]">Completed</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(a.id)} className="h-6 w-6 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md">
-                              <Icon name="close" size={14} />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Milestone Tracker */}
-              <MilestoneTracker
-                milestones={milestones}
-                onToggleComplete={(id) => {
-                  setMilestones(prev => prev.map(m => 
-                    m.id === id ? { ...m, completed: !m.completed, completedDate: !m.completed ? new Date().toISOString() : undefined } : m
-                  ))
-                  toast.success('Milestone updated')
-                }}
-                readOnly={isDIFY}
-              />
-
-              {/* Activity Feed */}
-              <ActivityFeed activities={activities} maxItems={10} />
             </div>
           </div>
 

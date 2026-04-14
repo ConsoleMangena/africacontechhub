@@ -11,7 +11,8 @@ from .views import (
     BOQScheduleTaskViewSet, BudgetAggregateView, ScheduleOfMaterialViewSet,
     PromoteFinalBudgetView, SignFinalBudgetView,
     ProjectMilestoneViewSet, ProjectActivityViewSet, UserNotificationViewSet,
-    ProjectDocumentViewSet,
+    ProjectDocumentViewSet, ArchitecturalDrawingView,
+    BudgetAnalysisHistoryViewSet, MaterialPoolViewSet
 )
 
 router = DefaultRouter()
@@ -39,6 +40,8 @@ router.register(r'project-milestones', ProjectMilestoneViewSet, basename='projec
 router.register(r'project-activities', ProjectActivityViewSet, basename='projectactivity')
 router.register(r'notifications', UserNotificationViewSet, basename='notification')
 router.register(r'project-documents', ProjectDocumentViewSet, basename='projectdocument')
+router.register(r'budget-analysis-history', BudgetAnalysisHistoryViewSet, basename='budgetanalysishistory')
+router.register(r'material-pools', MaterialPoolViewSet, basename='materialpool')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -49,4 +52,5 @@ urlpatterns = [
     path('builder-connections/', BuilderConnectionsView.as_view(), name='builder-connections'),
     path('projects/<int:project_id>/connections/', ProjectConnectionsView.as_view(), name='project-connections'),
     path('all-contractors/', AllContractorsView.as_view(), name='all-contractors'),
+    path('projects/<int:project_id>/drawing/', ArchitecturalDrawingView.as_view(), name='architectural-drawing'),
 ]
