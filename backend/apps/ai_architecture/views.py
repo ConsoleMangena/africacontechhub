@@ -22,7 +22,7 @@ from .models import (
     DrawingStylePreset, ImageFeedback, MaterialPrice, TokenUsage,
     BOQTemplate, SiteIntel,
 )
-from apps.builder_dashboard.models import Project
+from apps.builder_dashboard.models import Project, BudgetAnalysisHistory
 from .mcp_manager import sync_get_mcp_tools, sync_execute_mcp_tool
 
 logger = logging.getLogger(__name__)
@@ -1335,7 +1335,9 @@ class ChatCompletionView(APIView):
             vision_images = _get_project_vision_images(project)
 
         if _is_analyse_request(user_query):
-            analyse_results = self._handle_analyse(user_query, vision_images, project)
+            # Extract optional file name for labeling history
+            file_name = request.data.get('file_name', 'drawing_analysis')
+            analyse_results = self._handle_analyse(user_query, vision_images, project, file_name=file_name, user=user)
             summary = analyse_results.get("summary", "Analysis complete.")
             ChatMessage.objects.create(
                 session=session,
@@ -1887,7 +1889,7 @@ class ChatCompletionView(APIView):
             return None, final_prompt, f"⚠️ Floor plan generation failed: {e}"
 
     # ── /analyse handler ─────────────────────────────────────────────
-    def _handle_analyse(self, user_query: str, vision_images: list, project=None) -> dict:
+    def _handle_analyse(self, user_query: str, vision_images: list, project=None, file_name: str = None, user=None) -> dict:
         """
         Use Gemini Pro vision to analyse an uploaded image (floor plan, BOQ,
         site photo) and return structured BOQ / measurement data as JSON.
@@ -1985,7 +1987,41 @@ class ChatCompletionView(APIView):
             except json.JSONDecodeError:
                 parsed = _repair_truncated_json(cleaned)
 
-            return _normalize_analyse_payload(parsed)
+            norm = _normalize_analyse_payload(parsed)
+
+            # --- PERSIST TO HISTORY ---
+            if project and user and norm:
+                try:
+                    # Calculate totals
+                    sections = [
+                        norm.get('building_items', []), norm.get('professional_fees', []),
+                        norm.get('admin_expenses', []), norm.get('labour_costs', []),
+                        norm.get('machine_plants', []), norm.get('labour_breakdowns', []),
+                        norm.get('schedule_tasks', []), norm.get('schedule_materials', []),
+                    ]
+                    total_items = sum(len(s) if s else 0 for s in sections)
+                    
+                    # Calculate cost from building items
+                    total_cost = 0.0
+                    for item in norm.get('building_items', []):
+                        qty = float(item.get('quantity') or 0)
+                        rate = float(item.get('rate') or 0)
+                        total_cost += (qty * rate)
+                    
+                    BudgetAnalysisHistory.objects.create(
+                        project=project,
+                        user=user,
+                        file_name=file_name or "drawing_analysis",
+                        summary=norm.get('summary', 'Analysis complete.'),
+                        data=norm,
+                        total_items=total_items,
+                        total_cost=total_cost
+                    )
+                    logger.info("Saved BudgetAnalysisHistory for project %s", project.id)
+                except Exception as ex:
+                    logger.error("Failed to auto-save history: %s", ex)
+
+            return norm
 
         except Exception as e:
             logger.error("Gemini analyse error: %s", e, exc_info=True)

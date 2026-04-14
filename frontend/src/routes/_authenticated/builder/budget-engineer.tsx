@@ -45,7 +45,7 @@ interface FloorPlanResult {
   created_at: string | null
 }
 
-type ToolResult = {
+type ToolResult = ({
   type: 'analyse'
   data: AnalyseResult
   summary: string
@@ -63,7 +63,7 @@ type ToolResult = {
 } | {
   type: 'info'
   message: string
-}
+}) & { id: string }
 
 type AnalyseStep = 'idle' | 'uploading' | 'reading' | 'measuring' | 'costing' | 'labour' | 'schedule' | 'materials' | 'compliance' | 'finalising' | 'done'
 type DrawStep = 'idle' | 'reading' | 'formulating' | 'rendering' | 'refining' | 'done'
@@ -138,6 +138,7 @@ function RouteComponent() {
 
   // --- Budget Engineer State ---
   const [results, setResults] = useState<ToolResult[]>([]);
+  const [activeResultId, setActiveResultId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<number | undefined>(undefined);
   const sessionIdRef = useRef<number | undefined>(undefined);
 
@@ -233,7 +234,7 @@ function RouteComponent() {
       const chosenFile = imageFile || pdfFile || allFiles[0];
       const fileUrl = chosenFile.file.startsWith('http') ? chosenFile.file : `${apiBase}${chosenFile.file}`;
 
-      setResults(prev => [...prev, { type: 'info', message: `Analysing **${chosenFile.original_name}** (${chosenFile.file_type?.toUpperCase()}) from ${allFiles.length} file(s)...` }]);
+      setResults(prev => [...prev, { id: 'temp-info', type: 'info', message: `Analysing **${chosenFile.original_name}** (${chosenFile.file_type?.toUpperCase()}) from ${allFiles.length} file(s)...` }]);
       lastAnalysedFileName.current = chosenFile.original_name || 'drawing';
 
       const fileRes = await fetch(fileUrl);
@@ -271,7 +272,7 @@ function RouteComponent() {
         }, delay));
       }
 
-      const response = await aiApi.sendMessage(chatHistory, sessionId, autoImage, autoPdf, selectedProject);
+      const response = await aiApi.sendMessage(chatHistory, sessionId, autoImage, autoPdf, selectedProject, lastAnalysedFileName.current);
 
       timers.forEach(clearTimeout);
       setAnalyseStep('done');
@@ -282,39 +283,32 @@ function RouteComponent() {
         sessionIdRef.current = response.data.session_id;
       }
 
+      const resultId = `analyse-${Date.now()}`;
+
       if (response.data.analyse) {
         const analyseData = response.data.analyse;
-        setResults(prev => [...prev, {
+        setResults(prev => [...prev.filter(r => r.id !== 'temp-info'), {
+          id: resultId,
           type: 'analyse',
           data: analyseData,
           summary: response.data.message || '',
         }]);
-
-        // Auto-save to DB
+        setActiveResultId(resultId);
+        
+        // Refresh history list since backend just saved it
         if (selectedProject) {
-          const sections = [
-            analyseData.building_items, analyseData.professional_fees,
-            analyseData.admin_expenses, analyseData.labour_costs,
-            analyseData.machine_plants, analyseData.labour_breakdowns,
-            analyseData.schedule_tasks, analyseData.schedule_materials,
-          ];
-          const totalItems = sections.reduce((s, arr) => s + (arr?.length || 0), 0);
-          const totalCost = (analyseData.building_items || []).reduce((s: number, i: any) => s + (Number(i.quantity || 0) * Number(i.rate || 0)), 0);
-          builderApi.createAnalysisHistory({
-            project: selectedProject,
-            file_name: lastAnalysedFileName.current,
-            summary: response.data.message || '',
-            data: analyseData,
-            total_items: totalItems,
-            total_cost: totalCost,
-          }).then(() => fetchHistory(selectedProject)).catch(() => { /* silent */ });
+          fetchHistory(selectedProject);
         }
       } else {
-        setResults(prev => [...prev, { type: 'info', message: response.data.message || 'Analysis complete.' }]);
+        const infoId = `info-${Date.now()}`;
+        setResults(prev => [...prev.filter(r => r.id !== 'temp-info'), { id: infoId, type: 'info', message: response.data.message || 'Analysis complete.' }]);
+        setActiveResultId(infoId);
       }
     } catch (err) {
       console.error('Analyse failed', err);
-      setResults(prev => [...prev, { type: 'error', message: 'Failed to analyse drawing. Please check your connection or wait for drawing processing.' }]);
+      const errId = `error-${Date.now()}`;
+      setResults(prev => [...prev.filter(r => r.id !== 'temp-info'), { id: errId, type: 'error', message: 'Failed to analyse drawing. Please check your connection or wait for drawing processing.' }]);
+      setActiveResultId(errId);
     } finally {
       setRunningTool(null);
       setAnalyseStep('idle');
@@ -385,17 +379,24 @@ function RouteComponent() {
       }
 
       if (response.data.image_url) {
+        const scanId = `scan-${Date.now()}`;
         setResults(prev => [...prev, {
+          id: scanId,
           type: 'scan',
           imageUrl: response.data.image_url,
           message: response.data.message || 'Drawing generated.',
         }]);
+        setActiveResultId(scanId);
       } else {
-        setResults(prev => [...prev, { type: 'info', message: response.data.message || 'Scan complete.' }]);
+        const infoId = `info-${Date.now()}`;
+        setResults(prev => [...prev, { id: infoId, type: 'info', message: response.data.message || 'Scan complete.' }]);
+        setActiveResultId(infoId);
       }
     } catch (err) {
       console.error('Scan failed', err);
-      setResults(prev => [...prev, { type: 'error', message: 'Failed to scan drawing. Please try again.' }]);
+      const errId = `error-${Date.now()}`;
+      setResults(prev => [...prev, { id: errId, type: 'error', message: 'Failed to scan drawing. Please try again.' }]);
+      setActiveResultId(errId);
     } finally {
       setRunningTool(null);
       setDrawStep('idle');
@@ -421,17 +422,24 @@ function RouteComponent() {
       }
 
       if (response.data.floor_plans?.length) {
+        const plansId = `plans-${Date.now()}`;
         setResults(prev => [...prev, {
+          id: plansId,
           type: 'plans',
           plans: response.data.floor_plans,
           message: response.data.message || '',
         }]);
+        setActiveResultId(plansId);
       } else {
-        setResults(prev => [...prev, { type: 'info', message: response.data.message || 'No plans found.' }]);
+        const infoId = `info-${Date.now()}`;
+        setResults(prev => [...prev, { id: infoId, type: 'info', message: response.data.message || 'No plans found.' }]);
+        setActiveResultId(infoId);
       }
     } catch (err) {
       console.error('Plans search failed', err);
-      setResults(prev => [...prev, { type: 'error', message: 'Failed to search plans. Please try again.' }]);
+      const errId = `error-${Date.now()}`;
+      setResults(prev => [...prev, { id: errId, type: 'error', message: 'Failed to search plans. Please try again.' }]);
+      setActiveResultId(errId);
     } finally {
       setRunningTool(null);
     }
@@ -535,6 +543,7 @@ function RouteComponent() {
 
   const clearResults = () => {
     setResults([]);
+    setActiveResultId(null);
     setSessionId(undefined);
     sessionIdRef.current = undefined;
   };
@@ -826,15 +835,24 @@ function RouteComponent() {
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                               <button
-                                onClick={() => setViewingBOQ({
-                                  data: entry.data,
-                                  summary: entry.summary,
-                                  title: `${entry.file_name || 'Analysis'} — ${date.toLocaleDateString()}`,
-                                })}
+                                onClick={() => {
+                                  const id = `history-${entry.id}`;
+                                  if (!results.some(r => r.id === id)) {
+                                    setResults(prev => [...prev, {
+                                      id,
+                                      type: 'analyse',
+                                      data: entry.data,
+                                      summary: entry.summary,
+                                    }]);
+                                  }
+                                  setActiveResultId(id);
+                                  // Scroll to results
+                                  scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+                                }}
                                 className="h-8 px-3 text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-colors flex items-center gap-1"
                               >
-                                <Icon name="visibility" size={14} />
-                                View BOQ
+                                <Icon name="open_in_new" size={14} />
+                                Open Tab
                               </button>
                               <button
                                 onClick={async () => {
@@ -948,263 +966,311 @@ function RouteComponent() {
             </div>
           )}
 
-          {/* Results List */}
-          <div className="space-y-6">
-            {results.length === 0 && !runningTool && (
-              <div className="text-center py-16 px-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl">
-                <Icon name="engineering" size={48} className="mx-auto text-emerald-200 mb-4" />
-                <h3 className="text-lg font-bold text-slate-700 mb-2">Budget Engineer is ready</h3>
-                <p className="max-w-md mx-auto text-sm text-slate-500">
-                  Select a tool above to analyze your project drawings, extract BOQ items automatically, or redraw sketches.
-                </p>
-              </div>
-            )}
-
-            {results.map((result, idx) => (
-              <div key={idx} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                
-                {/* Info message */}
-                {result.type === 'info' && (
-                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="prose prose-sm max-w-none text-slate-600">
-                      <ReactMarkdown>{result.message}</ReactMarkdown>
-                    </div>
-                  </div>
-                )}
-
-                {/* Error */}
-                {result.type === 'error' && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm flex items-start gap-3">
-                    <Icon name="error_outline" size={24} className="text-red-500 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-bold text-red-800 mb-1">Error processing request</h4>
-                      <p className="text-sm text-red-700">{result.message}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Scan result — image */}
-                {result.type === 'scan' && (
-                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                    <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
-                      <Icon name="document_scanner" size={18} className="text-cyan-600" />
-                      <h4 className="font-bold text-slate-900 text-lg tracking-tight">AI-Generated Architectural Plan</h4>
-                    </div>
-                    <div className="p-5 flex flex-col md:flex-row gap-6">
-                      <div className="w-full md:w-1/2">
-                        <div
-                          className="relative cursor-zoom-in group rounded-xl overflow-hidden border border-slate-200 bg-slate-50"
-                          onClick={() => setPreviewImage(resolveImageUrl(result.imageUrl))}
-                        >
-                          <img
-                            src={resolveImageUrl(result.imageUrl)}
-                            alt="AI Generated Drawing"
-                            className="w-full h-auto object-contain"
-                            loading="lazy"
-                          />
-                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                            <Icon name="zoom_in" size={32} className="text-white drop-shadow-lg" />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="w-full md:w-1/2 flex flex-col">
-                        <div className="prose prose-sm max-w-none text-slate-600 mb-6 flex-1">
-                          <ReactMarkdown>{result.message}</ReactMarkdown>
-                        </div>
-                        <a
-                          href={resolveImageUrl(result.imageUrl)}
-                          download
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-bold text-sm w-full md:w-max"
-                        >
-                          <Icon name="download" size={16} />
-                          Download High-Res Plan
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Plans search result */}
-                {result.type === 'plans' && (
-                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                    <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
-                      <Icon name="manage_search" size={18} className="text-violet-600" />
-                      <h4 className="font-bold text-slate-900 text-lg tracking-tight">
-                        {result.plans.length} Floor Plan{result.plans.length !== 1 ? 's' : ''} Found
-                      </h4>
-                    </div>
-                    <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {result.plans.map((plan) => (
-                        <div
-                          key={plan.id}
-                          className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-all group flex flex-col"
-                        >
-                          {plan.image_url ? (
-                            <div
-                              className="aspect-video bg-slate-100 overflow-hidden relative cursor-zoom-in"
-                              onClick={() => setPreviewImage(resolveImageUrl(plan.image_url!))}
-                            >
-                              <img
-                                src={resolveImageUrl(plan.image_url)}
-                                alt={plan.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                loading="lazy"
-                              />
-                            </div>
-                          ) : (
-                            <div className="aspect-video bg-slate-100 flex items-center justify-center">
-                              <Icon name="image" size={32} className="text-slate-300" />
-                            </div>
-                          )}
-                          <div className="p-4 flex flex-col flex-1">
-                            <h5 className="font-bold text-slate-900 mb-1 line-clamp-1">{plan.title}</h5>
-                            <span className="inline-block self-start text-xs font-semibold uppercase tracking-wider text-violet-700 bg-violet-50 px-2.5 py-1 rounded-md mb-2">
-                              {plan.category_name}
-                            </span>
-                            <p className="text-sm text-slate-500 line-clamp-2 mt-auto">{plan.description}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Analyse result — BOQ */}
-                {result.type === 'analyse' && (() => {
-                  const a = result.data;
-                  const sections = [
-                    { key: 'building_items', label: 'Building Items', count: a.building_items?.length || 0, icon: 'foundation', color: 'emerald' },
-                    { key: 'professional_fees', label: 'Professional Fees', count: a.professional_fees?.length || 0, icon: 'gavel', color: 'blue' },
-                    { key: 'admin_expenses', label: 'Admin Expenses', count: a.admin_expenses?.length || 0, icon: 'receipt', color: 'amber' },
-                    { key: 'labour_costs', label: 'Labour Costs', count: a.labour_costs?.length || 0, icon: 'engineering', color: 'orange' },
-                    { key: 'machine_plants', label: 'Machine & Plant', count: a.machine_plants?.length || 0, icon: 'precision_manufacturing', color: 'sky' },
-                    { key: 'labour_breakdowns', label: 'Labour Breakdown', count: a.labour_breakdowns?.length || 0, icon: 'groups', color: 'violet' },
-                    { key: 'schedule_tasks', label: 'Schedule Tasks', count: a.schedule_tasks?.length || 0, icon: 'calendar_month', color: 'indigo' },
-                    { key: 'schedule_materials', label: 'Materials', count: a.schedule_materials?.length || 0, icon: 'inventory_2', color: 'teal' },
-                  ];
-                  const totalItems = sections.reduce((s, sec) => s + sec.count, 0);
-                  const buildTotal = (a.building_items || []).reduce((s: number, i: any) => s + (Number(i.quantity || 0) * Number(i.rate || 0)), 0);
+          {/* Tabs UI */}
+          {results.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mb-10">
+              <div className="flex items-center gap-px bg-slate-100 p-1 overflow-x-auto scrollbar-hide shrink-0">
+                {results.map((r, idx) => {
+                  const isActive = activeResultId === r.id;
+                  let title = "Result";
+                  let icon = "info";
+                  if (r.type === 'analyse') { title = "Budget Analysis"; icon = "analytics"; }
+                  if (r.type === 'scan') { title = "Planimetry Trace"; icon = "document_scanner"; }
+                  if (r.type === 'plans') { title = "Matched Plans"; icon = "manage_search"; }
+                  if (r.type === 'error') { title = "Error"; icon = "error_outline"; }
 
                   return (
-                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
-                      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                        <div className="flex items-center gap-2">
-                          <Icon name="assignment" size={20} className="text-emerald-600" />
-                          <h4 className="font-bold text-slate-900 text-lg tracking-tight">8 Budget Sheets Generated</h4>
-                        </div>
-                        <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full uppercase tracking-wider">
-                          {totalItems} items extracted
-                        </span>
-                      </div>
-
-                      {/* Summary */}
-                      {result.summary && (
-                        <div className="px-6 py-5 border-b border-slate-100">
-                          <div className="prose prose-slate max-w-none text-sm [&_strong]:text-slate-900">
-                            <ReactMarkdown>{result.summary}</ReactMarkdown>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Section Summary Row */}
-                      <div className="p-6 grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50/30">
-                        {sections.map(sec => (
-                          <div key={sec.key} className={cn(
-                            'flex flex-col items-start gap-2 p-4 rounded-xl border transition-all',
-                            sec.count > 0 ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50/50 border-slate-100 opacity-60',
-                          )}>
-                            <div className="flex items-center justify-between w-full">
-                              <Icon name={sec.icon} size={20} className={sec.count > 0 ? 'text-slate-700' : 'text-slate-400'} />
-                              <span className="text-lg font-bold text-slate-900">{sec.count}</span>
-                            </div>
-                            <span className="font-medium text-sm text-slate-600 line-clamp-1">{sec.label}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Building items preview */}
-                      {a.building_items && a.building_items.length > 0 && (
-                        <div className="px-6 py-6 border-t border-slate-100">
-                          <div className="flex items-center justify-between mb-4">
-                            <h5 className="font-bold text-slate-800 text-base">Building Items Review</h5>
-                            <span className="text-sm font-bold text-emerald-700">Subtotal: ${buildTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                          </div>
-                          
-                          <div className="rounded-xl border border-slate-200 overflow-hidden">
-                            <table className="w-full text-sm text-left">
-                              <thead className="bg-slate-50 text-xs uppercase text-slate-500 font-bold">
-                                <tr>
-                                  <th className="px-4 py-3 border-b border-slate-200">Description</th>
-                                  <th className="px-4 py-3 border-b border-slate-200 text-right">Qty</th>
-                                  <th className="px-4 py-3 border-b border-slate-200 text-right">Rate</th>
-                                  <th className="px-4 py-3 border-b border-slate-200 text-right">Amount</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {a.building_items.slice(0, 5).map((item: any, i: number) => {
-                                  const amt = Number(item.quantity || 0) * Number(item.rate || 0);
-                                  return (
-                                    <tr key={i} className="hover:bg-slate-50/50">
-                                      <td className="px-4 py-3 font-medium text-slate-800">{item.description}</td>
-                                      <td className="px-4 py-3 text-right text-slate-600">{Number(item.quantity).toLocaleString()}</td>
-                                      <td className="px-4 py-3 text-right text-slate-600">${Number(item.rate).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                      <td className="px-4 py-3 text-right font-bold text-slate-900">${amt.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                    </tr>
-                                  )
-                                })}
-                                {a.building_items.length > 5 && (
-                                  <tr className="bg-slate-50/50">
-                                    <td colSpan={4} className="px-4 py-3 text-center text-sm text-slate-500 italic">
-                                      + {a.building_items.length - 5} additional items not shown
-                                    </td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Save CTA */}
-                      <div className="p-6 border-t border-slate-200 bg-emerald-50/30 flex flex-col sm:flex-row items-center justify-between gap-3">
-                        <p className="text-sm text-slate-600 max-w-md">
-                          Review looks good? Save all these 8 sheets directly to your <strong>{currentProject.title}</strong> project budget.
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setViewingBOQ({
-                              data: a,
-                              summary: result.summary,
-                              title: 'Current Analysis',
-                            })}
-                            className="flex items-center gap-2 px-4 py-3 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 text-sm font-bold uppercase tracking-wider rounded-xl transition-all"
-                          >
-                            <Icon name="visibility" size={18} />
-                            View Full BOQ
-                          </button>
-                          <button
-                            onClick={() => handleSaveToBOQ(a)}
-                            disabled={isSavingBOQ}
-                            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 text-sm font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm hover:shadow-md"
-                          >
-                            {isSavingBOQ ? (
-                              <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            ) : (
-                              <Icon name="save" size={18} />
-                            )}
-                            {isSavingBOQ ? 'Saving to Project...' : 'Save BOQ to Project'}
-                          </button>
-                        </div>
-                      </div>
+                    <div key={r.id} className="flex shrink-0">
+                      <button
+                        onClick={() => setActiveResultId(r.id)}
+                        className={cn(
+                          "h-10 px-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-all rounded-lg",
+                          isActive 
+                            ? "bg-white text-slate-900 shadow-sm" 
+                            : "text-slate-500 hover:bg-white/50 hover:text-slate-700"
+                        )}
+                      >
+                        <Icon name={icon} size={16} />
+                        {title} {results.filter(rr => rr.type === r.type).length > 1 ? `#${results.filter((rr, i) => i <= idx && rr.type === r.type).length}` : ''}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newResults = results.filter(rr => rr.id !== r.id);
+                          setResults(newResults);
+                          if (isActive) {
+                            setActiveResultId(newResults.length > 0 ? newResults[newResults.length - 1].id : null);
+                          }
+                        }}
+                        className={cn(
+                          "h-10 w-8 flex items-center justify-center transition-all rounded-r-lg -ml-2",
+                          isActive ? "text-slate-400 hover:text-red-500" : "text-slate-300 hover:text-slate-500"
+                        )}
+                      >
+                        <Icon name="close" size={14} />
+                      </button>
                     </div>
-                  )
-                })()}
+                  );
+                })}
               </div>
-            ))}
-            <div ref={scrollRef} className="h-4" />
-          </div>
+
+              <div className="flex-1 min-h-0 bg-white">
+                {results.map((result) => (
+                  <div key={result.id} className={cn(activeResultId === result.id ? "block" : "hidden")}>
+                    {(() => {
+                      /* ── Info ── */
+                      if (result.type === 'info') return (
+                        <div className="p-12 text-center text-slate-500 italic max-w-xl mx-auto">
+                          <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-4">
+                            <Icon name="info" size={32} className="text-slate-300" />
+                          </div>
+                          <div className="prose prose-sm max-w-none">
+                            <ReactMarkdown>{result.message}</ReactMarkdown>
+                          </div>
+                        </div>
+                      );
+
+                      /* ── Error ── */
+                      if (result.type === 'error') return (
+                        <div className="p-12 text-center max-w-xl mx-auto">
+                          <Icon name="error_outline" size={48} className="mx-auto mb-4 text-red-300" />
+                          <p className="font-bold text-lg text-red-700 mb-2">Request Failed</p>
+                          <p className="text-sm text-red-500">{result.message}</p>
+                        </div>
+                      );
+
+                      /* ── Scan ── */
+                      if (result.type === 'scan') return (
+                        <div className="p-6 space-y-5">
+                          <div className="flex items-center gap-3 p-3 bg-cyan-50 rounded-xl border border-cyan-100">
+                            <Icon name="auto_fix_high" size={24} className="text-cyan-600" />
+                            <div>
+                              <h4 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Architectural Redraw</h4>
+                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">AI Vision Trace (CAD Ready)</p>
+                            </div>
+                          </div>
+                          <div
+                            className="rounded-2xl border-2 border-slate-200 bg-slate-900 overflow-hidden shadow-2xl relative group cursor-zoom-in"
+                            onClick={() => setPreviewImage(resolveImageUrl(result.imageUrl))}
+                          >
+                            <img src={resolveImageUrl(result.imageUrl)} alt="Traced plan" className="w-full transition-opacity group-hover:opacity-80" />
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Icon name="zoom_in" size={48} className="text-white drop-shadow-2xl" />
+                            </div>
+                          </div>
+                          <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600 italic leading-relaxed prose prose-sm max-w-none">
+                            <ReactMarkdown>{result.message}</ReactMarkdown>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 pt-2">
+                            <a
+                              href={resolveImageUrl(result.imageUrl)}
+                              download
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="h-10 px-5 flex items-center gap-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
+                            >
+                              <Icon name="download" size={18} />
+                              Download Source
+                            </a>
+                          </div>
+                        </div>
+                      );
+
+                      /* ── Plans ── */
+                      if (result.type === 'plans') return (
+                        <div className="p-6 space-y-6">
+                          <div className="flex items-center gap-3 p-3 bg-violet-50 rounded-xl border border-violet-100">
+                            <Icon name="manage_search" size={24} className="text-violet-600" />
+                            <div>
+                              <h4 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Matched Floor Plans</h4>
+                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Standard Portfolio Library</p>
+                            </div>
+                          </div>
+                          {result.message && <p className="text-sm text-slate-600 px-2 italic">{result.message}</p>}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {result.plans.map((plan) => (
+                              <div key={plan.id} className="group rounded-xl border border-slate-200 bg-white overflow-hidden hover:shadow-lg transition-all border-b-4 border-b-violet-200 hover:border-b-violet-500">
+                                {plan.image_url && (
+                                  <div className="aspect-[16/9] relative overflow-hidden bg-slate-100">
+                                    <img src={resolveImageUrl(plan.image_url)} alt={plan.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <button
+                                      onClick={() => setPreviewImage(resolveImageUrl(plan.image_url!))}
+                                      className="absolute top-3 right-3 h-8 w-8 rounded-lg bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors opacity-0 group-hover:opacity-100"
+                                    >
+                                      <Icon name="zoom_in" size={18} />
+                                    </button>
+                                  </div>
+                                )}
+                                <div className="p-4">
+                                  <span className="text-[10px] font-bold text-violet-600 uppercase tracking-widest bg-violet-50 px-2 py-0.5 rounded-md mb-2 inline-block">{plan.category_name}</span>
+                                  <h4 className="text-base font-black text-slate-900 mt-1 line-clamp-1 group-hover:text-violet-700">{plan.title}</h4>
+                                  <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed">{plan.description}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+
+                      /* ── Analyse (BOQ) ── */
+                      const a = result.data;
+                      const sections = [
+                        { key: 'building_items', label: 'Building Items', count: a.building_items?.length || 0, icon: 'foundation' },
+                        { key: 'professional_fees', label: 'Professional Fees', count: a.professional_fees?.length || 0, icon: 'gavel' },
+                        { key: 'admin_expenses', label: 'Admin Expenses', count: a.admin_expenses?.length || 0, icon: 'receipt' },
+                        { key: 'labour_costs', label: 'Labour Costs', count: a.labour_costs?.length || 0, icon: 'engineering' },
+                        { key: 'machine_plants', label: 'Machine & Plant', count: a.machine_plants?.length || 0, icon: 'precision_manufacturing' },
+                        { key: 'labour_breakdowns', label: 'Labour Breakdown', count: a.labour_breakdowns?.length || 0, icon: 'groups' },
+                        { key: 'schedule_tasks', label: 'Schedule Tasks', count: a.schedule_tasks?.length || 0, icon: 'calendar_month' },
+                        { key: 'schedule_materials', label: 'Materials', count: a.schedule_materials?.length || 0, icon: 'inventory_2' },
+                      ];
+                      const totalItems = sections.reduce((s, sec) => s + sec.count, 0);
+                      const buildTotal = (a.building_items || []).reduce((s: number, i: any) => s + (Number(i.quantity || 0) * Number(i.rate || 0)), 0);
+
+                      return (
+                        <div className="flex flex-col">
+                          {/* Header */}
+                          <div className="px-6 py-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                                <Icon name="analytics" size={20} className="text-emerald-600" />
+                              </div>
+                              <div>
+                                <h4 className="text-sm font-bold text-slate-900 uppercase tracking-widest">AI Budget Analysis</h4>
+                                <p className="text-[11px] text-slate-500 font-medium">8-sheet breakdown extracted from project drawings</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full uppercase tracking-wider">
+                                {totalItems} items extracted
+                              </span>
+                              <div className="bg-emerald-50/50 px-4 py-2 rounded-xl border border-emerald-100/50">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estimated Total</p>
+                                <p className="text-base font-black text-emerald-600">${buildTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Summary */}
+                          {result.summary && (
+                            <div className="px-6 py-5 border-b border-slate-100">
+                              <div className="prose prose-slate max-w-none text-sm [&_strong]:text-slate-900">
+                                <ReactMarkdown>{result.summary}</ReactMarkdown>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Section Summary Row */}
+                          <div className="p-6 grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50/30">
+                            {sections.map(sec => (
+                              <div key={sec.key} className={cn(
+                                'flex flex-col items-start gap-2 p-4 rounded-xl border transition-all',
+                                sec.count > 0 ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50/50 border-slate-100 opacity-60',
+                              )}>
+                                <div className="flex items-center justify-between w-full">
+                                  <Icon name={sec.icon} size={20} className={sec.count > 0 ? 'text-slate-700' : 'text-slate-400'} />
+                                  <span className="text-lg font-bold text-slate-900">{sec.count}</span>
+                                </div>
+                                <span className="font-medium text-sm text-slate-600 line-clamp-1">{sec.label}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Building items preview */}
+                          {a.building_items && a.building_items.length > 0 && (
+                            <div className="px-6 py-6 border-t border-slate-100">
+                              <div className="flex items-center justify-between mb-4">
+                                <h5 className="font-bold text-slate-800 text-base">Building Items Preview</h5>
+                                <span className="text-sm font-bold text-emerald-700">Subtotal: ${buildTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                              </div>
+                              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                                <table className="w-full text-sm text-left">
+                                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 font-bold">
+                                    <tr>
+                                      <th className="px-4 py-3 border-b border-slate-200">Description</th>
+                                      <th className="px-4 py-3 border-b border-slate-200 text-right">Qty</th>
+                                      <th className="px-4 py-3 border-b border-slate-200 text-right">Rate</th>
+                                      <th className="px-4 py-3 border-b border-slate-200 text-right">Amount</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {a.building_items.slice(0, 5).map((item: any, i: number) => {
+                                      const amt = Number(item.quantity || 0) * Number(item.rate || 0);
+                                      return (
+                                        <tr key={i} className="hover:bg-slate-50/50">
+                                          <td className="px-4 py-3 font-medium text-slate-800">{item.description}</td>
+                                          <td className="px-4 py-3 text-right text-slate-600">{Number(item.quantity).toLocaleString()}</td>
+                                          <td className="px-4 py-3 text-right text-slate-600">${Number(item.rate).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                          <td className="px-4 py-3 text-right font-bold text-slate-900">${amt.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                    {a.building_items.length > 5 && (
+                                      <tr className="bg-slate-50/50">
+                                        <td colSpan={4} className="px-4 py-3 text-center text-sm text-slate-500 italic">
+                                          + {a.building_items.length - 5} additional items not shown
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Save CTA */}
+                          <div className="p-6 border-t border-slate-200 bg-emerald-50/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <p className="text-sm text-slate-600 max-w-md">
+                              Review looks good? Save all 8 sheets directly to your <strong>{currentProject?.title || 'project'}</strong> budget.
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setViewingBOQ({
+                                  data: a,
+                                  summary: result.summary,
+                                  title: 'Current Analysis',
+                                })}
+                                className="flex items-center gap-2 px-4 py-3 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 text-sm font-bold uppercase tracking-wider rounded-xl transition-all"
+                              >
+                                <Icon name="visibility" size={18} />
+                                View Full BOQ
+                              </button>
+                              <button
+                                onClick={() => handleSaveToBOQ(a)}
+                                disabled={isSavingBOQ}
+                                className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 text-sm font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm hover:shadow-md"
+                              >
+                                {isSavingBOQ ? (
+                                  <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                  <Icon name="save" size={18} />
+                                )}
+                                {isSavingBOQ ? 'Saving to Project...' : 'Save BOQ to Project'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {results.length === 0 && !runningTool && (
+            <div className="text-center py-16 px-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl">
+              <Icon name="engineering" size={48} className="mx-auto text-emerald-200 mb-4" />
+              <h3 className="text-lg font-bold text-slate-700 mb-2">Budget Engineer is ready</h3>
+              <p className="max-w-md mx-auto text-sm text-slate-500">
+                Select a tool above to analyze your project drawings, extract BOQ items automatically, or redraw sketches.
+              </p>
+            </div>
+          )}
+
+          <div ref={scrollRef} className="h-4" />
         </div>
       </Main>
 

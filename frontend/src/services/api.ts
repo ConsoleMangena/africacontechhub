@@ -504,6 +504,7 @@ export const aiApi = {
         image?: string,
         pdf?: string,
         projectId?: number,
+        fileName?: string,
     ) =>
         api.post<{
             message: string;
@@ -534,7 +535,7 @@ export const aiApi = {
                 compliance_notes: string[];
                 recommendations: string[];
             };
-        }>('/ai/chat/', { messages, session_id: sessionId, image, pdf, project_id: projectId }),
+        }>('/ai/chat/', { messages, session_id: sessionId, image, pdf, project_id: projectId, file_name: fileName }),
 
     /**
      * Stream chat via SSE — returns a ReadableStream.
@@ -547,6 +548,7 @@ export const aiApi = {
         image?: string,
         pdf?: string,
         projectId?: number,
+        fileName?: string,
     ): Promise<Response> => {
         const token = cachedSession;
         return fetch(`${api.defaults.baseURL}/ai/chat/stream/`, {
@@ -555,7 +557,7 @@ export const aiApi = {
                 'Content-Type': 'application/json',
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
-            body: JSON.stringify({ messages, session_id: sessionId, image, pdf, project_id: projectId }),
+            body: JSON.stringify({ messages, session_id: sessionId, image, pdf, project_id: projectId, file_name: fileName }),
         });
     },
     generateSiteIntel: (projectId: number, prompt?: string) =>
