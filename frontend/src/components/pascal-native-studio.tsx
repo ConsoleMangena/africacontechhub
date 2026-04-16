@@ -182,6 +182,13 @@ export function PascalNativeStudio({
     const viewerStore = viewerStoreRef.current
     if (!viewerStore?.getState) return
 
+    // Force dark theme for embedded Pascal view so the actual canvas goes black.
+    try {
+      viewerStore.getState().setTheme?.('dark')
+    } catch {
+      // ignore - theme API may vary across builds
+    }
+
     const nodeValues = Object.values(nodes || {}) as Array<any>
     const building = nodeValues.find((node) => node?.type === 'building')
     const level = nodeValues.find((node) => node?.type === 'level')
@@ -195,14 +202,47 @@ export function PascalNativeStudio({
       })
     }
 
-    if (building?.id && emitterRef.current?.emit) {
-      emitterRef.current.emit('camera-controls:focus', { nodeId: building.id })
+    const emitter = emitterRef.current
+    if (!emitter?.emit) return
+
+    // Prefer focusing an actual geometry node (walls/items/etc.) so the user sees something immediately.
+    const focusPriority = [
+      'wall',
+      'slab',
+      'zone',
+      'opening',
+      'door',
+      'window',
+      'stair',
+      'fence',
+      'roof',
+      'item',
+    ]
+    const focusNode =
+      nodeValues.find((n) => n?.id && focusPriority.includes(n?.type)) ??
+      nodeValues.find((n) => n?.id && n?.type && !['site', 'building', 'level'].includes(n.type)) ??
+      level ??
+      building
+
+    // Top-down makes floorplans immediately readable.
+    emitter.emit('camera-controls:top-view', undefined)
+    if (focusNode?.id) {
+      emitter.emit('camera-controls:focus', { nodeId: focusNode.id })
+    } else if (building?.id) {
+      emitter.emit('camera-controls:focus', { nodeId: building.id })
     }
+  }, [])
+
+  const getSceneContentScore = useCallback((nodes: Record<string, any>) => {
+    const skipTypes = new Set(['site', 'building', 'level'])
+    return Object.values(nodes || {}).filter((node: any) => node && !skipTypes.has(node.type)).length
   }, [])
 
   const loadScene = useCallback(async () => {
     setError(null)
-    // Prefer the latest full native Pascal scene so roofs/zones/material edits persist.
+    let nativeCandidate: { nodes: Record<string, unknown>; rootNodeIds: string[] } | null = null
+
+    // Load latest native scene candidate first.
     try {
       const versionsRes = await builderApi.getPascalScenes(projectId)
       const versions = Array.isArray(versionsRes.data?.results) ? versionsRes.data.results : []
@@ -218,46 +258,58 @@ export function PascalNativeStudio({
           const sceneRes = await builderApi.getPascalScene(projectId, latest.id)
           const scene = sceneRes.data?.scene
           if (scene && typeof scene === 'object' && typeof scene.nodes === 'object') {
-              const normalized = normalizeSceneGraph(
-                scene.nodes as Record<string, any>,
-                Array.isArray((scene as any).rootNodeIds)
-                  ? ((scene as any).rootNodeIds as string[])
-                  : [],
-              )
-              const nodes = normalized.nodes as Record<string, unknown>
-              const rootNodeIds = normalized.rootNodeIds
-            const nodeValues = Object.values(nodes) as Array<any>
-            setStats({
-              wallCount: nodeValues.filter((node) => node?.type === 'wall').length,
-              itemCount: nodeValues.filter((node) => node?.type === 'item').length,
-            })
-            syncSelectionAndCamera(nodes as Record<string, any>)
-            return { nodes, rootNodeIds }
+            const normalized = normalizeSceneGraph(
+              scene.nodes as Record<string, any>,
+              Array.isArray((scene as any).rootNodeIds)
+                ? ((scene as any).rootNodeIds as string[])
+                : [],
+            )
+            nativeCandidate = {
+              nodes: normalized.nodes as Record<string, unknown>,
+              rootNodeIds: normalized.rootNodeIds,
+            }
           }
         }
       }
     } catch {
-      // Fall back to 2D bridge load if no native scene version is available.
+      // If native loading fails, bridged drawing candidate below still loads.
     }
 
-    const drawingRes = await builderApi.getProjectDrawing(projectId)
-    const drawingData = drawingRes.data?.data || {}
-    const bridgedRaw = buildPascalCoreSceneFromStudioState(projectId, drawingData)
-    const bridged = normalizeSceneGraph(
-      bridgedRaw.nodes as Record<string, any>,
-      bridgedRaw.rootNodeIds as string[],
-    )
-    const bridgedNodeValues = Object.values(bridged.nodes) as Array<any>
-    setStats({
-      wallCount: bridgedNodeValues.filter((node) => node?.type === 'wall').length,
-      itemCount: bridgedNodeValues.filter((node) => node?.type === 'item').length,
-    })
-    syncSelectionAndCamera(bridged.nodes as Record<string, any>)
-    return {
-      nodes: bridged.nodes as Record<string, unknown>,
-      rootNodeIds: bridged.rootNodeIds,
+    try {
+      const drawingRes = await builderApi.getProjectDrawing(projectId)
+      const drawingData = drawingRes.data?.data || {}
+      const bridgedRaw = buildPascalCoreSceneFromStudioState(projectId, drawingData)
+      const bridged = normalizeSceneGraph(
+        bridgedRaw.nodes as Record<string, any>,
+        bridgedRaw.rootNodeIds as string[],
+      )
+      const bridgedNodeValues = Object.values(bridged.nodes) as Array<any>
+      setStats({
+        wallCount: bridgedNodeValues.filter((node) => node?.type === 'wall').length,
+        itemCount: bridgedNodeValues.filter((node) => node?.type === 'item').length,
+      })
+      const bridgedCandidate = {
+        nodes: bridged.nodes as Record<string, unknown>,
+        rootNodeIds: bridged.rootNodeIds,
+      }
+      const nativeScore = nativeCandidate ? getSceneContentScore(nativeCandidate.nodes as Record<string, any>) : -1
+      const bridgedScore = getSceneContentScore(bridgedCandidate.nodes as Record<string, any>)
+      const selected = nativeScore >= bridgedScore ? nativeCandidate : bridgedCandidate
+      syncSelectionAndCamera((selected?.nodes || bridgedCandidate.nodes) as Record<string, any>)
+      return selected || bridgedCandidate
+    } catch {
+      // If BOTH API drawing load and native versions fail, still return a valid minimal scene
+      // so the editor remains interactive (tools/camera/selection won’t dead-end).
+      const fallback = normalizeSceneGraph({}, [])
+      setStats({ wallCount: 0, itemCount: 0 })
+      setError('Could not load project drawing. Loaded an empty scene.')
+      syncSelectionAndCamera(fallback.nodes as Record<string, any>)
+      return {
+        nodes: fallback.nodes as Record<string, unknown>,
+        rootNodeIds: fallback.rootNodeIds,
+      }
     }
-  }, [normalizeSceneGraph, projectId, syncSelectionAndCamera])
+  }, [getSceneContentScore, normalizeSceneGraph, projectId, syncSelectionAndCamera])
 
   const persistScene = useCallback(
     async (scene: { nodes: Record<string, any>; rootNodeIds: string[] }) => {
