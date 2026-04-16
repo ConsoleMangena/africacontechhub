@@ -1,0 +1,394 @@
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+} from 'react'
+import { builderApi } from '@/services/api'
+import {
+  buildPascalCoreSceneFromStudioState,
+  getBridgeDiagnostics,
+  buildStudioDrawingFromPascalScene,
+} from '@/lib/pascal-bridge'
+
+type PascalNativeStudioProps = {
+  projectId: number
+  onNativeUnavailable?: (reason?: string) => void
+  manualSaveSignal?: number
+  onManualSaveDone?: (ok: boolean) => void
+}
+
+export function PascalNativeStudio({
+  projectId,
+  onNativeUnavailable,
+  manualSaveSignal = 0,
+  onManualSaveDone,
+}: PascalNativeStudioProps) {
+  const lastVersionSaveAtRef = useRef(0)
+  const lastHandledManualSaveSignalRef = useRef(0)
+  const queuedSceneRef = useRef<{ nodes: Record<string, any>; rootNodeIds: string[] } | null>(null)
+  const saveDebounceTimerRef = useRef<number | null>(null)
+  const saveInFlightRef = useRef(false)
+  const pendingSaveAfterFlightRef = useRef(false)
+  const sceneStoreRef = useRef<any>(null)
+  const viewerStoreRef = useRef<any>(null)
+  const editorStoreRef = useRef<any>(null)
+  const emitterRef = useRef<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<{ wallCount: number; itemCount: number } | null>(null)
+  const [EditorComp, setEditorComp] = useState<ComponentType<any> | null>(null)
+
+  const normalizeSceneGraph = useCallback(
+    (inputNodes: Record<string, any>, inputRootNodeIds: string[] | undefined) => {
+      const nodes = { ...(inputNodes || {}) } as Record<string, any>
+      let rootNodeIds = Array.isArray(inputRootNodeIds) ? [...inputRootNodeIds] : []
+
+      const ensureArray = (value: unknown) => (Array.isArray(value) ? value : [])
+      const asNodeId = (value: unknown): string | null => {
+        if (typeof value === 'string' && value) return value
+        if (value && typeof value === 'object' && typeof (value as any).id === 'string') {
+          return (value as any).id
+        }
+        return null
+      }
+      const normalizeChildren = (children: unknown): string[] =>
+        ensureArray(children)
+          .map(asNodeId)
+          .filter((id): id is string => Boolean(id && nodes[id]))
+
+      const nodeValues = Object.values(nodes) as Array<any>
+      let site = nodeValues.find((node) => node?.type === 'site')
+      let building = nodeValues.find((node) => node?.type === 'building')
+      let level = nodeValues.find((node) => node?.type === 'level' && node?.level === 0)
+      if (!level) level = nodeValues.find((node) => node?.type === 'level')
+
+      if (!site) {
+        const siteId = `site_${projectId}`
+        site = {
+          id: siteId,
+          object: 'node',
+          type: 'site',
+          parentId: null,
+          visible: true,
+          name: `Project ${projectId} Site`,
+          children: [],
+        }
+        nodes[siteId] = site
+      }
+
+      if (!building) {
+        const buildingId = `building_${projectId}`
+        building = {
+          id: buildingId,
+          object: 'node',
+          type: 'building',
+          parentId: site.id,
+          visible: true,
+          name: `Project ${projectId} Building`,
+          children: [],
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+        }
+        nodes[buildingId] = building
+      }
+
+      if (!level) {
+        const levelId = `level_${projectId}_1`
+        level = {
+          id: levelId,
+          object: 'node',
+          type: 'level',
+          parentId: building.id,
+          visible: true,
+          name: 'Level 1',
+          level: 0,
+          children: [],
+        }
+        nodes[levelId] = level
+      }
+
+      site.children = normalizeChildren(site.children)
+      building.children = normalizeChildren(building.children)
+      level.children = normalizeChildren(level.children)
+
+      if (!site.children.includes(building.id)) {
+        site.children.push(building.id)
+      }
+      building.parentId = site.id
+
+      if (!building.children.includes(level.id)) {
+        building.children.push(level.id)
+      }
+      level.parentId = building.id
+      if (typeof level.level !== 'number') {
+        level.level = 0
+      }
+
+      for (const node of Object.values(nodes) as Array<any>) {
+        if (!node || node.id === site.id || node.id === building.id || node.id === level.id) continue
+        if (!node.parentId) {
+          node.parentId = level.id
+        }
+      }
+
+      const levelChildren = new Set(normalizeChildren(level.children))
+      for (const node of Object.values(nodes) as Array<any>) {
+        if (!node || node.id === level.id) continue
+        if (node.parentId === level.id) {
+          levelChildren.add(node.id)
+        }
+      }
+      level.children = Array.from(levelChildren)
+      rootNodeIds = [site.id]
+
+      return { nodes, rootNodeIds }
+    },
+    [projectId],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [editorMod, coreMod, viewerMod] = await Promise.all([
+          import('@pascal-app/editor'),
+          import('@pascal-app/core'),
+          import('@pascal-app/viewer'),
+        ])
+        if (cancelled) return
+        setEditorComp(() => editorMod.Editor as ComponentType<any>)
+        sceneStoreRef.current = (coreMod as any).useScene
+        viewerStoreRef.current = (viewerMod as any).useViewer
+        editorStoreRef.current = (editorMod as any).useEditor
+        emitterRef.current = (coreMod as any).emitter
+      } catch {
+        if (!cancelled) {
+          const msg = 'Native Pascal editor could not be loaded in this browser.'
+          setError(`${msg} Switching to Cloud Fallback...`)
+          onNativeUnavailable?.(msg)
+          setLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [onNativeUnavailable])
+
+  const syncSelectionAndCamera = useCallback((nodes: Record<string, any>) => {
+    const viewerStore = viewerStoreRef.current
+    if (!viewerStore?.getState) return
+
+    const nodeValues = Object.values(nodes || {}) as Array<any>
+    const building = nodeValues.find((node) => node?.type === 'building')
+    const level = nodeValues.find((node) => node?.type === 'level')
+
+    if (building?.id || level?.id) {
+      viewerStore.getState().setSelection({
+        buildingId: building?.id ?? null,
+        levelId: level?.id ?? null,
+        zoneId: null,
+        selectedIds: [],
+      })
+    }
+
+    if (building?.id && emitterRef.current?.emit) {
+      emitterRef.current.emit('camera-controls:focus', { nodeId: building.id })
+    }
+  }, [])
+
+  const loadScene = useCallback(async () => {
+    setError(null)
+    // Prefer the latest full native Pascal scene so roofs/zones/material edits persist.
+    try {
+      const versionsRes = await builderApi.getPascalScenes(projectId)
+      const versions = Array.isArray(versionsRes.data?.results) ? versionsRes.data.results : []
+      if (versions.length > 0) {
+        const latest = [...versions]
+          .filter((v) => typeof v?.id === 'string' && Boolean(v.id))
+          .sort((a, b) => {
+            const ta = new Date(a.created_at || 0).getTime()
+            const tb = new Date(b.created_at || 0).getTime()
+            return tb - ta
+          })[0]
+        if (latest?.id) {
+          const sceneRes = await builderApi.getPascalScene(projectId, latest.id)
+          const scene = sceneRes.data?.scene
+          if (scene && typeof scene === 'object' && typeof scene.nodes === 'object') {
+              const normalized = normalizeSceneGraph(
+                scene.nodes as Record<string, any>,
+                Array.isArray((scene as any).rootNodeIds)
+                  ? ((scene as any).rootNodeIds as string[])
+                  : [],
+              )
+              const nodes = normalized.nodes as Record<string, unknown>
+              const rootNodeIds = normalized.rootNodeIds
+            const nodeValues = Object.values(nodes) as Array<any>
+            setStats({
+              wallCount: nodeValues.filter((node) => node?.type === 'wall').length,
+              itemCount: nodeValues.filter((node) => node?.type === 'item').length,
+            })
+            syncSelectionAndCamera(nodes as Record<string, any>)
+            return { nodes, rootNodeIds }
+          }
+        }
+      }
+    } catch {
+      // Fall back to 2D bridge load if no native scene version is available.
+    }
+
+    const drawingRes = await builderApi.getProjectDrawing(projectId)
+    const drawingData = drawingRes.data?.data || {}
+    const bridgedRaw = buildPascalCoreSceneFromStudioState(projectId, drawingData)
+    const bridged = normalizeSceneGraph(
+      bridgedRaw.nodes as Record<string, any>,
+      bridgedRaw.rootNodeIds as string[],
+    )
+    const bridgedNodeValues = Object.values(bridged.nodes) as Array<any>
+    setStats({
+      wallCount: bridgedNodeValues.filter((node) => node?.type === 'wall').length,
+      itemCount: bridgedNodeValues.filter((node) => node?.type === 'item').length,
+    })
+    syncSelectionAndCamera(bridged.nodes as Record<string, any>)
+    return {
+      nodes: bridged.nodes as Record<string, unknown>,
+      rootNodeIds: bridged.rootNodeIds,
+    }
+  }, [normalizeSceneGraph, projectId, syncSelectionAndCamera])
+
+  const persistScene = useCallback(
+    async (scene: { nodes: Record<string, any>; rootNodeIds: string[] }) => {
+      const drawing = buildStudioDrawingFromPascalScene({
+        nodes: scene.nodes as Record<string, any>,
+      })
+      const diagnostics = getBridgeDiagnostics(drawing as Record<string, any>)
+      const elements = Array.isArray((drawing as any).elements)
+        ? (drawing as any).elements
+        : Array.isArray((drawing as any).pages)
+          ? ((drawing as any).pages.find((page: any) => Array.isArray(page?.elements))?.elements ?? [])
+          : []
+      await builderApi.saveProjectDrawing(projectId, drawing)
+      const now = Date.now()
+      if (now - lastVersionSaveAtRef.current > 30_000) {
+        try {
+          await builderApi.createPascalScene(projectId, {
+            name: `Autosave ${new Date(now).toLocaleTimeString()}`,
+            source: 'native-autosave',
+            scene: { nodes: scene.nodes, rootNodeIds: scene.rootNodeIds },
+          })
+        } catch {
+          // Keep drawing saves resilient even if version endpoint is transiently unavailable.
+        }
+        lastVersionSaveAtRef.current = now
+      }
+      setStats((current) => ({
+        wallCount: elements.filter((el: any) => el?.type === 'line').length,
+        itemCount: elements.filter((el: any) => el?.type === 'block').length,
+      }))
+      if (diagnostics.conversionMs > 250) {
+        console.warn('Pascal bridge conversion is slow', diagnostics)
+      }
+    },
+    [projectId],
+  )
+
+  const flushQueuedSave = useCallback(async () => {
+    const scene = queuedSceneRef.current
+    if (!scene) return
+    if (saveInFlightRef.current) {
+      pendingSaveAfterFlightRef.current = true
+      return
+    }
+    saveInFlightRef.current = true
+    queuedSceneRef.current = null
+    try {
+      await persistScene(scene)
+    } finally {
+      saveInFlightRef.current = false
+      if (pendingSaveAfterFlightRef.current) {
+        pendingSaveAfterFlightRef.current = false
+        if (queuedSceneRef.current) {
+          await flushQueuedSave()
+        }
+      }
+    }
+  }, [persistScene])
+
+  const saveScene = useCallback(async (scene: { nodes: Record<string, any>; rootNodeIds: string[] }) => {
+    queuedSceneRef.current = scene
+    if (saveDebounceTimerRef.current !== null) {
+      window.clearTimeout(saveDebounceTimerRef.current)
+    }
+    saveDebounceTimerRef.current = window.setTimeout(() => {
+      saveDebounceTimerRef.current = null
+      void flushQueuedSave()
+    }, 1200)
+  }, [flushQueuedSave])
+
+  useEffect(() => {
+    if (!EditorComp) return
+    setLoading(false)
+  }, [EditorComp])
+
+  useEffect(() => {
+    if (!manualSaveSignal) return
+    if (manualSaveSignal === lastHandledManualSaveSignalRef.current) return
+    lastHandledManualSaveSignalRef.current = manualSaveSignal
+    const sceneStore = sceneStoreRef.current
+    if (!sceneStore?.getState) {
+      onManualSaveDone?.(false)
+      return
+    }
+    const state = sceneStore.getState()
+    const nodes = state?.nodes
+    const rootNodeIds = state?.rootNodeIds
+    if (!nodes || typeof nodes !== 'object' || !Array.isArray(rootNodeIds)) {
+      onManualSaveDone?.(false)
+      return
+    }
+    queuedSceneRef.current = { nodes, rootNodeIds }
+    if (saveDebounceTimerRef.current !== null) {
+      window.clearTimeout(saveDebounceTimerRef.current)
+      saveDebounceTimerRef.current = null
+    }
+    flushQueuedSave()
+      .then(() => onManualSaveDone?.(true))
+      .catch(() => onManualSaveDone?.(false))
+  }, [flushQueuedSave, manualSaveSignal, onManualSaveDone])
+
+  useEffect(() => {
+    return () => {
+      if (saveDebounceTimerRef.current !== null) {
+        window.clearTimeout(saveDebounceTimerRef.current)
+      }
+    }
+  }, [])
+
+  const statusText = useMemo(() => {
+    if (loading) return 'Loading native scene...'
+    if (error) return error
+    if (!stats) return 'Scene ready.'
+    return `Loaded ${stats.wallCount} walls and ${stats.itemCount} items.`
+  }, [loading, error, stats])
+
+  return !error && EditorComp ? (
+    <div className='h-full min-h-96'>
+      <EditorComp
+        key={projectId}
+        projectId={String(projectId)}
+        layoutVersion='v2'
+        onLoad={loadScene}
+        onSave={saveScene}
+        onSaveStatusChange={() => {}}
+      />
+    </div>
+  ) : (
+    <div className='flex h-full min-h-96 items-center justify-center rounded-md border px-3 text-xs text-muted-foreground'>
+      {statusText}
+    </div>
+  )
+}
+

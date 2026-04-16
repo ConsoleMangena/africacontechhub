@@ -78,6 +78,11 @@ export const sidebarData: SidebarData = {
           icon: 'architecture',
         },
         {
+          title: 'Architectural Studio (Realistic)',
+          url: '/builder/architectural-studio-realistic',
+          icon: 'view_in_ar',
+        },
+        {
           title: 'Budget Engineer',
           url: '/builder/budget-engineer',
           icon: 'engineering',

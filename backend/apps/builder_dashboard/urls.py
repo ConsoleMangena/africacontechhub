@@ -12,7 +12,8 @@ from .views import (
     PromoteFinalBudgetView, SignFinalBudgetView,
     ProjectMilestoneViewSet, ProjectActivityViewSet, UserNotificationViewSet,
     ProjectDocumentViewSet, ArchitecturalDrawingView,
-    BudgetAnalysisHistoryViewSet, MaterialPoolViewSet
+    BudgetAnalysisHistoryViewSet, MaterialPoolViewSet,
+    PascalSceneVersionListCreateView, PascalSceneVersionDetailView
 )
 
 router = DefaultRouter()
@@ -53,4 +54,6 @@ urlpatterns = [
     path('projects/<int:project_id>/connections/', ProjectConnectionsView.as_view(), name='project-connections'),
     path('all-contractors/', AllContractorsView.as_view(), name='all-contractors'),
     path('projects/<int:project_id>/drawing/', ArchitecturalDrawingView.as_view(), name='architectural-drawing'),
+    path('projects/<int:project_id>/pascal-scenes/', PascalSceneVersionListCreateView.as_view(), name='pascal-scenes'),
+    path('projects/<int:project_id>/pascal-scenes/<str:scene_id>/', PascalSceneVersionDetailView.as_view(), name='pascal-scene-detail'),
 ]

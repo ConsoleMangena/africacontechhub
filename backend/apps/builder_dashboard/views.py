@@ -5,6 +5,7 @@ from django.db.models import Sum, Q, Avg
 from django.db import models
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+import uuid
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .models import (
@@ -926,6 +927,117 @@ class ArchitecturalDrawingView(views.APIView):
             drawing.data = request.data.get('data', {})
             drawing.save(update_fields=['data', 'updated_at'])
         return Response(ArchitecturalDrawingSerializer(drawing).data)
+
+
+class PascalSceneVersionListCreateView(views.APIView):
+    """
+    GET  /projects/<project_id>/pascal-scenes/      — list saved Pascal scene versions
+    POST /projects/<project_id>/pascal-scenes/      — save a new Pascal scene version
+    """
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def _get_project(self, request, project_id):
+        return get_object_or_404(Project, id=project_id, owner=request.user)
+
+    def _get_drawing(self, project):
+        drawing, _ = ArchitecturalDrawing.objects.get_or_create(
+            project=project,
+            defaults={'data': {}},
+        )
+        if not isinstance(drawing.data, dict):
+            drawing.data = {}
+        return drawing
+
+    def get(self, request, project_id):
+        project = self._get_project(request, project_id)
+        drawing = self._get_drawing(project)
+        versions = drawing.data.get('pascal_scene_versions', [])
+        if not isinstance(versions, list):
+            versions = []
+
+        summary = []
+        for v in versions:
+            if not isinstance(v, dict):
+                # Ignore legacy/corrupt list entries instead of failing the endpoint.
+                continue
+            scene = v.get('scene')
+            nodes = scene.get('nodes', {}) if isinstance(scene, dict) else {}
+            summary.append({
+                'id': v.get('id'),
+                'name': v.get('name') or 'Untitled Scene',
+                'created_at': v.get('created_at'),
+                'source': v.get('source', 'bridge'),
+                'node_count': len(nodes) if isinstance(nodes, dict) else 0,
+            })
+        summary.sort(key=lambda x: x.get('created_at') or '', reverse=True)
+        return Response({'results': summary})
+
+    def post(self, request, project_id):
+        project = self._get_project(request, project_id)
+        drawing = self._get_drawing(project)
+
+        scene = request.data.get('scene')
+        if not isinstance(scene, dict):
+            raise ValidationError({'scene': 'scene must be a JSON object'})
+
+        name = (request.data.get('name') or '').strip() or f"Pascal Scene {timezone.now().strftime('%Y-%m-%d %H:%M')}"
+        version_id = str(uuid.uuid4())
+        created_at = timezone.now().isoformat()
+        entry = {
+            'id': version_id,
+            'name': name[:255],
+            'created_at': created_at,
+            'source': request.data.get('source') or 'bridge',
+            'scene': scene,
+        }
+
+        data = drawing.data if isinstance(drawing.data, dict) else {}
+        versions = data.get('pascal_scene_versions', [])
+        if not isinstance(versions, list):
+            versions = []
+        versions.append(entry)
+        data['pascal_scene_versions'] = versions[-25:]  # keep recent 25 versions max
+        drawing.data = data
+        drawing.save(update_fields=['data', 'updated_at'])
+
+        return Response(
+            {
+                'id': version_id,
+                'name': entry['name'],
+                'created_at': created_at,
+                'source': entry['source'],
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+
+class PascalSceneVersionDetailView(views.APIView):
+    """
+    GET /projects/<project_id>/pascal-scenes/<scene_id>/   — fetch full scene JSON
+    """
+    permission_classes = [permissions.IsAuthenticated, IsBuilder]
+
+    def _get_project(self, request, project_id):
+        return get_object_or_404(Project, id=project_id, owner=request.user)
+
+    def get(self, request, project_id, scene_id):
+        project = self._get_project(request, project_id)
+        try:
+            drawing = project.architectural_drawing
+        except ArchitecturalDrawing.DoesNotExist:
+            return Response({'detail': 'Scene not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        versions = drawing.data.get('pascal_scene_versions', []) if isinstance(drawing.data, dict) else []
+        for v in versions:
+            if isinstance(v, dict) and v.get('id') == scene_id:
+                return Response({
+                    'id': v.get('id'),
+                    'name': v.get('name'),
+                    'created_at': v.get('created_at'),
+                    'source': v.get('source', 'bridge'),
+                    'scene': v.get('scene', {}),
+                })
+        return Response({'detail': 'Scene not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 class BudgetAnalysisHistoryViewSet(viewsets.ModelViewSet):

@@ -65,10 +65,12 @@ export const useAuthStore = create<AuthState>()((set) => ({
         }
       } catch (error: any) {
         if (error?.name === 'AbortError' || error?.message?.includes('AbortError')) {
+          set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }));
           return;
         }
         console.error('Login failed:', error);
         set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }));
+        throw error;
       }
     },
 

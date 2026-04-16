@@ -291,6 +291,11 @@ export const helpCenterApi = {
 };
 
 export const builderApi = {
+    // Shared guard to prevent pascal-scenes request storms (which trigger DRF throttling/429).
+    // Dedupes in-flight requests and applies short cooldown after 429.
+    _pascalScenesInFlight: new Map<number, Promise<any>>(),
+    _pascalScenesCooldownUntil: new Map<number, number>(),
+    _pascalScenesLastResponse: new Map<number, any>(),
     // Projects API
     getProjects: () => api.get<PaginatedResponse<Project>>('/projects/'),
     getProject: (id: number) => api.get<Project>(`/projects/${id}/`),
@@ -476,6 +481,45 @@ export const builderApi = {
     // Architectural Drawing (studio state per project)
     getProjectDrawing: (projectId: number) => api.get<{ id: number | null; project: number; data: Record<string, any>; created_at?: string; updated_at?: string }>(`/projects/${projectId}/drawing/`),
     saveProjectDrawing: (projectId: number, data: Record<string, any>) => api.put<{ id: number; project: number; data: Record<string, any>; created_at: string; updated_at: string }>(`/projects/${projectId}/drawing/`, { data }),
+    getPascalScenes: async (projectId: number) => {
+        const now = Date.now();
+        const cooldownUntil = builderApi._pascalScenesCooldownUntil.get(projectId) ?? 0;
+        if (cooldownUntil > now) {
+            const cached = builderApi._pascalScenesLastResponse.get(projectId);
+            if (cached) return cached;
+            return Promise.reject(new Error('pascal_scenes_throttled'));
+        }
+
+        const existing = builderApi._pascalScenesInFlight.get(projectId);
+        if (existing) return existing;
+
+        const request = api
+            .get<{ results: Array<{ id: string; name: string; created_at: string; source: string; node_count: number }> }>(
+                `/projects/${projectId}/pascal-scenes/`
+            )
+            .then((res) => {
+                builderApi._pascalScenesLastResponse.set(projectId, res);
+                return res;
+            })
+            .catch((error) => {
+                if (error?.response?.status === 429) {
+                    builderApi._pascalScenesCooldownUntil.set(projectId, Date.now() + 15_000);
+                    const cached = builderApi._pascalScenesLastResponse.get(projectId);
+                    if (cached) return cached;
+                }
+                throw error;
+            })
+            .finally(() => {
+                builderApi._pascalScenesInFlight.delete(projectId);
+            });
+
+        builderApi._pascalScenesInFlight.set(projectId, request);
+        return request;
+    },
+    createPascalScene: (projectId: number, payload: { name?: string; source?: string; scene: Record<string, any> }) =>
+        api.post<{ id: string; name: string; created_at: string; source: string }>(`/projects/${projectId}/pascal-scenes/`, payload),
+    getPascalScene: (projectId: number, sceneId: string) =>
+        api.get<{ id: string; name: string; created_at: string; source: string; scene: Record<string, any> }>(`/projects/${projectId}/pascal-scenes/${sceneId}/`),
 
     // Terrain / Elevation
     getElevationGrid: (lat: number, lng: number, radius: number, gridSize = 20) =>

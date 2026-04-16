@@ -7071,7 +7071,7 @@ export default function ArchitecturalStudioCanvas() {
         onCancel={() => setShowOpenProject(false)}
         footer={null}
         styles={{ body: { padding: 0 } }}
-        destroyOnClose
+        destroyOnHidden
       >
         <div className="max-h-[60vh] overflow-y-auto">
           {allProjects.length === 0 ? (
