@@ -213,13 +213,6 @@ function RouteComponent() {
       setMaterialRequests(Array.isArray(extract(mrRes)) ? extract(mrRes) : [])
       setScheduleTasks(Array.isArray(extract(stRes)) ? extract(stRes) : [])
       setBudgetSheets(bsRes.data && typeof bsRes.data === 'object' && !Array.isArray(bsRes.data) ? bsRes.data as BudgetSheets : null)
-      
-      // Initialize sample activities (TODO: fetch from API)
-      setActivities([
-        { id: 1, type: 'budget', action: 'Budget Updated', description: 'Final budget sheet was updated', user: 'John Doe', timestamp: new Date(Date.now() - 3600000).toISOString() },
-        { id: 2, type: 'team', action: 'Team Member Added', description: 'Architect assigned to project', user: 'Admin', timestamp: new Date(Date.now() - 7200000).toISOString() },
-        { id: 3, type: 'procurement', action: 'Procurement Request', description: 'New material request created', user: 'Jane Smith', timestamp: new Date(Date.now() - 86400000).toISOString() },
-      ])
     }).finally(() => { if (!cancelled) setLoadingWip(false) })
     return () => { cancelled = true }
   }, [selectedProject])

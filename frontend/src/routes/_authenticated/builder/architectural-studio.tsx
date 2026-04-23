@@ -657,20 +657,21 @@ export const Route = createFileRoute(
 });
 
 const COLORS = {
-  bg: "#141414",
-  grid: "#1e2430",
-  gridMajor: "#252d3a",
-  white: "#e8eaf0",
-  cyan: "#00bcd4",
+  // Higher-contrast palette for canvas readability
+  bg: "#000000",
+  grid: "#1a2436",
+  gridMajor: "#2a3b59",
+  white: "#f3f6ff",
+  cyan: "#00e5ff",
   green: "#4caf50",
   yellow: "#ffeb3b",
   red: "#f44336",
   magenta: "#e91e63",
-  accent: "#5c6bc0",
-  toolbar: "#1a1d27",
-  toolbarBorder: "#2a2d3e",
-  muted: "#6e7a94",
-  highlight: "#3d4260",
+  accent: "#7c8cff",
+  toolbar: "#121726",
+  toolbarBorder: "#24304a",
+  muted: "#b5bed2",
+  highlight: "#2b3652",
 };
 
 export type UnitSystem = "mm" | "cm" | "m" | "in" | "ft";
@@ -819,6 +820,83 @@ function drawGrid(
     ctx.stroke();
   }
 
+}
+
+function formatMetersFromMm(mm: number) {
+  const m = mm / 1000;
+  const isInt = Math.abs(m - Math.round(m)) < 1e-9;
+  return `${isInt ? Math.round(m) : m.toFixed(1)}m`;
+}
+
+function drawPlotBoundary(
+  ctx: CanvasRenderingContext2D,
+  pan: { x: number; y: number },
+  zoom: number,
+  s: DrawingSettings,
+) {
+  const plotW = Number(s.plotWidth) || 0;
+  const plotD = Number(s.plotDepth) || 0;
+  if (plotW <= 0 || plotD <= 0) return;
+
+  // Plot boundary centered on world origin (mm coordinates).
+  const left = -plotW / 2;
+  const right = plotW / 2;
+  const top = -plotD / 2;
+  const bottom = plotD / 2;
+
+  const sx = (x: number) => x * zoom + pan.x;
+  const sy = (y: number) => y * zoom + pan.y;
+
+  const x1 = sx(left);
+  const x2 = sx(right);
+  const y1 = sy(top);
+  const y2 = sy(bottom);
+
+  ctx.save();
+  ctx.strokeStyle = "#ffb74d";
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.rect(x1, y1, x2 - x1, y2 - y1);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Dimension labels (screen-space, unscaled).
+  const labelW = formatMetersFromMm(plotW);
+  const labelD = formatMetersFromMm(plotD);
+  ctx.fillStyle = COLORS.white;
+  ctx.strokeStyle = "rgba(0,0,0,0.65)";
+  ctx.lineWidth = 4;
+  ctx.font = "bold 12px 'Roboto Mono', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const cx = (x1 + x2) / 2;
+  const cy = (y1 + y2) / 2;
+  const pad = 14;
+
+  // Top / bottom (width)
+  ctx.strokeText(labelW, cx, y1 - pad);
+  ctx.fillText(labelW, cx, y1 - pad);
+  ctx.strokeText(labelW, cx, y2 + pad);
+  ctx.fillText(labelW, cx, y2 + pad);
+
+  // Left / right (depth) rotated
+  ctx.save();
+  ctx.translate(x1 - pad, cy);
+  ctx.rotate(-Math.PI / 2);
+  ctx.strokeText(labelD, 0, 0);
+  ctx.fillText(labelD, 0, 0);
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(x2 + pad, cy);
+  ctx.rotate(-Math.PI / 2);
+  ctx.strokeText(labelD, 0, 0);
+  ctx.fillText(labelD, 0, 0);
+  ctx.restore();
+
+  ctx.restore();
 }
 
 function drawWindowSymbol2D(
@@ -3359,6 +3437,7 @@ export default function ArchitecturalStudioCanvas() {
     ctx.fillStyle = COLORS.bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawGrid(ctx, pan, zoom, canvas.width, canvas.height, settings);
+    drawPlotBoundary(ctx, pan, zoom, settings);
     const hiddenLayers = new Set(
       layers.filter((l) => !l.visible).map((l) => l.name),
     );
@@ -3577,17 +3656,19 @@ export default function ArchitecturalStudioCanvas() {
     }
 
     // Coordinates readout + ORTHO/OSNAP status
-    ctx.fillStyle = COLORS.muted;
     ctx.font = "11px 'Roboto Mono', monospace";
+    ctx.fillStyle = COLORS.white;
+    ctx.strokeStyle = "rgba(0,0,0,0.65)";
+    ctx.lineWidth = 4;
     const statusFlags = [
       orthoMode ? "ORTHO" : null,
       "OSNAP",
     ].filter(Boolean).join(" | ");
-    ctx.fillText(
-      `X: ${snapToGrid(cursor.x).toFixed(0)} mm  Y: ${snapToGrid(cursor.y).toFixed(0)} mm  Zoom: ${(zoom * 100).toFixed(0)}%  [${statusFlags}]`,
-      12,
-      canvas.height - 10,
-    );
+    const readout = `X: ${snapToGrid(cursor.x).toFixed(0)} mm  Y: ${snapToGrid(cursor.y).toFixed(0)} mm  Zoom: ${(zoom * 100).toFixed(0)}%  [${statusFlags}]`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.strokeText(readout, 12, canvas.height - 10);
+    ctx.fillText(readout, 12, canvas.height - 10);
   }, [elements, pan, zoom, selected, previewEl, cursor, layers, snapPoint, orthoMode, drawing, startPos]);
 
   useEffect(() => {
@@ -3597,14 +3678,46 @@ export default function ArchitecturalStudioCanvas() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    let rafId = 0;
+
     const resize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
+      const rect = canvas.getBoundingClientRect();
+      const nextW = Math.floor(rect.width);
+      const nextH = Math.floor(rect.height);
+
+      // Flex/layout timing can report 0×0 briefly; retry until we get a real size.
+      if (nextW <= 0 || nextH <= 0) {
+        rafId = window.requestAnimationFrame(resize);
+        return;
+      }
+
+      if (canvas.width !== nextW) canvas.width = nextW;
+      if (canvas.height !== nextH) canvas.height = nextH;
       redraw();
     };
+
+    const cleanupRaf = () => {
+      if (rafId) window.cancelAnimationFrame(rafId);
+      rafId = 0;
+    };
+
+    // Observe element size changes (sidebars/toggles), not just window resize.
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => {
+            cleanupRaf();
+            resize();
+          })
+        : null;
+    ro?.observe(canvas);
+
     resize();
     window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    return () => {
+      cleanupRaf();
+      ro?.disconnect();
+      window.removeEventListener("resize", resize);
+    };
   }, [redraw]);
 
   const handleWheel = useCallback((e: WheelEvent) => {
@@ -4793,14 +4906,14 @@ export default function ArchitecturalStudioCanvas() {
     }
     if (!drawing) return;
     if (tool === "polyline" || tool === "wall") return; // Click-based tools
+    const { wx, wy } = getPos(e);
+    const worldDist = Math.hypot(wx - startPos.x, wy - startPos.y);
 
-    const dist = Math.hypot(
-      e.clientX - dragStartPos.current.x,
-      e.clientY - dragStartPos.current.y,
-    );
-    if (dist > 5) {
-      const { wx, wy } = getPos(e);
+    // Commit the shape if the user actually defined a non-trivial size in world units.
+    // Using world distance avoids flaky "5px" thresholds on high-DPI/trackpads.
+    if (worldDist > 2) {
       finishDrawing(wx, wy);
+      return;
     }
   };
 
@@ -5944,7 +6057,7 @@ export default function ArchitecturalStudioCanvas() {
           {viewMode === "2d" ? (
             <canvas
               ref={canvasRef}
-              className="flex-1 block"
+              className="flex-1 block w-full h-full"
               style={{ cursor: getCursorStyle() }}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -7071,7 +7184,7 @@ export default function ArchitecturalStudioCanvas() {
         onCancel={() => setShowOpenProject(false)}
         footer={null}
         styles={{ body: { padding: 0 } }}
-        destroyOnClose
+        destroyOnHidden
       >
         <div className="max-h-[60vh] overflow-y-auto">
           {allProjects.length === 0 ? (

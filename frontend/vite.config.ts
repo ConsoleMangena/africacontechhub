@@ -17,6 +17,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@pascal-app/core': path.resolve(__dirname, './pascal-fork/packages/core/src/index.ts'),
+      '@pascal-app/viewer': path.resolve(__dirname, './pascal-fork/packages/viewer/src/index.ts'),
+      '@pascal-app/editor': path.resolve(__dirname, './pascal-fork/packages/editor/src/index.tsx'),
+      'next/image': path.resolve(__dirname, './src/shims/next-image.tsx'),
+      'next/link': path.resolve(__dirname, './src/shims/next-link.tsx'),
     },
   },
   build: {

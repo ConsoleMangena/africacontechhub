@@ -46,6 +46,7 @@ import { Route as AuthenticatedBuilderDesignDraftingRouteImport } from './routes
 import { Route as AuthenticatedBuilderContractAnalyserRouteImport } from './routes/_authenticated/builder/contract-analyser'
 import { Route as AuthenticatedBuilderBuildingRouteImport } from './routes/_authenticated/builder/building'
 import { Route as AuthenticatedBuilderBudgetEngineerRouteImport } from './routes/_authenticated/builder/budget-engineer'
+import { Route as AuthenticatedBuilderArchitecturalStudioRealisticRouteImport } from './routes/_authenticated/builder/architectural-studio-realistic'
 import { Route as AuthenticatedBuilderArchitecturalStudioRouteImport } from './routes/_authenticated/builder/architectural-studio'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminTeamRouteImport } from './routes/_authenticated/admin/team'
@@ -265,6 +266,12 @@ const AuthenticatedBuilderBudgetEngineerRoute =
     path: '/budget-engineer',
     getParentRoute: () => AuthenticatedBuilderRoute,
   } as any)
+const AuthenticatedBuilderArchitecturalStudioRealisticRoute =
+  AuthenticatedBuilderArchitecturalStudioRealisticRouteImport.update({
+    id: '/architectural-studio-realistic',
+    path: '/architectural-studio-realistic',
+    getParentRoute: () => AuthenticatedBuilderRoute,
+  } as any)
 const AuthenticatedBuilderArchitecturalStudioRoute =
   AuthenticatedBuilderArchitecturalStudioRouteImport.update({
     id: '/architectural-studio',
@@ -405,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRouteWithChildren
   '/builder/architectural-studio': typeof AuthenticatedBuilderArchitecturalStudioRoute
+  '/builder/architectural-studio-realistic': typeof AuthenticatedBuilderArchitecturalStudioRealisticRoute
   '/builder/budget-engineer': typeof AuthenticatedBuilderBudgetEngineerRoute
   '/builder/building': typeof AuthenticatedBuilderBuildingRoute
   '/builder/contract-analyser': typeof AuthenticatedBuilderContractAnalyserRoute
@@ -458,6 +466,7 @@ export interface FileRoutesByTo {
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRouteWithChildren
   '/builder/architectural-studio': typeof AuthenticatedBuilderArchitecturalStudioRoute
+  '/builder/architectural-studio-realistic': typeof AuthenticatedBuilderArchitecturalStudioRealisticRoute
   '/builder/budget-engineer': typeof AuthenticatedBuilderBudgetEngineerRoute
   '/builder/building': typeof AuthenticatedBuilderBuildingRoute
   '/builder/contract-analyser': typeof AuthenticatedBuilderContractAnalyserRoute
@@ -516,6 +525,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/team': typeof AuthenticatedAdminTeamRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRouteWithChildren
   '/_authenticated/builder/architectural-studio': typeof AuthenticatedBuilderArchitecturalStudioRoute
+  '/_authenticated/builder/architectural-studio-realistic': typeof AuthenticatedBuilderArchitecturalStudioRealisticRoute
   '/_authenticated/builder/budget-engineer': typeof AuthenticatedBuilderBudgetEngineerRoute
   '/_authenticated/builder/building': typeof AuthenticatedBuilderBuildingRoute
   '/_authenticated/builder/contract-analyser': typeof AuthenticatedBuilderContractAnalyserRoute
@@ -574,6 +584,7 @@ export interface FileRouteTypes {
     | '/admin/team'
     | '/admin/users'
     | '/builder/architectural-studio'
+    | '/builder/architectural-studio-realistic'
     | '/builder/budget-engineer'
     | '/builder/building'
     | '/builder/contract-analyser'
@@ -627,6 +638,7 @@ export interface FileRouteTypes {
     | '/admin/team'
     | '/admin/users'
     | '/builder/architectural-studio'
+    | '/builder/architectural-studio-realistic'
     | '/builder/budget-engineer'
     | '/builder/building'
     | '/builder/contract-analyser'
@@ -684,6 +696,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/team'
     | '/_authenticated/admin/users'
     | '/_authenticated/builder/architectural-studio'
+    | '/_authenticated/builder/architectural-studio-realistic'
     | '/_authenticated/builder/budget-engineer'
     | '/_authenticated/builder/building'
     | '/_authenticated/builder/contract-analyser'
@@ -985,6 +998,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBuilderBudgetEngineerRouteImport
       parentRoute: typeof AuthenticatedBuilderRoute
     }
+    '/_authenticated/builder/architectural-studio-realistic': {
+      id: '/_authenticated/builder/architectural-studio-realistic'
+      path: '/architectural-studio-realistic'
+      fullPath: '/builder/architectural-studio-realistic'
+      preLoaderRoute: typeof AuthenticatedBuilderArchitecturalStudioRealisticRouteImport
+      parentRoute: typeof AuthenticatedBuilderRoute
+    }
     '/_authenticated/builder/architectural-studio': {
       id: '/_authenticated/builder/architectural-studio'
       path: '/architectural-studio'
@@ -1219,6 +1239,7 @@ const AuthenticatedBuilderProjectProjectIdRouteWithChildren =
 
 interface AuthenticatedBuilderRouteChildren {
   AuthenticatedBuilderArchitecturalStudioRoute: typeof AuthenticatedBuilderArchitecturalStudioRoute
+  AuthenticatedBuilderArchitecturalStudioRealisticRoute: typeof AuthenticatedBuilderArchitecturalStudioRealisticRoute
   AuthenticatedBuilderBudgetEngineerRoute: typeof AuthenticatedBuilderBudgetEngineerRoute
   AuthenticatedBuilderBuildingRoute: typeof AuthenticatedBuilderBuildingRoute
   AuthenticatedBuilderContractAnalyserRoute: typeof AuthenticatedBuilderContractAnalyserRoute
@@ -1235,6 +1256,8 @@ interface AuthenticatedBuilderRouteChildren {
 const AuthenticatedBuilderRouteChildren: AuthenticatedBuilderRouteChildren = {
   AuthenticatedBuilderArchitecturalStudioRoute:
     AuthenticatedBuilderArchitecturalStudioRoute,
+  AuthenticatedBuilderArchitecturalStudioRealisticRoute:
+    AuthenticatedBuilderArchitecturalStudioRealisticRoute,
   AuthenticatedBuilderBudgetEngineerRoute:
     AuthenticatedBuilderBudgetEngineerRoute,
   AuthenticatedBuilderBuildingRoute: AuthenticatedBuilderBuildingRoute,

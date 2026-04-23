@@ -7,7 +7,12 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@pascal-app/core": ["./pascal-fork/packages/core/src/index.ts"],
+      "@pascal-app/viewer": ["./pascal-fork/packages/viewer/src/index.ts"],
+      "@pascal-app/editor": ["./pascal-fork/packages/editor/src/index.tsx"],
+      "next/image": ["./src/shims/next-image.tsx"],
+      "next/link": ["./src/shims/next-link.tsx"]
     }
   }
 }

@@ -73,14 +73,18 @@ export function UserAuthForm({
 
       await auth.login();
 
+      const currentUser = useAuthStore.getState().auth.user;
+      if (!currentUser) {
+        throw new Error('Signed in, but failed to load your profile. Make sure backend is running and try again.');
+      }
+
       toast.success('Signed in successfully');
 
       // Get user role and redirect accordingly
-      const currentUser = useAuthStore.getState().auth.user;
       const role = currentUser?.profile?.role;
       const isApproved = currentUser?.profile?.is_approved;
 
-      let targetPath = redirectTo || '/';
+      let targetPath = redirectTo || '/builder';
       
       if (isApproved === false && role !== 'ADMIN') {
         targetPath = '/pending-approval';
@@ -100,7 +104,7 @@ export function UserAuthForm({
             targetPath = '/admin';
             break;
           default:
-            targetPath = '/';
+            targetPath = '/builder';
         }
       }
 
