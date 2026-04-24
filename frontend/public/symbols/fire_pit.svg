@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="fireG" cx="50%" cy="50%">
+      <stop offset="0%" stop-color="#ff9800" stop-opacity="0.5"/>
+      <stop offset="50%" stop-color="#f44336" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#795548" stop-opacity="0.1"/>
+    </radialGradient>
+  </defs>
+  <!-- Outer stone ring -->
+  <circle cx="50" cy="50" r="44" fill="#8d6e63" fill-opacity="0.15" stroke="#795548" stroke-width="2"/>
+  <!-- Inner stone ring -->
+  <circle cx="50" cy="50" r="34" fill="#6d4c41" fill-opacity="0.1" stroke="#5d4037" stroke-width="1.5"/>
+  <!-- Individual stones (around outer ring) -->
+  <ellipse cx="50" cy="7" rx="8" ry="5" fill="#a1887f" fill-opacity="0.4" stroke="#795548" stroke-width="0.7"/>
+  <ellipse cx="80" cy="17" rx="7" ry="5" fill="#bcaaa4" fill-opacity="0.4" stroke="#795548" stroke-width="0.7" transform="rotate(45 80 17)"/>
+  <ellipse cx="93" cy="50" rx="5" ry="8" fill="#a1887f" fill-opacity="0.4" stroke="#795548" stroke-width="0.7"/>
+  <ellipse cx="80" cy="83" rx="7" ry="5" fill="#bcaaa4" fill-opacity="0.4" stroke="#795548" stroke-width="0.7" transform="rotate(-45 80 83)"/>
+  <ellipse cx="50" cy="93" rx="8" ry="5" fill="#a1887f" fill-opacity="0.4" stroke="#795548" stroke-width="0.7"/>
+  <ellipse cx="20" cy="83" rx="7" ry="5" fill="#bcaaa4" fill-opacity="0.4" stroke="#795548" stroke-width="0.7" transform="rotate(45 20 83)"/>
+  <ellipse cx="7" cy="50" rx="5" ry="8" fill="#a1887f" fill-opacity="0.4" stroke="#795548" stroke-width="0.7"/>
+  <ellipse cx="20" cy="17" rx="7" ry="5" fill="#bcaaa4" fill-opacity="0.4" stroke="#795548" stroke-width="0.7" transform="rotate(-45 20 17)"/>
+  <!-- Fire center -->
+  <circle cx="50" cy="50" r="16" fill="url(#fireG)"/>
+  <!-- Flame shape -->
+  <path d="M 50,38 Q 56,44 54,50 Q 58,46 56,42 Q 60,48 55,54 Q 52,56 50,52 Q 48,56 45,54 Q 40,48 44,42 Q 42,46 46,50 Q 44,44 50,38Z" fill="#ff9800" fill-opacity="0.4" stroke="#f57c00" stroke-width="0.5"/>
+  <!-- Center glow -->
+  <circle cx="50" cy="48" r="4" fill="#ffeb3b" opacity="0.35"/>
+</svg>

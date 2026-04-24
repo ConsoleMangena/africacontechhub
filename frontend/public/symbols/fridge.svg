@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Fridge body -->
+  <rect x="5" y="2" width="90" height="96" rx="3" stroke-width="2"/>
+  <!-- Freezer section -->
+  <line x1="5" y1="30" x2="95" y2="30" stroke-width="1.5"/>
+  <!-- Freezer handle -->
+  <line x1="85" y1="12" x2="85" y2="24" stroke-width="2"/>
+  <!-- Fridge handle -->
+  <line x1="85" y1="40" x2="85" y2="55" stroke-width="2"/>
+</svg>

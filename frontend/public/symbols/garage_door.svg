@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Frame -->
+  <rect x="2" y="2" width="96" height="96" stroke-width="2.5"/>
+  <!-- Horizontal roll-up slats -->
+  <line x1="5" y1="20" x2="95" y2="20" stroke-width="1"/>
+  <line x1="5" y1="38" x2="95" y2="38" stroke-width="1"/>
+  <line x1="5" y1="56" x2="95" y2="56" stroke-width="1"/>
+  <line x1="5" y1="74" x2="95" y2="74" stroke-width="1"/>
+  <!-- Center handle -->
+  <rect x="42" y="82" width="16" height="6" rx="2" stroke-width="1.5"/>
+</svg>

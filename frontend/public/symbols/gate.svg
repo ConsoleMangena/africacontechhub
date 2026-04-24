@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="gatePost" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#78909c"/>
+      <stop offset="50%" stop-color="#b0bec5"/>
+      <stop offset="100%" stop-color="#78909c"/>
+    </linearGradient>
+  </defs>
+  <!-- Gate posts -->
+  <rect x="4" y="18" width="14" height="64" rx="2" fill="url(#gatePost)" stroke="#546e7a" stroke-width="1.5"/>
+  <rect x="82" y="18" width="14" height="64" rx="2" fill="url(#gatePost)" stroke="#546e7a" stroke-width="1.5"/>
+  <!-- Post detail lines -->
+  <line x1="8" y1="22" x2="14" y2="22" stroke="#455a64" stroke-width="0.8"/>
+  <line x1="8" y1="78" x2="14" y2="78" stroke="#455a64" stroke-width="0.8"/>
+  <line x1="86" y1="22" x2="92" y2="22" stroke="#455a64" stroke-width="0.8"/>
+  <line x1="86" y1="78" x2="92" y2="78" stroke="#455a64" stroke-width="0.8"/>
+  <!-- Gate panel -->
+  <line x1="18" y1="50" x2="82" y2="50" stroke="#546e7a" stroke-width="2"/>
+  <!-- Gate bars -->
+  <line x1="30" y1="44" x2="30" y2="56" stroke="#78909c" stroke-width="1.2"/>
+  <line x1="42" y1="44" x2="42" y2="56" stroke="#78909c" stroke-width="1.2"/>
+  <line x1="54" y1="44" x2="54" y2="56" stroke="#78909c" stroke-width="1.2"/>
+  <line x1="66" y1="44" x2="66" y2="56" stroke="#78909c" stroke-width="1.2"/>
+  <!-- Swing arc -->
+  <path d="M 18,50 Q 50,14 82,50" fill="none" stroke="#546e7a" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+  <!-- Hinges -->
+  <circle cx="18" cy="50" r="3.5" fill="#455a64" stroke="#37474f" stroke-width="0.8"/>
+  <circle cx="82" cy="50" r="3.5" fill="#455a64" stroke="#37474f" stroke-width="0.8"/>
+  <!-- Hinge pins -->
+  <circle cx="18" cy="50" r="1.5" fill="#263238"/>
+  <circle cx="82" cy="50" r="1.5" fill="#263238"/>
+</svg>

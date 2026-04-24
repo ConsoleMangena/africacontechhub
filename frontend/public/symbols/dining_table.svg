@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Table top -->
+  <rect x="5" y="10" width="90" height="80" rx="3" stroke-width="2"/>
+  <!-- Chair positions (6 chairs) -->
+  <rect x="15" y="2" width="12" height="8" rx="1" stroke-width="1.2"/>
+  <rect x="44" y="2" width="12" height="8" rx="1" stroke-width="1.2"/>
+  <rect x="73" y="2" width="12" height="8" rx="1" stroke-width="1.2"/>
+  <rect x="15" y="90" width="12" height="8" rx="1" stroke-width="1.2"/>
+  <rect x="44" y="90" width="12" height="8" rx="1" stroke-width="1.2"/>
+  <rect x="73" y="90" width="12" height="8" rx="1" stroke-width="1.2"/>
+</svg>

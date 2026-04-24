@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 20" fill="none" stroke="currentColor" stroke-width="1">
+  <!-- Wall break lines (top and bottom) -->
+  <line x1="0" y1="0" x2="120" y2="0" stroke-width="1.5"/>
+  <line x1="0" y1="20" x2="120" y2="20" stroke-width="1.5"/>
+  <!-- Glass panes -->
+  <line x1="0" y1="7" x2="120" y2="7" stroke-width="0.8" stroke-opacity="0.5"/>
+  <line x1="0" y1="13" x2="120" y2="13" stroke-width="0.8" stroke-opacity="0.5"/>
+  <!-- Center mullion -->
+  <line x1="60" y1="0" x2="60" y2="20" stroke-width="1"/>
+</svg>

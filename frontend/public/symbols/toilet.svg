@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Cistern/tank -->
+  <rect x="15" y="0" width="70" height="25" rx="4"/>
+  <!-- Bowl -->
+  <ellipse cx="50" cy="75" rx="38" ry="42"/>
+  <!-- Seat opening -->
+  <ellipse cx="50" cy="78" rx="25" ry="28" stroke-dasharray="3,2"/>
+</svg>

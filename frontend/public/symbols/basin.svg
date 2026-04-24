@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Outer basin -->
+  <rect x="2" y="2" width="76" height="76" rx="12"/>
+  <!-- Inner bowl -->
+  <ellipse cx="40" cy="45" rx="28" ry="24"/>
+  <!-- Tap/faucet -->
+  <circle cx="40" cy="12" r="5" fill="currentColor"/>
+</svg>

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="clPole" cx="40%" cy="40%">
+      <stop offset="0%" stop-color="#b0bec5"/>
+      <stop offset="100%" stop-color="#607d8b"/>
+    </radialGradient>
+  </defs>
+  <!-- Shadow -->
+  <circle cx="53" cy="53" r="42" fill="#000" opacity="0.05"/>
+  <!-- Outer wire circle -->
+  <circle cx="50" cy="50" r="42" fill="none" stroke="#90a4ae" stroke-width="0.8" stroke-dasharray="3 2" opacity="0.5"/>
+  <!-- Wire lines (multiple rings) -->
+  <circle cx="50" cy="50" r="36" fill="none" stroke="#90a4ae" stroke-width="0.6" opacity="0.35"/>
+  <circle cx="50" cy="50" r="28" fill="none" stroke="#90a4ae" stroke-width="0.6" opacity="0.3"/>
+  <circle cx="50" cy="50" r="20" fill="none" stroke="#90a4ae" stroke-width="0.5" opacity="0.25"/>
+  <!-- Arms (metallic) -->
+  <line x1="50" y1="50" x2="50" y2="8" stroke="#78909c" stroke-width="2" stroke-linecap="round"/>
+  <line x1="50" y1="50" x2="92" y2="50" stroke="#78909c" stroke-width="2" stroke-linecap="round"/>
+  <line x1="50" y1="50" x2="50" y2="92" stroke="#78909c" stroke-width="2" stroke-linecap="round"/>
+  <line x1="50" y1="50" x2="8" y2="50" stroke="#78909c" stroke-width="2" stroke-linecap="round"/>
+  <!-- Diagonal arms -->
+  <line x1="50" y1="50" x2="80" y2="20" stroke="#90a4ae" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/>
+  <line x1="50" y1="50" x2="80" y2="80" stroke="#90a4ae" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/>
+  <line x1="50" y1="50" x2="20" y2="80" stroke="#90a4ae" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/>
+  <line x1="50" y1="50" x2="20" y2="20" stroke="#90a4ae" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/>
+  <!-- Center pole -->
+  <circle cx="50" cy="50" r="5" fill="url(#clPole)" stroke="#546e7a" stroke-width="1.5"/>
+  <circle cx="50" cy="50" r="2" fill="#455a64"/>
+  <!-- Arm tips -->
+  <circle cx="50" cy="8" r="2" fill="#78909c" stroke="#546e7a" stroke-width="0.5"/>
+  <circle cx="92" cy="50" r="2" fill="#78909c" stroke="#546e7a" stroke-width="0.5"/>
+  <circle cx="50" cy="92" r="2" fill="#78909c" stroke="#546e7a" stroke-width="0.5"/>
+  <circle cx="8" cy="50" r="2" fill="#78909c" stroke="#546e7a" stroke-width="0.5"/>
+</svg>
