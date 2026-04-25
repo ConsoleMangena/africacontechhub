@@ -3,6 +3,7 @@ import logging
 from functools import lru_cache
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
+from django.db import DatabaseError
 from supabase import create_client, Client
 from django.contrib.auth.models import User
 import time
@@ -86,6 +87,74 @@ class SupabaseAuthentication(BaseAuthentication):
     def authenticate_header(self, request):
         return 'Bearer'
 
+    def _sync_django_user_from_claims(self, user_id: str, email: str, raw_meta: dict):
+        django_user, created = User.objects.get_or_create(
+            username=user_id,
+            defaults={'email': email},
+        )
+
+        role = raw_meta.get('role', 'BUILDER')
+        first_name = raw_meta.get('first_name', '')
+        last_name = raw_meta.get('last_name', '')
+        phone_number = raw_meta.get('phone_number', '')
+
+        from .models import Profile, AccountRequest
+
+        if created:
+            django_user.email = email or ''
+            django_user.first_name = first_name
+            django_user.last_name = last_name
+            django_user.save()
+
+            profile, _ = Profile.objects.get_or_create(
+                user=django_user,
+                defaults={
+                    'role': role,
+                    'is_approved': False,
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'phone_number': phone_number,
+                },
+            )
+        else:
+            profile, _ = Profile.objects.get_or_create(
+                user=django_user,
+                defaults={
+                    'role': role,
+                    'is_approved': False,
+                },
+            )
+
+            user_changed = False
+            profile_changed = False
+
+            if first_name and django_user.first_name != first_name:
+                django_user.first_name = first_name
+                user_changed = True
+            if last_name and django_user.last_name != last_name:
+                django_user.last_name = last_name
+                user_changed = True
+            # Django remains source-of-truth for role changes.
+            if phone_number and profile.phone_number != phone_number:
+                profile.phone_number = phone_number
+                profile_changed = True
+
+            if user_changed:
+                django_user.save()
+            if profile_changed:
+                profile.save()
+
+        if not profile.is_approved:
+            AccountRequest.objects.get_or_create(
+                user=django_user,
+                defaults={
+                    'requested_role': profile.role,
+                    'status': 'PENDING',
+                },
+            )
+
+        return django_user
+
     def authenticate(self, request):
         auth_header = request.headers.get('Authorization')
         if not auth_header:
@@ -96,93 +165,11 @@ class SupabaseAuthentication(BaseAuthentication):
         except IndexError:
             raise AuthenticationFailed('Invalid token header.')
 
+        claims = None
         try:
-            # Prefer local verification (fast, reliable).
             claims = _verify_supabase_jwt(token)
-
-            user_id = claims.get('sub')
-            email = claims.get('email') or ''
-            raw_meta = claims.get('user_metadata') or {}
-
-            if not user_id:
-                raise AuthenticationFailed('Invalid token: missing sub.')
-
-            # ── Get or create the Django user ────────────────────────────
-            django_user, created = User.objects.get_or_create(
-                username=user_id,
-                defaults={'email': email},
-            )
-
-            role = raw_meta.get('role', 'BUILDER')
-            first_name = raw_meta.get('first_name', '')
-            last_name = raw_meta.get('last_name', '')
-            phone_number = raw_meta.get('phone_number', '')
-
-            from .models import Profile, AccountRequest
-
-            # ── Ensure Profile exists ────────────────────────────────────
-            if created:
-                # Brand-new Django user → Profile starts as NOT approved
-                django_user.email = email or ''
-                django_user.first_name = first_name
-                django_user.last_name = last_name
-                django_user.save()
-
-                profile, _ = Profile.objects.get_or_create(
-                    user=django_user,
-                    defaults={
-                        'role': role,
-                        'is_approved': False,
-                        'first_name': first_name,
-                        'last_name': last_name,
-                        'phone_number': phone_number,
-                    },
-                )
-            else:
-                # Existing user → ensure profile exists, sync metadata
-                profile, prof_created = Profile.objects.get_or_create(
-                    user=django_user,
-                    defaults={
-                        'role': role,
-                        'is_approved': False,
-                    },
-                )
-
-                # Sync metadata changes from Supabase → Django
-                user_changed = False
-                profile_changed = False
-
-                if first_name and django_user.first_name != first_name:
-                    django_user.first_name = first_name
-                    user_changed = True
-                if last_name and django_user.last_name != last_name:
-                    django_user.last_name = last_name
-                    user_changed = True
-                # Do NOT sync role from Supabase metadata — Django is the
-                # source of truth for roles (admins manage them via the dashboard).
-                if phone_number and profile.phone_number != phone_number:
-                    profile.phone_number = phone_number
-                    profile_changed = True
-
-                if user_changed:
-                    django_user.save()
-                if profile_changed:
-                    profile.save()
-
-            # ── Ensure AccountRequest exists (for ALL unapproved users) ──
-            if not profile.is_approved:
-                AccountRequest.objects.get_or_create(
-                    user=django_user,
-                    defaults={
-                        'requested_role': profile.role,
-                        'status': 'PENDING',
-                    },
-                )
-
-            return (django_user, None)
-
-        except Exception as e:
-            # Fallback: verify with Supabase API (network).
+        except Exception as verify_error:
+            logger.warning('Local JWT verification failed, trying Supabase API fallback: %s', verify_error)
             try:
                 supabase: Client = _get_supabase_client()
                 user_response = supabase.auth.get_user(jwt=token)
@@ -190,45 +177,31 @@ class SupabaseAuthentication(BaseAuthentication):
                 if sb_user is None:
                     raise AuthenticationFailed('Supabase user not found.')
 
-                user_id = sb_user.id
-                email = sb_user.email
-                raw_meta = (
-                    getattr(sb_user, 'user_metadata', None)
-                    or getattr(sb_user, 'raw_user_meta_data', None)
-                    or {}
-                )
+                claims = {
+                    'sub': sb_user.id,
+                    'email': sb_user.email,
+                    'user_metadata': (
+                        getattr(sb_user, 'user_metadata', None)
+                        or getattr(sb_user, 'raw_user_meta_data', None)
+                        or {}
+                    ),
+                }
+            except Exception as fallback_error:
+                raise AuthenticationFailed(f'Invalid token: {str(fallback_error)}')
 
-                django_user, created = User.objects.get_or_create(
-                    username=user_id,
-                    defaults={'email': email},
-                )
+        user_id = claims.get('sub') if isinstance(claims, dict) else None
+        email = (claims.get('email') if isinstance(claims, dict) else '') or ''
+        raw_meta = (claims.get('user_metadata') if isinstance(claims, dict) else {}) or {}
 
-                role = raw_meta.get('role', 'BUILDER')
-                first_name = raw_meta.get('first_name', '')
-                last_name = raw_meta.get('last_name', '')
-                phone_number = raw_meta.get('phone_number', '')
+        if not user_id:
+            raise AuthenticationFailed('Invalid token: missing sub.')
 
-                from .models import Profile, AccountRequest
-                profile, _ = Profile.objects.get_or_create(
-                    user=django_user,
-                    defaults={
-                        'role': role,
-                        'is_approved': False,
-                        'first_name': first_name,
-                        'last_name': last_name,
-                        'phone_number': phone_number,
-                    },
-                )
-
-                if not profile.is_approved:
-                    AccountRequest.objects.get_or_create(
-                        user=django_user,
-                        defaults={
-                            'requested_role': profile.role,
-                            'status': 'PENDING',
-                        },
-                    )
-
-                return (django_user, None)
-            except Exception as e2:
-                raise AuthenticationFailed(f'Invalid token: {str(e2) or str(e)}')
+        try:
+            django_user = self._sync_django_user_from_claims(user_id, email, raw_meta)
+            return (django_user, None)
+        except DatabaseError:
+            logger.exception('Database error while syncing user from Supabase token. user_id=%s', user_id)
+            raise
+        except Exception:
+            logger.exception('Unexpected sync error while authenticating user_id=%s', user_id)
+            raise

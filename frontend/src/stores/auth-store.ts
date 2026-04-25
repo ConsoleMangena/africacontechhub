@@ -1,9 +1,8 @@
 import { create } from 'zustand'
-import { AxiosError } from 'axios'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { apiClient } from '@/lib/api-client'
-import { User } from '@/types/api'
+import type { User } from '@/types/api'
 
 // Track backend availability to avoid spamming requests when API is down
 let backendUnavailable = false
@@ -20,6 +19,38 @@ interface AuthState {
   }
 }
 
+type ApiResponse<T> = {
+  success: boolean
+  data?: T
+  message?: string
+}
+
+function isUnauthorizedMessage(message?: string) {
+  const text = (message || '').toLowerCase()
+  return text.includes('unauthorized') || text.includes('401')
+}
+
+async function fetchProfileWithRefreshRetry(): Promise<User> {
+  const readProfile = async () => {
+    const response = (await apiClient.get('/api/v1/auth/me/')) as ApiResponse<User>
+    if (response.success && response.data) return response.data
+    throw new Error(response.message || 'Failed to fetch profile')
+  }
+
+  try {
+    return await readProfile()
+  } catch (error) {
+    if (!(error instanceof Error) || !isUnauthorizedMessage(error.message)) {
+      throw error
+    }
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+    if (refreshError || !refreshed.session) {
+      throw error
+    }
+    return readProfile()
+  }
+}
+
 export const useAuthStore = create<AuthState>()((set) => ({
   auth: {
     user: null,
@@ -27,33 +58,18 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
     login: async () => {
       try {
-        set((state) => ({ auth: { ...state.auth, isLoading: true } }));
+        set((state) => ({ auth: { ...state.auth, isLoading: true } }))
         // Prefer local session over getUser() network call.
         // In some environments, browser/extension/network layers can abort the getUser request.
-        const { data: { session }, error } = await supabase.auth.getSession()
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
         const supabaseUser = session?.user
         if (error || !supabaseUser) throw error || new Error('No active session')
 
-        const fetchProfileWithRefreshRetry = async () => {
-          try {
-            return await apiClient.get('/api/v1/auth/me/');
-          } catch (error) {
-            if (!(error instanceof AxiosError) || error.response?.status !== 401) {
-              throw error;
-            }
-            const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-            if (refreshError || !refreshed.session) {
-              throw error;
-            }
-            return apiClient.get('/api/v1/auth/me/');
-          }
-        };
-
-        // Fetch profile from Django (retry once after token refresh on 401)
-        const response = await fetchProfileWithRefreshRetry();
-        const userData = response.data as User;
-        if (!userData) throw new Error('Failed to fetch profile');
-        const profile = userData.profile;
+        const userData = await fetchProfileWithRefreshRetry()
+        const profile = userData.profile
 
         set((state) => ({
           auth: {
@@ -65,33 +81,33 @@ export const useAuthStore = create<AuthState>()((set) => ({
               first_name: userData.first_name,
               last_name: userData.last_name,
               profile,
-              role: userData.role
+              role: userData.role,
             },
             isLoading: false,
-          }
-        }));
+          },
+        }))
 
         // Redirect unapproved users (non-ADMIN) to pending screen
         // is_approved is explicitly false (not null/undefined) — this protects against legacy users
         if (profile && profile.is_approved === false && profile.role !== 'ADMIN') {
           if (window.location.pathname !== '/pending-approval') {
-            window.location.href = '/pending-approval';
+            window.location.href = '/pending-approval'
           }
         }
       } catch (error: any) {
         if (error?.name === 'AbortError' || error?.message?.includes('AbortError')) {
-          set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }));
-          return;
+          set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
+          return
         }
-        console.error('Login failed:', error);
-        set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }));
-        throw error;
+        console.error('Login failed:', error)
+        set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
+        throw error
       }
     },
 
     logout: async () => {
-      await supabase.auth.signOut();
-      set((state) => ({ auth: { ...state.auth, user: null } }));
+      await supabase.auth.signOut()
+      set((state) => ({ auth: { ...state.auth, user: null } }))
     },
 
     initialize: async () => {
@@ -105,24 +121,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
         if (session) {
           try {
-            const fetchProfileWithRefreshRetry = async () => {
-              try {
-                return await apiClient.get('/api/v1/auth/me/')
-              } catch (error) {
-                if (!(error instanceof AxiosError) || error.response?.status !== 401) {
-                  throw error
-                }
-                const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
-                if (refreshError || !refreshed.session) {
-                  throw error
-                }
-                return apiClient.get('/api/v1/auth/me/')
-              }
-            }
-
-            const response = await fetchProfileWithRefreshRetry()
-            const userData = response.data as User
-            if (!userData) throw new Error('Failed to fetch profile')
+            const userData = await fetchProfileWithRefreshRetry()
             const profile = userData.profile
 
             set((state) => ({
@@ -135,7 +134,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
                   first_name: userData.first_name,
                   last_name: userData.last_name,
                   profile,
-                  role: userData.role
+                  role: userData.role,
                 },
                 isLoading: false,
               },
@@ -149,10 +148,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
               }
             }
           } catch (error) {
-            if (
-              error instanceof AxiosError &&
-              error.response?.status === 401
-            ) {
+            if (error instanceof Error && isUnauthorizedMessage(error.message)) {
               // Clear stale/invalid session so app can recover cleanly.
               await supabase.auth.signOut()
               set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
@@ -168,7 +164,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
               return
             }
 
-            if (!backendUnavailable && (error instanceof AxiosError && error.message === 'Network Error' || (error instanceof Error && error.message.includes('Backend unreachable')))) {
+            if (
+              !backendUnavailable &&
+              error instanceof Error &&
+              (error.message.includes('Backend unreachable') || error.message.includes('Network Error'))
+            ) {
               backendUnavailable = true
               if (!backendWarned) {
                 console.warn('Backend is currently unreachable. Continuing with limited functionality.')
@@ -177,7 +177,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
               set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
               return
             }
-            if (backendUnavailable) return; // Prevent spam
+            if (backendUnavailable) return // Prevent spam
 
             console.error('Failed to fetch profile on init/auth change:', error)
             set((state) => ({
