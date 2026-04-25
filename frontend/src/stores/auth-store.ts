@@ -34,8 +34,23 @@ export const useAuthStore = create<AuthState>()((set) => ({
         const supabaseUser = session?.user
         if (error || !supabaseUser) throw error || new Error('No active session')
 
-        // Fetch profile from Django
-        const response = await apiClient.get('/api/v1/auth/me/');
+        const fetchProfileWithRefreshRetry = async () => {
+          try {
+            return await apiClient.get('/api/v1/auth/me/');
+          } catch (error) {
+            if (!(error instanceof AxiosError) || error.response?.status !== 401) {
+              throw error;
+            }
+            const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError || !refreshed.session) {
+              throw error;
+            }
+            return apiClient.get('/api/v1/auth/me/');
+          }
+        };
+
+        // Fetch profile from Django (retry once after token refresh on 401)
+        const response = await fetchProfileWithRefreshRetry();
         const userData = response.data as User;
         if (!userData) throw new Error('Failed to fetch profile');
         const profile = userData.profile;
@@ -90,7 +105,22 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
         if (session) {
           try {
-            const response = await apiClient.get('/api/v1/auth/me/')
+            const fetchProfileWithRefreshRetry = async () => {
+              try {
+                return await apiClient.get('/api/v1/auth/me/')
+              } catch (error) {
+                if (!(error instanceof AxiosError) || error.response?.status !== 401) {
+                  throw error
+                }
+                const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+                if (refreshError || !refreshed.session) {
+                  throw error
+                }
+                return apiClient.get('/api/v1/auth/me/')
+              }
+            }
+
+            const response = await fetchProfileWithRefreshRetry()
             const userData = response.data as User
             if (!userData) throw new Error('Failed to fetch profile')
             const profile = userData.profile
