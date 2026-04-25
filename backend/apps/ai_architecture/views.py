@@ -16,7 +16,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from .models import (
     AIInstruction, ChatSession, ChatMessage,
     DrawingStylePreset, ImageFeedback, MaterialPrice, TokenUsage,
@@ -2679,3 +2679,364 @@ class DrawAgentView(APIView):
                 status=502,
             )
 
+
+# ── Draft Copilot (Pascal Architectural Drafter) ─────────────────────
+
+_DRAFT_COPILOT_SYSTEM_PROMPT = (
+    "You are OpenClaw, an expert AI architectural drafter for a parametric 3D building engine. "
+    "The user describes a structure and you produce a precise JSON blueprint.\n\n"
+
+    "## CRITICAL RULES\n"
+    "1. Generate EXACTLY the number of rooms the user asks for. If they say '3-room house', "
+    "produce exactly 3 rooms. Do NOT add extra rooms (no corridors, no entrance halls) unless "
+    "the user explicitly asks for them.\n"
+    "1b. Support residential AND commercial requests, including multi-storey buildings. "
+    "For commercial briefs (office, retail, school, clinic, mixed-use), include realistic room types "
+    "like reception, lobby, office, meeting_room, shop, corridor, restroom, storage, stairs, elevator_lobby.\n"
+    "2. Coordinate origin is [0, 0]. X = east, Z = south. Units = meters.\n"
+    "3. Room origins are the TOP-LEFT corner [x, z]. Rooms MUST tile perfectly — "
+    "adjacent rooms share exact wall coordinates. NO gaps, NO overlaps.\n"
+    "4. DOOR PLACEMENT: offset = distance in meters from wall start to the door CENTER. "
+    "Prefer interior/shared walls for internal room circulation, and use an exterior wall only for "
+    "main entry/exit doors. Keep door center clear of corners using this rule: "
+    "offset must be >= max(0.3, door_width/2 + 0.1) and <= (wall_length - max(0.3, door_width/2 + 0.1)). "
+    "Each room needs exactly 1 door unless user explicitly asks otherwise.\n"
+    "5. WINDOW PLACEMENT: place windows on exterior walls only. "
+    "Use the same corner-clearance rule as doors with window width. "
+    "Bedrooms and living rooms: 1-2 windows. Kitchens: 1 window. Bathrooms: 0 windows by default.\n"
+    "6. OPENING DIMENSIONS: use realistic dimensions in meters. "
+    "Doors width 0.8-1.0 (bathroom 0.75-0.85), door height ~2.1. "
+    "Windows width 0.6-1.8, height 0.9-1.5, sill_height 0.8-1.0.\n"
+    "7. MULTI-STOREY: If user asks for multi-storey, set floors >= 2 and assign each room a floor index "
+    "(1-based). Keep vertically stacked footprints aligned where sensible.\n"
+    "8. Room sizes (realistic):\n"
+    "   - Bedroom: 3.5×4.0m\n"
+    "   - Living room: 5.0×4.5m\n"
+    "   - Kitchen: 3.0×3.5m\n"
+    "   - Bathroom: 2.0×2.5m\n"
+    "9. Wall height: 2.8m.\n"
+    "10. roof_type: choose 'hip' for houses, 'flat' for commercial by default unless user says otherwise.\n\n"
+
+    "## JSON SCHEMA (respond with ONLY this, nothing else)\n"
+    "{\n"
+    '  "draft_name": "<string>",\n'
+    '  "building_type": "<residential|commercial|mixed_use|industrial>",\n'
+    '  "floors": <integer >= 1>,\n'
+    '  "roof_type": "<hip|gable|shed|flat>",\n'
+    '  "wall_height": 2.8,\n'
+    '  "rooms": [\n'
+    "    {\n"
+    '      "id": "<snake_case>",\n'
+    '      "type": "<living|bedroom|bathroom|kitchen|corridor|garage|dining|laundry|study|office|meeting_room|reception|lobby|shop|restroom|storage|stairs|elevator_lobby>",\n'
+    '      "dimensions": { "width": <number>, "depth": <number> },\n'
+    '      "origin": [<x>, <z>],\n'
+      '      "floor": <integer >= 1>,\n'
+    '      "doors": [{ "wall": "<north|south|east|west>", "offset": <number> }],\n'
+    '      "windows": [{ "wall": "<north|south|east|west>", "offset": <number> }]\n'
+    "    }\n"
+    "  ]\n"
+    "}\n"
+    "Respond with ONLY the JSON. No text before or after.\n\n"
+    "## HIGH-ACCURACY EXAMPLES\n"
+    "Example A (residential, 1 floor):\n"
+    "{"
+    "\"draft_name\":\"Compact Family House\","
+    "\"building_type\":\"residential\","
+    "\"floors\":1,"
+    "\"roof_type\":\"hip\","
+    "\"wall_height\":2.8,"
+    "\"rooms\":["
+    "{\"id\":\"living\",\"type\":\"living\",\"dimensions\":{\"width\":5.0,\"depth\":4.5},\"origin\":[0,0],\"floor\":1,"
+    "\"doors\":[{\"wall\":\"south\",\"offset\":2.5,\"width\":0.9}],"
+    "\"windows\":[{\"wall\":\"north\",\"offset\":2.5,\"width\":1.5},{\"wall\":\"west\",\"offset\":2.2,\"width\":1.2}]},"
+    "{\"id\":\"kitchen\",\"type\":\"kitchen\",\"dimensions\":{\"width\":3.5,\"depth\":3.5},\"origin\":[5.0,0],\"floor\":1,"
+    "\"doors\":[{\"wall\":\"west\",\"offset\":1.75,\"width\":0.9}],"
+    "\"windows\":[{\"wall\":\"north\",\"offset\":1.75,\"width\":1.2}]},"
+    "{\"id\":\"bedroom_1\",\"type\":\"bedroom\",\"dimensions\":{\"width\":3.5,\"depth\":4.0},\"origin\":[0,4.5],\"floor\":1,"
+    "\"doors\":[{\"wall\":\"north\",\"offset\":1.75,\"width\":0.9}],"
+    "\"windows\":[{\"wall\":\"south\",\"offset\":1.75,\"width\":1.2}]},"
+    "{\"id\":\"bathroom\",\"type\":\"bathroom\",\"dimensions\":{\"width\":2.5,\"depth\":2.0},\"origin\":[3.5,4.5],\"floor\":1,"
+    "\"doors\":[{\"wall\":\"north\",\"offset\":1.25,\"width\":0.8}],"
+    "\"windows\":[]}"
+    "]"
+    "}\n"
+    "Example B (commercial, 3 floors):\n"
+    "{"
+    "\"draft_name\":\"Midrise Office Block\","
+    "\"building_type\":\"commercial\","
+    "\"floors\":3,"
+    "\"roof_type\":\"flat\","
+    "\"wall_height\":3.2,"
+    "\"rooms\":["
+    "{\"id\":\"lobby_f1\",\"type\":\"lobby\",\"dimensions\":{\"width\":8.0,\"depth\":6.0},\"origin\":[0,0],\"floor\":1,"
+    "\"doors\":[{\"wall\":\"south\",\"offset\":4.0,\"width\":1.2}],"
+    "\"windows\":[{\"wall\":\"north\",\"offset\":4.0,\"width\":1.8}]},"
+    "{\"id\":\"reception_f1\",\"type\":\"reception\",\"dimensions\":{\"width\":4.0,\"depth\":3.0},\"origin\":[8.0,0],\"floor\":1,"
+    "\"doors\":[{\"wall\":\"west\",\"offset\":1.5,\"width\":0.9}],"
+    "\"windows\":[{\"wall\":\"north\",\"offset\":2.0,\"width\":1.2}]},"
+    "{\"id\":\"office_open_f2\",\"type\":\"office\",\"dimensions\":{\"width\":8.0,\"depth\":6.0},\"origin\":[0,0],\"floor\":2,"
+    "\"doors\":[{\"wall\":\"south\",\"offset\":4.0,\"width\":1.0}],"
+    "\"windows\":[{\"wall\":\"north\",\"offset\":4.0,\"width\":1.8},{\"wall\":\"east\",\"offset\":3.0,\"width\":1.5}]},"
+    "{\"id\":\"meeting_f2\",\"type\":\"meeting_room\",\"dimensions\":{\"width\":4.0,\"depth\":3.5},\"origin\":[8.0,0],\"floor\":2,"
+    "\"doors\":[{\"wall\":\"west\",\"offset\":1.75,\"width\":0.9}],"
+    "\"windows\":[{\"wall\":\"north\",\"offset\":2.0,\"width\":1.2}]},"
+    "{\"id\":\"office_open_f3\",\"type\":\"office\",\"dimensions\":{\"width\":8.0,\"depth\":6.0},\"origin\":[0,0],\"floor\":3,"
+    "\"doors\":[{\"wall\":\"south\",\"offset\":4.0,\"width\":1.0}],"
+    "\"windows\":[{\"wall\":\"north\",\"offset\":4.0,\"width\":1.8},{\"wall\":\"west\",\"offset\":3.0,\"width\":1.5}]},"
+    "{\"id\":\"restroom_f3\",\"type\":\"restroom\",\"dimensions\":{\"width\":3.0,\"depth\":2.5},\"origin\":[8.0,0],\"floor\":3,"
+    "\"doors\":[{\"wall\":\"west\",\"offset\":1.25,\"width\":0.85}],"
+    "\"windows\":[]}"
+    "]"
+    "}\n"
+    "Example C (mixed-use, 2 floors):\n"
+    "{"
+    "\"draft_name\":\"Corner Mixed Use\","
+    "\"building_type\":\"mixed_use\","
+    "\"floors\":2,"
+    "\"roof_type\":\"flat\","
+    "\"wall_height\":3.0,"
+    "\"rooms\":["
+    "{\"id\":\"shop_front_f1\",\"type\":\"shop\",\"dimensions\":{\"width\":6.0,\"depth\":5.0},\"origin\":[0,0],\"floor\":1,"
+    "\"doors\":[{\"wall\":\"south\",\"offset\":3.0,\"width\":1.2}],"
+    "\"windows\":[{\"wall\":\"south\",\"offset\":1.2,\"width\":1.2},{\"wall\":\"south\",\"offset\":4.8,\"width\":1.2}]},"
+    "{\"id\":\"storage_f1\",\"type\":\"storage\",\"dimensions\":{\"width\":3.0,\"depth\":3.0},\"origin\":[6.0,0],\"floor\":1,"
+    "\"doors\":[{\"wall\":\"west\",\"offset\":1.5,\"width\":0.9}],"
+    "\"windows\":[{\"wall\":\"north\",\"offset\":1.5,\"width\":1.0}]},"
+    "{\"id\":\"corridor_f1\",\"type\":\"corridor\",\"dimensions\":{\"width\":2.0,\"depth\":5.0},\"origin\":[9.0,0],\"floor\":1,"
+    "\"doors\":[{\"wall\":\"west\",\"offset\":2.5,\"width\":0.9}],"
+    "\"windows\":[]},"
+    "{\"id\":\"stairs_f1\",\"type\":\"stairs\",\"dimensions\":{\"width\":2.0,\"depth\":3.0},\"origin\":[9.0,5.0],\"floor\":1,"
+    "\"doors\":[{\"wall\":\"north\",\"offset\":1.0,\"width\":0.9}],"
+    "\"windows\":[]},"
+    "{\"id\":\"living_f2\",\"type\":\"living\",\"dimensions\":{\"width\":5.0,\"depth\":4.0},\"origin\":[0,0],\"floor\":2,"
+    "\"doors\":[{\"wall\":\"east\",\"offset\":2.0,\"width\":0.9}],"
+    "\"windows\":[{\"wall\":\"north\",\"offset\":2.5,\"width\":1.5},{\"wall\":\"west\",\"offset\":2.0,\"width\":1.2}]},"
+    "{\"id\":\"bedroom_f2\",\"type\":\"bedroom\",\"dimensions\":{\"width\":4.0,\"depth\":4.0},\"origin\":[5.0,0],\"floor\":2,"
+    "\"doors\":[{\"wall\":\"west\",\"offset\":2.0,\"width\":0.9}],"
+    "\"windows\":[{\"wall\":\"north\",\"offset\":2.0,\"width\":1.2}]},"
+    "{\"id\":\"kitchen_f2\",\"type\":\"kitchen\",\"dimensions\":{\"width\":3.0,\"depth\":3.0},\"origin\":[0,4.0],\"floor\":2,"
+    "\"doors\":[{\"wall\":\"north\",\"offset\":1.5,\"width\":0.9}],"
+    "\"windows\":[{\"wall\":\"south\",\"offset\":1.5,\"width\":1.2}]},"
+    "{\"id\":\"bathroom_f2\",\"type\":\"bathroom\",\"dimensions\":{\"width\":2.0,\"depth\":2.5},\"origin\":[3.0,4.0],\"floor\":2,"
+    "\"doors\":[{\"wall\":\"north\",\"offset\":1.0,\"width\":0.8}],"
+    "\"windows\":[]}"
+    "]"
+    "}\n"
+    "Learn the pattern: valid wall names, realistic offsets, correct floor indices, and windows on exterior walls.\n\n"
+    "## NEGATIVE EXAMPLES (avoid these)\n"
+    "Bad: wall=\"northeast\" or floor=0 or missing floors/building_type.\n"
+    "Good: wall in [north,south,east,west], floor starts at 1, include floors and building_type.\n"
+    "Bad: bathroom windows auto-added, or offsets at wall corners (0.0 / wall_length).\n"
+    "Good: bathrooms default to windows=[], and openings are corner-safe with clearances.\n"
+    "Bad: interior windows on shared corridor walls in commercial plans.\n"
+    "Good: place windows on exterior-facing walls unless user explicitly requests otherwise.\n"
+    "Bad Output snippet:\n"
+    "{\"rooms\":[{\"id\":\"r1\",\"type\":\"office\",\"origin\":[0,0],\"floor\":0,\"doors\":[{\"wall\":\"northeast\",\"offset\":0.0}],\"windows\":[{\"wall\":\"west\",\"offset\":0.0}]}]}\n"
+    "Corrected snippet:\n"
+    "{\"building_type\":\"commercial\",\"floors\":2,\"rooms\":[{\"id\":\"office_f1\",\"type\":\"office\",\"dimensions\":{\"width\":6.0,\"depth\":4.0},\"origin\":[0,0],\"floor\":1,\"doors\":[{\"wall\":\"south\",\"offset\":3.0,\"width\":0.9}],\"windows\":[{\"wall\":\"north\",\"offset\":3.0,\"width\":1.2}]}]}"
+)
+
+def _clamp(value: float, minimum: float, maximum: float) -> float:
+    return max(minimum, min(maximum, value))
+
+
+def _normalize_draft_openings(draft: Dict[str, Any]) -> Dict[str, Any]:
+    rooms = draft.get('rooms')
+    if not isinstance(rooms, list):
+        return draft
+    total_floors = draft.get('floors')
+    if not isinstance(total_floors, int) or total_floors < 1:
+        inferred = max(
+            1,
+            *[
+                int(room.get('floor'))
+                for room in rooms
+                if isinstance(room, dict) and isinstance(room.get('floor'), (int, float))
+            ],
+        )
+        total_floors = inferred
+    draft['floors'] = max(1, min(60, int(total_floors)))
+
+    building_type = str(draft.get('building_type') or '').lower()
+    if building_type not in {'residential', 'commercial', 'mixed_use', 'industrial'}:
+        commercial_tokens = ('office', 'retail', 'commercial', 'mall', 'school', 'clinic', 'hospital')
+        text_blob = json.dumps(draft).lower()
+        draft['building_type'] = 'commercial' if any(token in text_blob for token in commercial_tokens) else 'residential'
+    if not isinstance(draft.get('roof_type'), str):
+        draft['roof_type'] = 'flat' if draft['building_type'] in {'commercial', 'industrial', 'mixed_use'} else 'hip'
+
+    for room in rooms:
+        if not isinstance(room, dict):
+            continue
+        floor_raw = room.get('floor')
+        floor_value = int(floor_raw) if isinstance(floor_raw, (int, float)) else 1
+        room['floor'] = max(1, min(draft['floors'], floor_value))
+        dimensions = room.get('dimensions') if isinstance(room.get('dimensions'), dict) else {}
+        width = float(dimensions.get('width') or 0)
+        depth = float(dimensions.get('depth') or 0)
+        room_type = str(room.get('type') or '').lower()
+
+        def wall_length(wall_name: str) -> float:
+            return width if wall_name in ('north', 'south') else depth
+
+        def normalize_wall(raw: Any) -> str:
+            return raw if raw in ('north', 'south', 'east', 'west') else 'south'
+
+        doors = room.get('doors') if isinstance(room.get('doors'), list) else []
+        if not doors:
+            doors = [{'wall': 'south', 'offset': max(0.6, wall_length('south') / 2)}]
+        normalized_doors = []
+        for door in doors:
+            if not isinstance(door, dict):
+                continue
+            wall = normalize_wall(door.get('wall'))
+            length = max(1.0, wall_length(wall))
+            default_width = 0.8 if room_type == 'bathroom' else 0.9
+            door_width = door.get('width')
+            door_width = float(door_width) if isinstance(door_width, (int, float)) else default_width
+            door_width = _clamp(door_width, 0.7, min(2.4, length * 0.7))
+            clearance = max(0.3, door_width / 2 + 0.1)
+            min_offset = min(clearance, length / 2)
+            max_offset = max(min_offset, length - clearance)
+            raw_offset = door.get('offset')
+            offset = float(raw_offset) if isinstance(raw_offset, (int, float)) else length / 2
+            normalized_doors.append({
+                **door,
+                'wall': wall,
+                'width': door_width,
+                'height': _clamp(float(door.get('height')) if isinstance(door.get('height'), (int, float)) else 2.1, 1.9, 2.5),
+                'offset': _clamp(offset, min_offset, max_offset),
+            })
+        room['doors'] = normalized_doors[:4]
+
+        windows = room.get('windows') if isinstance(room.get('windows'), list) else []
+        if room_type != 'bathroom' and not windows:
+            windows = [{'wall': 'north', 'offset': max(0.6, wall_length('north') / 2)}]
+        normalized_windows = []
+        for win in windows:
+            if not isinstance(win, dict):
+                continue
+            wall = normalize_wall(win.get('wall'))
+            length = max(1.0, wall_length(wall))
+            win_width = float(win.get('width')) if isinstance(win.get('width'), (int, float)) else (0.6 if room_type == 'bathroom' else 1.2)
+            win_width = _clamp(win_width, 0.45, min(2.4, length * 0.7))
+            clearance = max(0.3, win_width / 2 + 0.1)
+            min_offset = min(clearance, length / 2)
+            max_offset = max(min_offset, length - clearance)
+            raw_offset = win.get('offset')
+            offset = float(raw_offset) if isinstance(raw_offset, (int, float)) else length / 2
+            normalized_windows.append({
+                **win,
+                'wall': wall,
+                'width': win_width,
+                'height': _clamp(float(win.get('height')) if isinstance(win.get('height'), (int, float)) else 1.2, 0.7, 1.8),
+                'sill_height': _clamp(float(win.get('sill_height')) if isinstance(win.get('sill_height'), (int, float)) else 0.9, 0.5, 1.1),
+                'offset': _clamp(offset, min_offset, max_offset),
+            })
+        room['windows'] = [] if room_type == 'bathroom' and not room.get('windows') else normalized_windows[:4]
+
+    return draft
+
+
+def _call_gemini_json(system: str, user_content: str, max_tokens: int = 8192,
+                      temperature: float = 0.4, timeout: float = 90.0) -> str:
+    """Call Gemini with responseMimeType=application/json for structured output."""
+    api_key = settings.GEMINI_API_KEY
+    if not api_key or len(api_key) < 10:
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
+
+    model_name = getattr(settings, 'AI_DRAFT_MODEL', '') or 'gemini-3.1-pro-preview'
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}"
+        f":generateContent?key={api_key}"
+    )
+
+    payload = {
+        "contents": [
+            {"role": "user", "parts": [{"text": f"{system}\n\n{user_content}"}]}
+        ],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+            "responseMimeType": "application/json",
+        },
+    }
+
+    logger.info("[Gemini JSON] Calling %s for draft-copilot", model_name)
+    try:
+        resp = http_requests.post(url, json=payload, timeout=timeout)
+    except http_requests.exceptions.Timeout:
+        raise RuntimeError("Gemini timed out. Try a simpler prompt.")
+    except http_requests.exceptions.RequestException as e:
+        raise RuntimeError(f"Could not connect to Gemini: {e}")
+
+    if resp.status_code != 200:
+        body = resp.text[:600]
+        raise RuntimeError(f"Gemini API error (HTTP {resp.status_code}): {body}")
+
+    data = resp.json()
+    candidates = data.get("candidates", [])
+    if not candidates:
+        raise RuntimeError("Gemini returned no candidates.")
+
+    parts = candidates[0].get("content", {}).get("parts", [])
+    text_parts = [p["text"] for p in parts if "text" in p]
+    return "\n".join(text_parts)
+
+
+class DraftCopilotView(APIView):
+    """
+    POST /api/v1/ai/draft-copilot/
+    Accepts { "prompt": "Build a 3-bedroom house" }
+    Returns the Parametric OOP JSON draft from Gemini.
+    """
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'ai_generate'
+
+    def post(self, request):
+        prompt = (request.data.get('prompt') or request.data.get('input') or '').strip()
+        if not prompt:
+            return Response({'error': 'prompt is required'}, status=400)
+
+        try:
+            raw = _call_gemini_json(
+                system=_DRAFT_COPILOT_SYSTEM_PROMPT,
+                user_content=prompt,
+                max_tokens=8192,
+                temperature=0.4,
+                timeout=90.0,
+            )
+
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                first_nl = cleaned.index("\n")
+                cleaned = cleaned[first_nl + 1:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+
+            try:
+                draft = json.loads(cleaned)
+            except json.JSONDecodeError:
+                draft = _repair_truncated_json(cleaned)
+
+            if 'rooms' not in draft or not isinstance(draft.get('rooms'), list):
+                return Response(
+                    {'error': 'Gemini returned invalid draft structure (missing rooms array).'},
+                    status=502,
+                )
+
+            if 'draft_name' not in draft:
+                draft['draft_name'] = f"Draft: {prompt[:60]}"
+
+            draft = _normalize_draft_openings(draft)
+
+            return Response(draft)
+
+        except Exception as e:
+            logger.error("DraftCopilot error: %s", e, exc_info=True)
+            return Response(
+                {'error': f'AI drafting failed: {str(e)}'},
+                status=502,
+            )

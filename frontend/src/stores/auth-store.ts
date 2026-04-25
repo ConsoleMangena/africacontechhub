@@ -138,15 +138,17 @@ export const useAuthStore = create<AuthState>()((set) => ({
               return
             }
 
-            if (!backendUnavailable && error instanceof Error && error.message.includes('Backend unreachable')) {
+            if (!backendUnavailable && (error instanceof AxiosError && error.message === 'Network Error' || (error instanceof Error && error.message.includes('Backend unreachable')))) {
               backendUnavailable = true
               if (!backendWarned) {
-                console.warn(error.message)
+                console.warn('Backend is currently unreachable. Continuing with limited functionality.')
                 backendWarned = true
               }
               set((state) => ({ auth: { ...state.auth, user: null, isLoading: false } }))
               return
             }
+            if (backendUnavailable) return; // Prevent spam
+
             console.error('Failed to fetch profile on init/auth change:', error)
             set((state) => ({
               auth: { ...state.auth, user: null, isLoading: false },

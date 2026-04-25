@@ -31,3 +31,4 @@ export {
 } from './store/use-palette-view-registry'
 export { useUploadStore } from './store/use-upload'
 export { ViewerToolbarLeft, ViewerToolbarRight } from './components/ui/viewer-toolbar'
+export { AICopilotConsole, type AICopilotConsoleProps } from './components/ui/ai-copilot-console'

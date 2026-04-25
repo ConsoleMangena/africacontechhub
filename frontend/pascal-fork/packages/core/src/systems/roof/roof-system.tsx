@@ -74,7 +74,9 @@ export const RoofSystem = () => {
             // while roofMaterials only has 4 entries. Three.js raycasts into invisible groups,
             // so MeshBVH hits groups[4].materialIndex → undefined.side → crash.
             if (mesh.geometry.type === 'BoxGeometry') {
-              mesh.geometry.dispose()
+              if (mesh.geometry && typeof mesh.geometry.dispose === 'function') {
+                mesh.geometry.dispose()
+              }
               const placeholder = new THREE.BufferGeometry()
               placeholder.setAttribute('position', new THREE.Float32BufferAttribute([], 3))
               placeholder.computeBoundsTree = computeBoundsTree
@@ -131,7 +133,9 @@ export const RoofSystem = () => {
 function updateRoofSegmentGeometry(node: RoofSegmentNode, mesh: THREE.Mesh) {
   const newGeo = generateRoofSegmentGeometry(node)
 
-  mesh.geometry.dispose()
+  if (mesh.geometry && typeof mesh.geometry.dispose === 'function') {
+    mesh.geometry.dispose()
+  }
   mesh.geometry = newGeo
   newGeo.computeBoundsTree = computeBoundsTree
   newGeo.computeBoundsTree({ maxLeafSize: 10 })

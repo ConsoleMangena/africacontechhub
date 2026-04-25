@@ -4,6 +4,7 @@ from .views import (
     ChatCompletionView, ChatStreamView,
     ChatSessionListView, ChatSessionDetailView,
     BOQTemplateView, MaterialPriceView, SiteIntelView, DrawAgentView,
+    DraftCopilotView,
 )
 
 router = DefaultRouter()
@@ -20,5 +21,6 @@ urlpatterns = [
     path('site-intel/', SiteIntelView.as_view(), name='ai-site-intel-create'),
     path('site-intel/<int:project_id>/', SiteIntelView.as_view(), name='ai-site-intel-latest'),
     path('draw-agent/', DrawAgentView.as_view(), name='ai-draw-agent'),
+    path('draft-copilot/', DraftCopilotView.as_view(), name='ai-draft-copilot'),
     path('', include(router.urls)),
 ]

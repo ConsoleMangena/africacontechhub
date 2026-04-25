@@ -620,6 +620,8 @@ export const aiApi = {
     getSessions: () => api.get<{ id: number, title: string, updated_at: string }[]>('/ai/chat/sessions/'),
     getSessionDetails: (id: number) => api.get<{ id: number, title: string, messages: { id: number, role: string, content: string, image_url: string | null, created_at: string }[] }>(`/ai/chat/sessions/${id}/`),
     deleteSession: (id: number) => api.delete(`/ai/chat/sessions/${id}/`),
+    draftCopilot: (prompt: string) =>
+        api.post<{ draft_name: string; rooms: Array<{ id: string; type: string; dimensions: { width: number; depth: number }; origin: [number, number]; doors: Array<{ wall: string; offset: number }> }> }>('/ai/draft-copilot/', { prompt }),
     submitFeedback: (messageId: number, rating: number, originalPrompt: string, presetId?: number, feedbackText?: string) =>
         api.post<{ success: boolean; created: boolean; rating: number }>('/ai/feedback/', {
             message_id: messageId,

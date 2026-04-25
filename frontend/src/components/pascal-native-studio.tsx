@@ -54,6 +54,7 @@ export function PascalNativeStudio({
   const [stats, setStats] = useState<{ wallCount: number; itemCount: number } | null>(null)
   const [EditorComp, setEditorComp] = useState<ComponentType<any> | null>(null)
   const [debugEvents, setDebugEvents] = useState<StudioDebugEvent[]>([])
+  const [activeViewMode, setActiveViewMode] = useState<'2d' | '3d' | 'split'>('3d')
   const loadInvocationCountRef = useRef(0)
   const saveInvocationCountRef = useRef(0)
   const debugEnabled = useMemo(() => {
@@ -212,6 +213,13 @@ export function PascalNativeStudio({
         viewerStoreRef.current = (viewerMod as any).useViewer
         editorStoreRef.current = (editorMod as any).useEditor
         emitterRef.current = (coreMod as any).emitter
+        
+        try {
+          (viewerMod as any).useViewer.getState().setTheme('dark')
+        } catch {
+          // ignore
+        }
+        
         debugLog('module-load:success')
       } catch {
         if (!cancelled) {
@@ -403,10 +411,12 @@ export function PascalNativeStudio({
       return sceneToUse
     } catch {
       // If BOTH API drawing load and native versions fail, still return a valid minimal scene
-      // so the editor remains interactive (tools/camera/selection won’t dead-end).
+      // so the editor remains interactive (tools/camera/selection won't dead-end).
+      // NOTE: Do NOT call setError() here — that unmounts the entire 3D editor.
+      // The empty scene is a perfectly valid starting point for the user.
       const fallback = normalizeSceneGraph({}, [])
       setStats({ wallCount: 0, itemCount: 0 })
-      setError('Could not load project drawing. Loaded an empty scene.')
+      console.warn('[pascal-native-studio] Could not load project drawing — using empty scene.')
       const sceneToUse = {
         nodes: fallback.nodes as Record<string, unknown>,
         rootNodeIds: fallback.rootNodeIds,
@@ -537,6 +547,25 @@ export function PascalNativeStudio({
   }, [EditorComp])
 
   useEffect(() => {
+    const editorStore = editorStoreRef.current
+    if (!editorStore?.getState) return
+    const initialMode = editorStore.getState()?.viewMode
+    if (initialMode === '2d' || initialMode === '3d' || initialMode === 'split') {
+      setActiveViewMode(initialMode)
+    }
+    if (!editorStore?.subscribe) return
+    const unsubscribe = editorStore.subscribe((state: any) => {
+      const mode = state?.viewMode
+      if (mode === '2d' || mode === '3d' || mode === 'split') {
+        setActiveViewMode(mode)
+      }
+    })
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe()
+    }
+  }, [EditorComp])
+
+  useEffect(() => {
     if (!manualSaveSignal) return
     if (manualSaveSignal === lastHandledManualSaveSignalRef.current) return
     lastHandledManualSaveSignalRef.current = manualSaveSignal
@@ -613,16 +642,68 @@ export function PascalNativeStudio({
     return `Loaded ${stats.wallCount} walls and ${stats.itemCount} items.`
   }, [loading, error, stats])
 
-  return !error && EditorComp ? (
+  const sidebarTabs = useMemo(() => {
+    if (!EditorComp) return []
+    return [
+      { id: 'site', label: 'Site', component: () => null },
+      { id: 'settings', label: 'Settings', component: () => null },
+    ]
+  }, [EditorComp])
+
+  const setViewMode = useCallback((mode: '2d' | '3d' | 'split') => {
+    const editorStore = editorStoreRef.current
+    if (!editorStore?.getState) return
+    editorStore.getState().setViewMode?.(mode)
+    setActiveViewMode(mode)
+  }, [])
+
+  return EditorComp ? (
     <div className='relative h-full min-h-96'>
       <EditorComp
         key={projectId}
         projectId={String(projectId)}
         layoutVersion='v2'
+        sidebarTabs={sidebarTabs}
         onLoad={loadScene}
         onSave={saveScene}
         onSaveStatusChange={() => {}}
       />
+      <div className='pointer-events-auto absolute bottom-4 left-4 z-40 flex items-center gap-1 rounded-md border border-slate-800 bg-slate-900/95 p-1 text-[11px] text-slate-300 shadow-md'>
+        <span className='px-1 text-slate-400'>View</span>
+        <button
+          type='button'
+          onClick={() => setViewMode('2d')}
+          className={`rounded px-2 py-1 transition-colors ${
+            activeViewMode === '2d'
+              ? 'bg-cyan-900/50 text-cyan-200'
+              : 'hover:bg-slate-800'
+          }`}
+        >
+          2D
+        </button>
+        <button
+          type='button'
+          onClick={() => setViewMode('split')}
+          className={`rounded px-2 py-1 transition-colors ${
+            activeViewMode === 'split'
+              ? 'bg-cyan-900/50 text-cyan-200'
+              : 'hover:bg-slate-800'
+          }`}
+        >
+          Split
+        </button>
+        <button
+          type='button'
+          onClick={() => setViewMode('3d')}
+          className={`rounded px-2 py-1 transition-colors ${
+            activeViewMode === '3d'
+              ? 'bg-cyan-900/50 text-cyan-200'
+              : 'hover:bg-slate-800'
+          }`}
+        >
+          3D
+        </button>
+      </div>
       {debugEnabled ? (
         <div className='pointer-events-auto absolute bottom-4 right-4 z-40 w-[26rem] max-w-[90vw] rounded-md border bg-background/95 p-2 text-[11px] shadow-lg backdrop-blur'>
           <div className='mb-1 flex items-center justify-between gap-2'>

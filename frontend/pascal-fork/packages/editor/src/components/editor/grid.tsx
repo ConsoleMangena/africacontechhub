@@ -33,9 +33,9 @@ export const Grid = ({
 }) => {
   const theme = useViewer((state) => state.theme)
 
-  // Use slightly lighter colors for dark mode grid to make it apparent
-  const effectiveCellColor = theme === 'dark' ? '#1f2a40' : cellColor
-  const effectiveSectionColor = theme === 'dark' ? '#2e3f61' : sectionColor
+  // Use colors that complement the slate-950 dark background cleanly
+  const effectiveCellColor = theme === 'dark' ? '#1e293b' : cellColor
+  const effectiveSectionColor = theme === 'dark' ? '#334155' : sectionColor
 
   const cursorPositionRef = useRef(new Vector2(0, 0))
 
@@ -89,7 +89,7 @@ export const Grid = ({
     )
 
     // Baseline alpha: small amount of opacity everywhere the grid exists
-    const baseAlpha = float(theme === 'dark' ? 0.32 : 0.14) // Stronger baseline on black
+    const baseAlpha = float(theme === 'dark' ? 0.6 : 0.14) // Stronger baseline on black
 
     // Combined alpha with cursor fade and baseline minimum
     const alpha = g1.add(g2).mul(fade).mul(cursorFade.max(baseAlpha))

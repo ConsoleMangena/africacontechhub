@@ -118,6 +118,8 @@ export const CustomCameraControls = () => {
       shiftLeft: false,
       controlRight: false,
       controlLeft: false,
+      altRight: false,
+      altLeft: false,
       space: false,
     }
 
@@ -126,6 +128,7 @@ export const CustomCameraControls = () => {
 
       const shift = keyState.shiftRight || keyState.shiftLeft
       const control = keyState.controlRight || keyState.controlLeft
+      const alt = keyState.altRight || keyState.altLeft
       const space = keyState.space
 
       const wheelAction =
@@ -138,8 +141,11 @@ export const CustomCameraControls = () => {
       if (isPreviewMode) {
         // In preview mode, left-click is always pan (viewer-style)
         controls.current.mouseButtons.left = CameraControlsImpl.ACTION.SCREEN_PAN
-      } else if (space) {
+      } else if (space || shift) {
         controls.current.mouseButtons.left = CameraControlsImpl.ACTION.SCREEN_PAN
+      } else if (alt || control) {
+        // Keep regular left-click behavior for editing, but allow explicit camera drag modifiers.
+        controls.current.mouseButtons.left = CameraControlsImpl.ACTION.ROTATE
       } else {
         controls.current.mouseButtons.left = CameraControlsImpl.ACTION.NONE
       }
@@ -162,6 +168,12 @@ export const CustomCameraControls = () => {
       if (event.code === 'ControlLeft') {
         keyState.controlLeft = true
       }
+      if (event.code === 'AltRight') {
+        keyState.altRight = true
+      }
+      if (event.code === 'AltLeft') {
+        keyState.altLeft = true
+      }
       updateConfig()
     }
 
@@ -181,6 +193,12 @@ export const CustomCameraControls = () => {
       }
       if (event.code === 'ControlLeft') {
         keyState.controlLeft = false
+      }
+      if (event.code === 'AltRight') {
+        keyState.altRight = false
+      }
+      if (event.code === 'AltLeft') {
+        keyState.altLeft = false
       }
       updateConfig()
     }

@@ -176,7 +176,10 @@ function updateFenceGeometry(fenceId: FenceNode['id']) {
   if (!mesh) return
 
   const newGeometry = generateFenceGeometry(node)
-  mesh.geometry.dispose()
+  const previousGeometry = mesh.geometry
+  if (previousGeometry && typeof previousGeometry.dispose === 'function') {
+    previousGeometry.dispose()
+  }
   mesh.geometry = newGeometry
 
   const centerX = (node.start[0] + node.end[0]) / 2
@@ -197,8 +200,14 @@ export const FenceSystem = () => {
     dirtyNodes.forEach((id) => {
       const node = nodes[id]
       if (!node || node.type !== 'fence') return
-      updateFenceGeometry(id as FenceNode['id'])
-      clearDirty(id as AnyNodeId)
+      try {
+        updateFenceGeometry(id as FenceNode['id'])
+      } catch (error) {
+        console.error('[FenceSystem] Failed to update fence geometry', { id, error })
+      } finally {
+        // Always clear dirty to avoid retry storms on malformed meshes.
+        clearDirty(id as AnyNodeId)
+      }
     })
   }, 4)
 

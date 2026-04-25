@@ -1,3 +1,4 @@
+import { AICopilotConsole } from "../ui/ai-copilot-console"
 'use client'
 
 import { Icon } from '@iconify/react'
@@ -960,6 +961,9 @@ export default function Editor({
               </div>
               <div className="pointer-events-auto">
                 <PanelManager />
+              </div>
+              <div className="pointer-events-auto">
+                <AICopilotConsole />
               </div>
               <div className="pointer-events-auto">
                 <HelperManager />

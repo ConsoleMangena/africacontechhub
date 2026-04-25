@@ -251,12 +251,28 @@ export function FloatingLevelSelector() {
     setDeletingLevel(null)
   }, [deletingLevel])
 
-  if (levels.length === 0) return null
-
   const reversedLevels = [...levels].reverse()
 
   const addButtonClass =
     'absolute left-1/2 z-10 flex h-4 w-4 -translate-x-1/2 items-center justify-center rounded-full border border-border/80 bg-neutral-800 text-muted-foreground/60 shadow-md transition-colors hover:bg-neutral-700 hover:text-foreground'
+
+  // When no levels exist, show a prominent "Add Level" button so the user can recover
+  if (levels.length === 0) {
+    return (
+      <div className="pointer-events-auto absolute top-14 left-3 z-20">
+        <div className="flex flex-col gap-1 rounded-xl border border-border bg-background/90 p-1.5 shadow-2xl backdrop-blur-md">
+          <button
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+            onClick={handleAddAbove}
+            type="button"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add Level
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>

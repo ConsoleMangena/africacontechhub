@@ -62,6 +62,20 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
     return null // Will redirect via useEffect
   }
 
+  const isFullscreenApp = location.pathname.includes('/architectural-studio')
+
+  if (isFullscreenApp) {
+    return (
+      <SearchProvider>
+        <LayoutProvider>
+          <div className="dark min-h-screen w-full bg-slate-950">
+            {children ?? <Outlet />}
+          </div>
+        </LayoutProvider>
+      </SearchProvider>
+    )
+  }
+
   return (
     <SearchProvider>
       <LayoutProvider>

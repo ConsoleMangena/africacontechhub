@@ -47,7 +47,63 @@ const RETRY_DELAY_MS = 500
 const DARK_BG = '#1f2433'
 const LIGHT_BG = '#ffffff'
 
+/**
+ * Gate component that only mounts the real pipeline when the renderer
+ * is using a genuine WebGPU backend.  On WebGL2 fallback it returns
+ * null so React-Three-Fiber's built-in render loop drives the scene.
+ */
 const PostProcessingPasses = () => {
+  const { gl: renderer } = useThree()
+
+  // Check the actual renderer backend — `navigator.gpu` can exist even
+  // when requestAdapter() returns null ("No available adapters").
+  const isWebGLBackend = !!(renderer as any)?.backend?.isWebGLBackend
+
+  if (isWebGLBackend) {
+    return <WebGL2Fallback />
+  }
+
+  return <WebGPUPostProcessing />
+}
+
+/**
+ * Lightweight render driver for the WebGL2 fallback path.
+ *
+ * The WebGPUPostProcessing component normally drives rendering via
+ * useFrame at priority 1.  R3F does NOT auto-render when the WebGPU
+ * renderer is used (even on the WebGL2 backend), so we must explicitly
+ * call renderer.render(scene, camera) each frame.  No post-processing
+ * (SSGI, outlines, denoise) — just a clean direct render.
+ */
+const WebGL2Fallback = () => {
+  const { gl: renderer, scene, camera } = useThree()
+
+  useEffect(() => {
+    console.warn(
+      '[viewer] WebGL2 fallback detected — rendering without post-processing (SSGI, outlines, denoise).',
+    )
+  }, [])
+
+  useFrame(() => {
+    try {
+      if ((renderer as any).setClearAlpha) {
+        ;(renderer as any).setClearAlpha(1)
+      }
+      renderer.render(scene, camera)
+    } catch {
+      // Swallow transient render errors to keep the loop alive.
+    }
+  }, 1)
+
+  return null
+}
+
+/**
+ * The actual post-processing pipeline — only mounted when the renderer
+ * is using a real WebGPU backend.  All hooks live here so they are never
+ * registered (and never fire) on WebGL2.
+ */
+const WebGPUPostProcessing = () => {
   const { gl: renderer, scene, camera } = useThree()
   const renderPipelineRef = useRef<RenderPipeline | null>(null)
   const hasPipelineErrorRef = useRef(false)
@@ -116,24 +172,6 @@ const PostProcessingPasses = () => {
     }
 
     hasPipelineErrorRef.current = false
-
-    // WebGPU availability check: SSGI, denoise, and RenderPipeline are all
-    // WebGPU-only APIs. When the browser falls back to WebGL2 (no
-    // `navigator.gpu`, or the device couldn't be created), building the
-    // pipeline either throws silently or produces a broken output where
-    // the scene renders for a few frames and then goes black as the retry
-    // loop fights the direct-render fallback path. Short-circuit here so
-    // `useFrame` uses the direct `renderer.render(scene, camera)` path
-    // exclusively and never attempts the TSL pipeline.
-    const hasWebGPU = typeof navigator !== 'undefined' && typeof navigator.gpu !== 'undefined'
-    if (!hasWebGPU) {
-      console.warn(
-        '[viewer] WebGPU unavailable — rendering without post-processing (SSGI, outlines, denoise).',
-      )
-      hasPipelineErrorRef.current = true
-      renderPipelineRef.current = null
-      return
-    }
 
     // Clear outliner arrays synchronously to prevent stale Object3D refs
     // from the previous project leaking into the new pipeline's outline passes.
